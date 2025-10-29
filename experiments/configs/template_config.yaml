@@ -1,0 +1,195 @@
+# RAG Pipeline Configuration Template
+# 실험별 설정 템플릿 파일
+
+# ===========================================
+# Experiment Metadata
+# ===========================================
+experiment_name: "example_experiment"
+description: "Template configuration for RAG experiments"
+author: "team_member_name"
+date: "2025-10-29"
+
+# ===========================================
+# Data Configuration - 원천데이터 + 라벨링데이터 통합
+# ===========================================
+data:
+  # 실제 형사법 데이터 사용 여부
+  use_real_data: true
+
+  # 데이터 경로 (use_real_data: false일 때)
+  path: "data/processed/v1/"
+
+  # 형사법 데이터 설정 (use_real_data: true일 때) - V2 로더 사용
+  # 원천데이터 + 라벨링데이터 통합
+  use_source: true              # 원천데이터 사용 (TS_법령, TS_판결문, TS_결정례, TS_해석례)
+  use_labeled: false            # 라벨링데이터 사용 (인덱싱용은 false, 평가용은 별도)
+
+  # 데이터 스플릿 설정
+  split: 'all'                  # 'training', 'validation', 'all'
+                                # - 'training': Training 데이터만 (약 80,000개)
+                                # - 'validation': Validation 데이터만 (약 10,000개)
+                                # - 'all': 둘 다 사용 (권장: 지식 최대화)
+
+  # 사용할 데이터 타입 선택 (null = 전체 사용)
+  source_types: ['법령', '판결문', '결정례', '해석례']      # 원천데이터 타입
+  labeled_types: ['법령_QA', '판결문_QA', '결정례_QA', '해석례_QA', '판결문_SUM', '결정례_SUM', '해석례_SUM']  # 라벨링데이터 타입
+
+  # 타입별 최대 문서 수 (null = 제한 없음)
+  # 예시:
+  #   - null: 모든 데이터 사용 (법령_QA 34,919 + 판결문_QA 7,025 + ...)
+  #   - 100: 각 타입에서 100개씩만 로드 (법령_QA 100 + 판결문_QA 100 + ...)
+  max_per_type: 100             # 실험용: 각 타입에서 100개씩 로드
+
+  # 일반 설정
+  version: "v1"
+
+  # 전체 데이터 규모 참고:
+  # - 법령_QA: 34,919개
+  # - 판결문_QA: 7,025개
+  # - 결정례_QA: 5,426개
+  # - 해석례_QA: 64개
+  # + 원천데이터 (법령, 판결문, 결정례, 해석례)
+
+# ===========================================
+# Chunking Configuration (인덱싱에 영향)
+# ===========================================
+chunking:
+  strategy: "fixed"     # Options: fixed, semantic, recursive, sliding_window
+  chunk_size: 512       # 토큰 수
+  overlap: 50          # 중첩 토큰 수
+
+  # Semantic chunking specific
+  threshold: 0.8       # 의미적 유사도 임계값
+
+  # Recursive chunking specific
+  separators: ["\n\n", "\n", ". ", " "]
+
+  # Sliding window specific
+  window_size: 512
+  step_size: 256
+
+# ===========================================
+# Embedding Configuration (인덱싱에 영향)
+# ===========================================
+embedding:
+  type: "huggingface"   # Options: openai, huggingface, cohere
+  model: "BAAI/bge-m3"  # 기본: BGE-M3 (무료, 한국어 지원)
+  device: "mps"         # Options: cpu, cuda, mps (Mac)
+
+  # HuggingFace specific
+  batch_size: 8        # 배치 크기 (M1 Mac은 8 권장, 고성능 GPU는 32 가능)
+
+  # OpenAI specific (API key in .env)
+  # model: "text-embedding-ada-002"
+
+# ===========================================
+# Vector Store Configuration (인덱싱에 영향)
+# ===========================================
+vector_store:
+  type: "faiss"        # Options: faiss, chromadb, qdrant, milvus
+
+  # FAISS specific
+  index_type: "flat"   # Options: flat, ivf, hnsw
+  index_path: "experiments/indexed_data/"  # 인덱스 저장 경로
+
+  # IVF settings (if index_type: ivf)
+  nlist: 100          # Number of clusters
+  nprobe: 10          # Number of clusters to search
+
+  # HNSW settings (if index_type: hnsw)
+  M: 32               # Number of connections
+  ef_construction: 200
+  ef_search: 50
+
+  # ChromaDB specific
+  # collection_name: "criminal_law"
+  # persist_directory: "./chromadb"
+
+# ===========================================
+# Cache Configuration (NEW!)
+# ===========================================
+cache:
+  # 캐시 사용 설정
+  enabled: true         # 캐시 시스템 활성화
+
+  # 캐시 동작
+  auto_use: true        # 자동으로 호환 캐시 사용
+  force_rebuild: false  # 항상 재인덱싱 (캐시 무시)
+
+  # 캐시 키 생성 (자동)
+  # cache_key는 chunking + embedding + vector_store 조합으로 자동 생성
+
+  # 수동 캐시 지정 (선택사항)
+  use_specific_cache: null  # 특정 캐시 키 사용 (예: "fixed_512_bge-m3_faiss_flat_v1")
+
+  # 캐시 저장 위치
+  cache_dir: "experiments/indexed_data/"
+
+# ===========================================
+# Retrieval Configuration (캐시에 영향 없음)
+# ===========================================
+retrieval:
+  method: "similarity"  # Options: similarity, mmr, hybrid
+  top_k: 5             # 검색할 문서 수
+
+  # MMR specific
+  lambda_mult: 0.5     # Diversity vs relevance trade-off
+
+  # Hybrid specific
+  alpha: 0.5          # BM25 vs Vector weight (0=BM25, 1=Vector)
+
+# ===========================================
+# Generation Configuration (캐시에 영향 없음)
+# ===========================================
+generation:
+  provider: "openai"   # Options: openai, google, anthropic
+  model: "gpt-3.5-turbo"
+  temperature: 0.7
+  max_tokens: 500
+
+  # Prompt template
+  system_prompt: |
+    당신은 한국 형사법 전문가입니다.
+    주어진 문서를 참고하여 정확하고 명확한 답변을 제공하세요.
+
+  # Response format
+  include_sources: true  # 출처 포함 여부
+
+# ===========================================
+# Experiment Settings
+# ===========================================
+experiment:
+  # 결과 저장 경로 (실험별 격리)
+  results_dir: "experiments/results/{experiment_name}/"
+
+  # 로깅
+  verbose: true
+  save_logs: true
+  log_level: "INFO"
+
+  # 평가 쿼리
+  evaluation_queries:
+    - "살인죄의 형량은?"
+    - "강도죄와 절도죄의 차이는?"
+    - "정당방위의 성립 요건은?"
+    - "사기죄의 구성요건은?"
+    - "음주운전의 처벌 기준은?"
+
+# ===========================================
+# Directory Structure (자동 생성)
+# ===========================================
+# experiments/
+# ├── configs/
+# │   └── members/
+# │       └── {author}_config.yaml     # 개인 설정
+# ├── indexed_data/
+# │   ├── {cache_key}/                 # 캐시된 인덱스
+# │   │   ├── index.faiss
+# │   │   ├── data.json
+# │   │   └── cache_config.json
+# │   └── cache_metadata.json          # 전체 캐시 메타데이터
+# └── results/
+#     └── {experiment_name}/
+#         ├── metrics.json              # 실험 결과
+#         ├── queries.json              # 쿼리 로그
+#         └── config_snapshot.yaml     # 실행 시점 설정
