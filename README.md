@@ -7,10 +7,10 @@ _프로젝트를 시작하기 전, 팀원들과 함께 `[ ]`로 표시된 부분
 
 | 이름 | GitHub |
 | :--- |  :--- |
-| [이름] |  [GitHub ID] |
-| [이름] |  [GitHub ID] |
-| [이름] |  [GitHub ID] |
-| [이름] |  [GitHub ID] |
+| [박남욱] |  [GitHub ID] |
+| [정원형] |  [GitHub ID] |
+| [박재형] |  [GitHub ID] |
+| [김지윤] |  [GitHub ID] |
 
 ---
 
