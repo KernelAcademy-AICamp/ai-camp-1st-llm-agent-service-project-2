@@ -13,14 +13,16 @@ class OpenAILLM(BaseLLM):
     def __init__(self,
                  model_name: str = "gpt-3.5-turbo",
                  api_key: str = None,
+                 base_url: str = None,
                  temperature: float = 0.7,
                  max_tokens: int = 500):
         """
         Initialize OpenAI LLM.
 
         Args:
-            model_name: OpenAI model name
-            api_key: OpenAI API key
+            model_name: OpenAI model name (or custom model alias)
+            api_key: OpenAI API key (or custom API key)
+            base_url: Optional custom base URL for OpenAI-compatible APIs
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
         """
@@ -31,10 +33,18 @@ class OpenAILLM(BaseLLM):
         if not self.api_key:
             raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY environment variable.")
 
+        # Handle custom base URL (for OpenAI-compatible APIs)
+        self.base_url = base_url or os.getenv('LLM_BASE_URL')
+
         # Initialize client
         try:
             from openai import OpenAI
-            self.client = OpenAI(api_key=self.api_key)
+            if self.base_url:
+                # Custom OpenAI-compatible API
+                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            else:
+                # Standard OpenAI API
+                self.client = OpenAI(api_key=self.api_key)
         except ImportError:
             raise ImportError("OpenAI package not installed. Run: pip install openai")
 
