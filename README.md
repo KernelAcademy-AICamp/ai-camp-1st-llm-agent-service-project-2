@@ -158,7 +158,8 @@ develop 브랜치에 Merge
 
 > 팀의 Notion, Fimga 등 관련 링크를 업데이트하세요.
 
--   **[➡️ 서비스 기획서 및 요구사항 명세서](https://www.notion.so/29ba3f519ab88080a0cfc1e9867fbd40)`**
+-   **[➡️ 서비스 기획서](https://www.notion.so/29ba3f519ab880b1a168dad52663301a)`**
+-   **[➡️ 요구사항 명세서](https://www.notion.so/29ba3f519ab880b1a168dad52663301a)`**
 -   **[➡️ 시스템 아키텍처 다이어그램]([링크])`**
 -   **[➡️ 데이터베이스 ERD]([링크])`**
 -   **[➡️ 팀 WBS / Scrum 보드]([링크])`**
