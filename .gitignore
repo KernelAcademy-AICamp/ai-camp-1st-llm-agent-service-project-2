@@ -78,6 +78,7 @@ data/
 
 # 형사법 학습 데이터 (대용량)
 04.형사법 LLM 사전학습 및 Instruction Tuning 데이터/
+04.형사법_LLM_사전학습_및_Instruction_Tuning_데이터
 
 # ===================================
 # IDE & Editor
