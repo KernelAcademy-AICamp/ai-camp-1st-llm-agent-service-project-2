@@ -14,7 +14,8 @@ class GeminiLLM(BaseLLM):
                  model_name: str = "gemini-pro",
                  api_key: str = None,
                  temperature: float = 0.7,
-                 max_tokens: int = 500):
+                 max_tokens: int = 500,
+                 system_prompt: Optional[str] = None):
         """
         Initialize Gemini LLM.
 
@@ -23,8 +24,12 @@ class GeminiLLM(BaseLLM):
             api_key: Google API key
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
+            system_prompt: Optional system prompt from config
         """
         super().__init__(model_name, temperature, max_tokens)
+
+        # Store system prompt from config
+        self.config_system_prompt = system_prompt
 
         # Handle API key
         self.api_key = api_key or os.getenv('GOOGLE_API_KEY')
@@ -81,12 +86,15 @@ class GeminiLLM(BaseLLM):
         Args:
             query: User query
             context: Retrieved documents
-            system_prompt: Optional system prompt
+            system_prompt: Optional system prompt (overrides config system_prompt)
 
         Returns:
             Generated response
         """
-        # Use default system prompt if not provided
+        # Priority: parameter > config > default
+        if system_prompt is None:
+            system_prompt = self.config_system_prompt
+
         if system_prompt is None:
             system_prompt = """당신은 법률 문서 분석을 돕는 AI 어시스턴트입니다.
 제공된 문서를 바탕으로 정확하고 도움이 되는 답변을 제공하세요.
