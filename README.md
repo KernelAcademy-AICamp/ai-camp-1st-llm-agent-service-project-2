@@ -51,15 +51,16 @@
 - **✅ 점진적 인덱싱**: 테스트용 부분 로딩 지원
   - *개발 중 빠른 테스트 + 단계적 확장 전략*
 
-### 🤖 LLM 통합 (준비 완료)
+### 🤖 LLM 통합 ✅
 - **✅ 모델 추상화**: OpenAI/Anthropic/Ollama 쉽게 교체 가능
   - *비용/성능/프라이버시 요구사항에 따라 유연하게 선택*
 - **✅ Constitutional AI 원칙**: 환각 방지, 출처 명시
   - *법률 답변의 신뢰성 확보, 70% 환각 감소 검증*
 - **✅ 구조화된 출력**: JSON 모드 지원
   - *조항 추출, 리스크 분석 등 정형화된 결과 필요*
-- **⚠️ Ollama 연동**: 코드 준비, kosaul-q4 모델 통합 필요
+- **✅ Ollama 통합 완료**: kosaul-q4 모델 (4.9GB) 작동 확인
   - *완전 로컬 실행으로 프라이버시 100% 보장*
+  - *M1/M2 맥북: 응답 2분 (개발용), GPU 환경: 3-10초 (실용적)*
 
 ### 🔧 개발자 도구
 - **✅ 테스트 스크립트**: RAG 검색, Hybrid 비교, 컴포넌트 테스트
@@ -103,8 +104,8 @@
 
 | 구분 | 기술 | 선택 이유 |
 |------|------|----------|
-| **LLM** | Ollama + Kosaul v0.2 | 완전 로컬, 형사법 특화 |
-| **Backend** | FastAPI + Python | 기존 RAG 시스템 재활용 |
+| **LLM** | Ollama + Kosaul v0.2 Q4 | 완전 로컬, 형사법 특화, 4.9GB |
+| **Backend** | FastAPI + Python 3.10 | 안정적인 ML 패키지 호환성 |
 | **Vector DB** | ChromaDB | 40,782개 문서 임베딩 구축 완료 |
 | **Embeddings** | jhgan/ko-sroberta-multitask | 한국어 최적화 (KorSTS 85.0) |
 | **Desktop** | Electron + React | 크로스 플랫폼 지원 |
@@ -146,11 +147,22 @@
 - ✅ 네트워크 차단 환경 지원
 
 ### 2. 검증된 RAG 시스템
-- ✅ **40,782개** 형사법 문서
+- ✅ **현재: 40,782개** 형사법 문서 (AI Hub 2023)
   - 판례: 32,525개
   - 법령: 798개
   - 결정례: 7,409개
   - 해석례: 50개
+
+- 🔄 **데이터 확장 계획**
+  - **Phase 1.5**: 국가법령정보센터 Open API 크롤링 (✅ API 승인 완료)
+    - 출처: [국가법령정보 공동활용](https://open.law.go.kr/)
+    - 2024-2025년 최신 판례 지속 수집
+    - 로컬 저장 방식으로 프라이버시 보장
+  - **Phase 2**: HuggingFace 데이터셋 통합
+    - 출처: [joonhok-exo-ai/korean_law_open_data_precedents](https://huggingface.co/datasets/joonhok-exo-ai/korean_law_open_data_precedents)
+    - 85,660개 판례 추가 예정 (+53,135개 신규)
+  - **예상 최종 규모**: ~120,000+ 문서 (현재 대비 3배)
+
 - ✅ **Constitutional AI** 적용 (환각 방지)
 - ✅ **Few-Shot Learning** (3-shot)
 - ✅ **출처 명시 시스템**
@@ -163,18 +175,82 @@
 - ⚖️ 구성요건 분석
 - 📊 양형 기준 제시
 
+## 📡 데이터 소스 및 업데이트 전략
+
+### 멀티소스 데이터 통합
+LawLaw는 3가지 데이터 소스를 결합하여 최대 커버리지와 최신성을 보장합니다:
+
+| 데이터 소스 | 규모 | 특징 | 업데이트 주기 | 상태 |
+|-----------|------|------|-------------|------|
+| **AI Hub** | 40,782개 | 기본 데이터셋 (판례, 법령, 해석례, 결정례) | 정적 (2023) | ✅ 완료 |
+| **HuggingFace** | 85,660개 | 국가법령정보센터 판례 커뮤니티 데이터 | 정적 | 🔄 통합 예정 |
+| **Open API 크롤링** | 증분 수집 | 실시간 최신 판례 | 월간/주간 | 🔄 개발 중 |
+| **최종 목표** | **~120,000+** | **통합 데이터베이스** | **자동 업데이트** | 🎯 |
+
+### 국가법령정보센터 Open API 크롤링
+
+**API 승인 완료**: [국가법령정보 공동활용](https://open.law.go.kr/) ✅
+
+**목표**: 2024-2025년 최신 판례를 지속적으로 수집하여 데이터 최신성 유지
+
+**크롤링 전략**:
+1. **API 활용**
+   - 엔드포인트: `http://www.law.go.kr/DRF/lawSearch.do`
+   - 요청 제한: 100건/요청, 10,000건/일
+   - 응답 형식: XML/JSON
+
+2. **로컬 저장 방식**
+   - 크롤링 데이터는 로컬에 저장 (프라이버시 보장)
+   - AI Hub 형식과 동일한 CSV 구조로 변환
+   - 판례일련번호 기준 중복 제거
+
+3. **증분 업데이트**
+   - 선고일자 기준 최신 판례 우선 수집
+   - 자동 임베딩 + ChromaDB 증분 인덱싱
+   - 월간 스케줄러로 자동 실행
+
+4. **구현 상세**
+   - 스크립트: `scripts/crawl_latest_precedents.py`
+   - 로그 및 모니터링
+   - 에러 핸들링 및 재시도 로직
+
+### HuggingFace 데이터셋 통합
+
+**출처**: [joonhok-exo-ai/korean_law_open_data_precedents](https://huggingface.co/datasets/joonhok-exo-ai/korean_law_open_data_precedents)
+
+**특징**:
+- 85,660개 판례 (국가법령정보센터 크롤링)
+- 14개 필드 (판시사항, 판결요지, 참조조문, 전문 등)
+- Parquet/CSV 형식
+
+**통합 계획**:
+1. 데이터셋 다운로드 (926MB)
+2. 기존 AI Hub 데이터와 중복 제거 (판례일련번호 기준)
+3. 형식 통일 및 전처리
+4. 배치 임베딩 (GPU 권장, ~2-3시간)
+5. ChromaDB 증분 인덱싱
+6. Hybrid Search 파라미터 재튜닝
+
+**예상 효과**:
+- 📈 판례 커버리지: **3배 증가** (40K → 120K+)
+- 🔄 최신성: 매월 자동 업데이트
+- ⚖️ 답변 품질: 더 다양한 판례로 정확도 향상
+- 🔍 검색 Recall: 70% → 85%+ 예상
+
 ## ⚡ 성능 벤치마크
 
-### M1 MacBook Pro 기준
+### 개발 환경 (M1/M2 MacBook Air)
 
 | 작업 | 시간 | 비고 |
 |------|------|------|
 | 앱 시작 | 5초 | Ollama 초기화 포함 |
-| 첫 응답 | 3-5초 | 콜드 스타트 |
-| 연속 응답 | 1-2초 | 캐시 활용 |
-| RAG 검색 | <0.1초 | ChromaDB |
-| 토큰 생성 | 15-20/초 | Q5_K_M 양자화 |
-| 메모리 사용 | ~6GB | 모델 + 앱 |
+| 첫 응답 | 2-3분 | CPU only, Q4 모델 |
+| 연속 응답 | 1-2분 | 개발용으로만 사용 권장 |
+| RAG 검색 | <0.3초 | ChromaDB (현재 미작동) |
+| 토큰 생성 | 2-3/초 | Q4_K_M 양자화 |
+| 메모리 사용 | ~5GB | 모델 4.9GB + 앱 |
+
+**참고**: 실제 프로덕션은 GPU 서버 또는 클라우드 환경 권장
 
 ### 확장성
 
@@ -216,21 +292,102 @@
 
 자세한 기술 결정 사항은 [TECHNICAL_DECISIONS_SUMMARY.md](./TECHNICAL_DECISIONS_SUMMARY.md) 참조
 
+## 🚀 빠른 시작
+
+### 요구사항
+- **Python 3.10** (중요: 3.13은 호환성 문제)
+- Node.js 18+
+- Conda 또는 virtualenv
+- 최소 8GB RAM (권장 16GB)
+- 10GB 여유 디스크 공간
+
+### 설치 방법
+
+#### 1. Python 환경 설정
+```bash
+# conda 사용 (권장)
+conda create -n lawlaw python=3.10 -y
+conda activate lawlaw
+
+# 또는 venv 사용
+python3.10 -m venv lawlaw-env
+source lawlaw-env/bin/activate  # Windows: lawlaw-env\Scripts\activate
+```
+
+#### 2. 백엔드 설치
+```bash
+cd app/backend
+pip install -r requirements.txt
+```
+
+#### 3. Ollama 및 모델 설치
+```bash
+# Ollama 설치
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Kosaul 모델 등록
+cd models
+ollama create kosaul-q4 -f ../Modelfile_Q4
+```
+
+#### 4. 프론트엔드 설치
+```bash
+cd app/frontend
+npm install
+```
+
+#### 5. 실행
+```bash
+# 터미널 1: 백엔드 서버
+cd app/backend
+python -m uvicorn main:app --reload --port 8000
+
+# 터미널 2: 프론트엔드
+cd app/frontend
+npm start
+
+# 터미널 3: Electron (선택사항)
+npm run electron
+```
+
+### ⚠️ Python 버전 주의사항
+- **Python 3.10 필수**: transformers/torchvision 호환성
+- Python 3.13은 `RuntimeError: operator torchvision::nms does not exist` 오류 발생
+- Python 3.11, 3.12는 테스트 안 됨
+
 ## 🗓️ 개발 로드맵
 
-### Phase 1: MVP ✅ (현재)
+### Phase 1: MVP (현재)
 - ✅ RAG 시스템 구축
 - ✅ 40,782개 문서 임베딩
 - ✅ Constitutional AI 적용
 - ✅ Kosaul GGUF 변환
+- ✅ 국가법령정보센터 Open API 승인 완료
+- 🔄 Open API 크롤링 시스템 개발
+  - `scripts/crawl_latest_precedents.py` 구현
+  - 로컬 저장 및 증분 업데이트 로직
+  - 자동 임베딩 + ChromaDB 인덱싱
 - 🔄 Electron 앱 개발
 
-### Phase 2: 최적화 (1개월)
-- [ ] Metal/CUDA 가속 지원
-- [ ] 모델 양자화 옵션 (Q4_K_M, Q8_0)
-- [ ] 증분 인덱싱
-- [ ] 응답 캐싱
-- [ ] 배치 처리
+### Phase 2: 데이터 확장 & 최적화 (1-2개월)
+- [ ] **HuggingFace 데이터셋 통합**
+  - [ ] 85,660개 판례 다운로드 및 중복 제거
+  - [ ] AI Hub 형식으로 변환
+  - [ ] 배치 임베딩 (GPU 권장)
+  - [ ] ChromaDB 증분 인덱싱
+  - [ ] 통합 후 성능 벤치마크
+
+- [ ] **Open API 크롤링 자동화**
+  - [ ] 월간 스케줄러 구현
+  - [ ] 증분 업데이트 최적화
+  - [ ] 모니터링 대시보드
+
+- [ ] **성능 최적화**
+  - [ ] Metal/CUDA 가속 지원
+  - [ ] FAISS 전환 검토 (120K+ 문서)
+  - [ ] Hybrid Search 파라미터 재튜닝
+  - [ ] 응답 캐싱
+  - [ ] 모델 양자화 옵션 (Q4_K_M, Q8_0)
 
 ### Phase 3: 기능 확장 (3개월)
 - [ ] 문서 편집기 통합
@@ -308,7 +465,9 @@ npm run dist
 
 ## 🙏 감사의 말
 
-- **AI Hub**: 형사법 데이터셋 제공
+- **AI Hub**: 형사법 데이터셋 제공 (40,782개 기본 데이터)
+- **국가법령정보센터**: Open API 제공 및 승인
+- **joonhok-exo-ai**: HuggingFace 판례 데이터셋 (85,660개)
 - **ingeol**: Kosaul v0.2 모델 개발
 - **Ollama 팀**: 로컬 LLM 실행 환경
 - **커널 아카데미**: 교육 및 멘토링
