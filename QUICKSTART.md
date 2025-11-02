@@ -1,198 +1,230 @@
-# ⚡ RAG 베이스라인 빠른 시작 (5분)
+# 🚀 Quick Start Guide
 
-## 🚀 바로 실행하기 (복사해서 붙여넣기)
+## 시작하기 전에
 
+이 프로젝트는 **학습 목적**으로 설계되었습니다. RAG, Constitutional AI, Few-Shot Learning 등의 개념을 실제로 구현하고 이해하는 것이 목표입니다.
+
+## ✅ 전제 조건
+
+1. **Python 3.8+** 설치
+2. **AI Hub 형사법 데이터** 다운로드 완료
+   - 경로: `~/Downloads/04.형사법 LLM 사전학습 및 Instruction Tuning 데이터/`
+3. **OpenAI API 키** (선택사항, Constitutional AI 챗봇 실행 시 필요)
+
+## 📦 설치 (5분)
+
+### 1. 저장소 클론
 ```bash
-# 1. 환경 설정 (처음 한 번만)
-python -m venv .venv
-source .venv/bin/activate  # Mac/Linux
-# .venv\Scripts\activate  # Windows
-pip install -r requirements.txt
-
-# .env 파일 생성하고 OpenAI API 키 추가
-echo "OPENAI_API_KEY=sk-your-key-here" > .env
-
-# 2. 바로 테스트 (샘플 데이터로 동작 확인)
-python run.py baseline
-
-# 3. 자신의 실험 초기화 (git pull 받고 처음 한 번만 실행)
-python run.py init-experiment --name myname --description "첫 실험"
-
-# 4. Config 파일 수정 (생성된 파일: myname_config.yaml)
-vim experiments/configs/members/myname/myname_config.yaml
-# chunk_size, top_k, model 등 원하는 값으로 수정
-
-# 5. 실험 실행
-python run.py experiment --config experiments/configs/members/myname/myname_config.yaml
-
-# 6. (선택) 추가 실험용 Config 복사 및 수정
-cp experiments/configs/members/myname/myname_config.yaml \
-   experiments/configs/members/myname/myname_config_chunk_256.yaml
-# chunk_size: 256 등으로 수정 후
-python run.py experiment --config experiments/configs/members/myname/myname_config_chunk_256.yaml
+cd ~/Documents/libraries/lawlaw
 ```
 
-
-
-## 2️⃣ Device 설정 (중요!)
-
-**experiments/baseline/config.yaml** 파일에서:
-
-```yaml
-# Mac M1/M4 사용자
-device: "mps"
-
-# Windows/Linux 사용자
-device: "cpu"
-```
-
----
-
-
-## 4️⃣ 자신의 실험 시작
-
+### 2. 가상환경 생성 및 활성화
 ```bash
-# 1. 실험 초기화
-python run.py init-experiment --name jy --description "내 실험"
-
-# 2. Config 수정
-vim experiments/configs/members/jy/jy_config.yaml
-# 예: chunk_size: 256으로 변경
-
-# 3. 실험 실행 (캐시 자동 활용)
-python run.py experiment --config experiments/configs/members/jy/jy_config.yaml
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
----
-
-## 🆕 개선된 기능들
-
-### 📦 캐시 시스템
-```bash
-# 캐시 목록 확인
-python run.py list-caches
-
-# 특정 캐시 사용
-python run.py generate --config config.yaml --cache-key "fixed_512_bge-m3_faiss_flat_v1" --query "질문"
-
-# 캐시 삭제
-python run.py delete-cache --cache-key "old_cache"
-```
-
-### 🔄 효율적인 실험
-- **청킹/임베딩/VectorDB 변경**: 자동 재인덱싱
-- **검색/생성만 변경**: 캐시 재사용 (5초!)
-- **팀원 간 캐시 공유**: 중복 작업 제거
-
----
-
-## 📁 핵심 파일
-
-```
-prog_test/
-├── run.py                    # 🎮 메인 CLI (개선된 v2)
-├── .env                      # 🔑 API 키 설정 (OpenAI 사용시)
-├── experiments/
-│   ├── baseline/
-│   │   └── config.yaml       # 📝 기본 설정
-│   ├── configs/
-│   │   ├── template_config.yaml  # 템플릿
-│   │   └── members/          # 팀원별 설정 폴더
-│   │       ├── wh/           # wh 팀원 설정
-│   │       ├── jh/           # jh 팀원 설정
-│   │       ├── jy/           # jy 팀원 설정
-│   │       └── nw/           # nw 팀원 설정
-│   ├── results/              # 팀원별 실험 결과
-│   │   ├── wh/
-│   │   ├── jh/
-│   │   ├── jy/
-│   │   └── nw/
-│   └── indexed_data/         # 공유 캐시
-└── requirements.txt          # 📦 패키지 목록
-```
-
----
-
-## ⚙️ API 키 설정 (선택사항)
-
-기본은 로컬 모델(BGE-M3)을 사용하지만, OpenAI를 쓰려면:
-
-**.env 파일:**
-```env
-# OpenAI GPT 사용시
-OPENAI_API_KEY=sk-...your-key...
-```
-
-**config.yaml:**
-```yaml
-# 임베딩을 OpenAI로 변경
-embedding:
-  type: "openai"
-  model: "text-embedding-ada-002"
-
-# 생성 모델 설정
-generation:
-  provider: "openai"
-  model: "gpt-3.5-turbo"
-```
-
----
-
-## 🆘 문제 해결
-
-### "ModuleNotFoundError"
+### 3. 패키지 설치
 ```bash
 pip install -r requirements.txt
 ```
 
-### Mac에서 "MPS 오류"
-```yaml
-device: "cpu"  # mps → cpu로 변경
+**중요**: `requirements.txt`는 안정적인 버전을 사용합니다:
+- `sentence-transformers==2.7.0` (mutex 문제 해결)
+- `transformers==4.36.0`
+- `tokenizers==0.15.0`
+
+### 4. 환경변수 설정
+```bash
+cp .env.example .env
+# .env 파일을 열어 OPENAI_API_KEY 입력
 ```
 
-### 메모리 부족
-```yaml
-data:
-  max_documents: 50  # 문서 수 줄이기
-embedding:
-  batch_size: 16    # 배치 크기 줄이기
+`.env` 예시:
+```
+OPENAI_API_KEY=sk-your-key-here
+ANTHROPIC_API_KEY=your-key-here  # 선택사항
 ```
 
+## 🧪 빠른 테스트 (3분)
 
----
-
-## ✅ 정상 실행 확인
-
-성공하면 이렇게 나옵니다:
-```
-🚀 Running Baseline RAG Experiment...
-🔑 Cache Key: fixed_512_bge-m3_faiss_flat_v1
-✅ Using cached index (또는 Creating new index)
-✓ Loaded 4 documents
-✓ Indexing complete: 15 chunks in 2.3s
-✓ Evaluation complete
-```
-
----
-
-## 💡 핵심 명령어
+### Step 1: 컴포넌트 테스트
+각 컴포넌트가 정상 작동하는지 확인:
 
 ```bash
-# 기본 실행
-python run.py baseline
-
-# 캐시 활용 워크플로우
-python run.py index --config config.yaml      # 인덱싱
-python run.py search --config config.yaml --query "검색어"  # 검색만
-python run.py generate --config config.yaml --query "질문"  # RAG 전체
-
-# 캐시 관리
-python run.py list-caches      # 캐시 목록
-python run.py delete-cache --cache-key "key"  # 캐시 삭제
-
-# 실험 관리
-python run.py init-experiment --name "이름"  # 새 실험
-python run.py experiment --config config.yaml  # 실험 실행
+export TOKENIZERS_PARALLELISM=false
+python scripts/test_components.py
 ```
 
+**예상 출력:**
+```
+✅ 데이터 로딩 성공: 236개 행
+✅ 전처리 성공: 50개 청크
+✅ 임베딩 모델 로드 성공!
+   모델: jhgan/ko-sroberta-multitask
+   임베딩 차원: 768
+✅ 임베딩 생성 성공: (10, 768)
+🎉 모든 컴포넌트 테스트 통과!
+```
+
+### Step 2: 작은 벡터 DB 구축
+10개 파일로 빠른 테스트:
+
+```bash
+export TOKENIZERS_PARALLELISM=false
+python scripts/build_vectordb.py \
+  --max_files 10 \
+  --max_docs 100 \
+  --test_query "절도죄의 구성요건은 무엇인가요?"
+```
+
+**소요 시간**: 약 10-20초
+
+**예상 출력:**
+```
+2025-10-28 17:40:13 | INFO | Step 1: Loading data...
+2025-10-28 17:40:13 | INFO | Loaded 1060 rows from 10 files
+2025-10-28 17:40:13 | INFO | Step 2: Preprocessing and chunking...
+2025-10-28 17:40:13 | INFO | Created 1056 chunks
+2025-10-28 17:40:18 | INFO | Step 3: Generating embeddings...
+2025-10-28 17:40:20 | INFO | Generated embeddings with shape: (100, 768)
+2025-10-28 17:40:20 | INFO | Step 4: Building chroma vector database...
+2025-10-28 17:40:21 | INFO | Vector database built successfully!
+2025-10-28 17:40:21 | INFO | Total documents in DB: 100
+
+Testing search with query: '절도죄의 구성요건은 무엇인가요?'
+--- Result 1 (score: 0.4313) ---
+Text: 사 건 2022노2009 사기, 횡령...
+```
+
+## 🚀 실제 사용
+
+### Option 1: 중간 크기로 테스트 (100개 파일)
+```bash
+python scripts/build_vectordb.py \
+  --max_files 100 \
+  --max_docs 1000
+```
+**소요 시간**: 약 2-3분
+
+### Option 2: 전체 데이터 구축 (40,782개 파일)
+⚠️  **주의**: 시간이 오래 걸립니다 (30분-1시간+)
+```bash
+python scripts/build_vectordb.py
+```
+
+### Option 3: Constitutional AI 챗봇 실행
+```bash
+# 1. 벡터 DB가 구축되어 있어야 함
+# 2. .env에 OPENAI_API_KEY 설정 필요
+
+python src/ui/app.py  # Streamlit UI
+# 또는
+python src/ui/gradio_app.py  # Gradio UI
+```
+
+## 💡 학습 경로
+
+### 초급자 (1-2주)
+1. `README.md` 읽기 - 프로젝트 개요 이해
+2. `DESIGN_DECISIONS.md` 읽기 - 왜 이런 기술을 선택했는지
+3. 작은 데이터셋으로 테스트 실행
+4. `src/embeddings/embedder.py` 코드 읽기
+
+### 중급자 (2-3주)
+1. `LEARNING_GUIDE.md` Week 1-4 따라하기
+2. 청킹 전략 실험 (chunk_size 변경)
+3. Top-K 파라미터 조정 실험
+4. `src/llm/constitutional_prompts.py` 분석
+
+### 고급자 (4주+)
+1. Constitutional Principles 직접 설계
+2. Few-Shot 예시 추가
+3. Self-Critique 메커니즘 개선
+4. 평가 메트릭 개발 및 A/B 테스트
+
+## 🔧 트러블슈팅
+
+### 문제 1: `mutex.cc` 메시지에서 멈춤
+**해결책:**
+```bash
+export TOKENIZERS_PARALLELISM=false
+# 그 후 스크립트 재실행
+```
+
+자세한 내용은 `TROUBLESHOOTING.md` 참조.
+
+### 문제 2: 임베딩 모델 다운로드 느림
+**원인**: `jhgan/ko-sroberta-multitask` 모델 (약 1.1GB) 다운로드 중
+
+**해결책**: 첫 실행 시 1-2분 소요는 정상입니다.
+
+### 문제 3: 메모리 부족
+**해결책**: `--max_docs` 파라미터로 문서 수 제한
+```bash
+python scripts/build_vectordb.py --max_files 10 --max_docs 50
+```
+
+### 문제 4: FAISS 또는 ChromaDB 설치 오류
+**해결책:**
+```bash
+pip install faiss-cpu chromadb -U
+```
+
+## 📊 예상 결과
+
+### 작은 테스트 (10개 파일, 100개 문서)
+- **데이터**: 약 1,060개 행
+- **청크**: 약 1,056개
+- **임베딩 시간**: 2-3초
+- **DB 구축 시간**: < 1초
+- **총 시간**: 약 10-20초
+
+### 중간 테스트 (100개 파일, 1,000개 문서)
+- **데이터**: 약 10,000개 행
+- **청크**: 약 10,000개
+- **임베딩 시간**: 20-30초
+- **DB 구축 시간**: 2-3초
+- **총 시간**: 약 30초-1분
+
+### 전체 데이터 (40,782개 파일)
+- **데이터**: 약 250만개 문장
+- **예상 청크**: 100만+
+- **예상 시간**: 30분-1시간+
+- **권장**: 서버 또는 GPU 환경
+
+## 🎯 다음 단계
+
+1. **Constitutional AI 이해하기**
+   - `src/llm/constitutional_prompts.py` 읽기
+   - 6가지 Principles 이해
+
+2. **Few-Shot Learning 실험**
+   - 예시 개수 조정 (0, 1, 3, 5)
+   - 성능 비교
+
+3. **Self-Critique 분석**
+   - `src/llm/constitutional_chatbot.py` 읽기
+   - 2-stage generation 이해
+
+4. **나만의 챗봇 만들기**
+   - Constitutional Principles 커스터마이징
+   - 도메인 특화 Few-Shot 예시 추가
+
+## 📚 추가 리소스
+
+- **DESIGN_DECISIONS.md**: 모든 기술 선택의 이유
+- **LEARNING_GUIDE.md**: 8주 학습 로드맵
+- **TROUBLESHOOTING.md**: 자주 발생하는 문제 해결
+- **USAGE_GUIDE.md**: 상세 사용법
+
+## 💬 도움이 필요하신가요?
+
+- **Issues**: 버그 리포트, 기능 제안
+- **Discussions**: 질문, 아이디어 공유
+
 ---
+
+**Happy Learning!** 🎓
+
+이 프로젝트를 통해 최신 LLM 기술을 실제로 구현하고 이해하는 경험을 얻으시길 바랍니다!

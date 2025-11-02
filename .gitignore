@@ -42,43 +42,26 @@ share/python-wheels/
 MANIFEST
 
 # ===================================
-# Experiments & Results
+# Data (Exclude large data files)
 # ===================================
-# 캐시된 인덱스 (크고 재생성 가능)
-experiments/indexed_data/
-experiments/*/indexed_data/
+data/
+!data/.gitkeep
 
-# 실험 결과 (개인별로 다름)
-experiments/results/
-experiments/*/results/
-
-# 개인 config 파일 (충돌 방지)
-experiments/configs/members/*.yaml
-!experiments/configs/members/.gitkeep
-
-# 실험 로그
-experiments/experiment_log.json
-experiments/leaderboard.md
-*.log
+# 형사법 학습 데이터 (대용량)
+04.형사법 LLM 사전학습 및 Instruction Tuning 데이터/
+04.형사법_LLM_사전학습_및_Instruction_Tuning_데이터/
 
 # ===================================
-# Models & Data
+# Models
 # ===================================
-# 다운로드된 임베딩 모델
 *.faiss
 *.pkl
 *.bin
 *.safetensors
 *.h5
 *.onnx
-
-# 대용량 데이터 (각자 다운로드)
-data/
-!data/.gitkeep
-
-# 형사법 학습 데이터 (대용량)
-04.형사법 LLM 사전학습 및 Instruction Tuning 데이터/
-04.형사법_LLM_사전학습_및_Instruction_Tuning_데이터
+models/*.gguf
+models/*.safetensors
 
 # ===================================
 # IDE & Editor
@@ -91,10 +74,16 @@ data/
 .DS_Store
 
 # ===================================
+# Node.js
+# ===================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ===================================
 # Jupyter
 # ===================================
 .ipynb_checkpoints/
-*.ipynb
 
 # ===================================
 # Testing
@@ -110,3 +99,14 @@ htmlcov/
 *.temp
 tmp/
 temp/
+*.log
+
+# ===================================
+# MCP
+# ===================================
+.playwright-mcp/
+
+# ===================================
+# Other Projects
+# ===================================
+ai-camp-1st-llm-agent-service-project-2/

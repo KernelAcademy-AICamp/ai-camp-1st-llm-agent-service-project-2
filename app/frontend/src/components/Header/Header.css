@@ -1,0 +1,51 @@
+.header {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e5e5;
+  height: 64px;
+  /* For macOS, account for the traffic lights */
+  -webkit-app-region: drag;
+  padding-left: 80px;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.header-logo:hover {
+  opacity: 0.7;
+}
+
+.header-logo-icon {
+  font-size: 24px;
+}
+
+.header-title {
+  font-size: 26px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.header-subtitle {
+  margin-left: 16px;
+  font-size: 14px;
+  color: #666666;
+  -webkit-app-region: no-drag;
+}
+
+/* Windows/Linux specific styles */
+@media not all and (min-resolution:.001dpcm) {
+  @supports (-webkit-appearance:none) {
+    .header {
+      padding-left: 24px;
+    }
+  }
+}

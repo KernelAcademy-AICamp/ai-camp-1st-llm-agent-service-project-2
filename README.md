@@ -1,10 +1,36 @@
-# 🏛️ LawLaw Desktop - Constitutional AI 기반 완전 로컬 형사법 AI 어시스턴트
+# 🏛️ LawLaw - Constitutional AI 기반 형사법 AI 어시스턴트
 
-변호사를 위한 프라이버시 우선 법률 AI 데스크톱 애플리케이션
+변호사를 위한 실무 중심 법률 AI 어시스턴트
 
-> **핵심 가치**: 민감한 법률 정보가 외부로 유출되지 않는 완전한 로컬 실행 환경
->
-> 변호사-의뢰인 비밀유지 특권을 기술적으로 보장합니다.
+**프로젝트 상태**: 🚧 **Phase 01 개발 중** - 웹 MVP (예상: 1-2일)
+**다음 마일스톤**: 파일 업로드 + AI 분석 기능 구현
+
+---
+
+## 🚀 현재 개발 중: Phase 01 - 웹 MVP
+
+> **Desktop 앱은 Phase 02로 연기**, 실무 변호사 워크플로우에 집중한 **웹 버전 우선 개발**
+
+### 🎯 3가지 핵심 기능
+
+#### 1️⃣ AI 법률 리서치
+- **OpenAI/Claude API + RAG**로 빠르고 정확한 답변
+- Constitutional AI로 환각 방지
+- 40,000+ 판례 기반 검색
+
+#### 2️⃣ 사건 분석 & 파일링
+- 📁 문서 업로드 (PDF, DOCX, TXT)
+- 🤖 AI 자동 분석 (쟁점 추출, 요약, 판례 검색)
+- 📊 사건 폴더 자동 정리
+
+#### 3️⃣ 문서 작성 어시스트
+- 📝 템플릿 제공 (준비서면, 의견서 등)
+- 🤖 AI 자동 생성 (판례 인용 + 법리 설명)
+- 💾 DOCX/PDF 다운로드
+
+📋 **[Phase 01 상세 계획서 보기](./MVP_PHASE_01.md)**
+
+---
 
 ## 📸 앱 미리보기
 
@@ -487,116 +513,106 @@ LawLaw는 3가지 데이터 소스를 결합하여 최대 커버리지와 최신
 
 자세한 기술 결정 사항은 [TECHNICAL_DECISIONS_SUMMARY.md](./TECHNICAL_DECISIONS_SUMMARY.md) 참조
 
-## 🚀 빠른 시작
+## 🚀 빠른 시작 (웹 버전)
 
 ### 요구사항
 - **Python 3.10** (중요: 3.13은 호환성 문제)
 - Node.js 18+
-- Conda 또는 virtualenv
+- **OpenAI API 키** 또는 Claude API 키
 - 최소 8GB RAM (권장 16GB)
-- 10GB 여유 디스크 공간
 
-### 설치 방법
+### 설치 및 실행
 
-#### 1. Python 환경 설정
+#### 1. 저장소 클론 및 환경 설정
 ```bash
-# conda 사용 (권장)
+git clone <repository-url>
+cd lawlaw
+
+# Python 가상환경 생성
 conda create -n lawlaw python=3.10 -y
 conda activate lawlaw
-
-# 또는 venv 사용
-python3.10 -m venv lawlaw-env
-source lawlaw-env/bin/activate  # Windows: lawlaw-env\Scripts\activate
 ```
 
-#### 2. 백엔드 설치
+#### 2. Backend 설정
 ```bash
 cd app/backend
 pip install -r requirements.txt
+
+# API 키 설정
+cp ../../.env.example ../../.env
+# .env 파일에 OPENAI_API_KEY 또는 ANTHROPIC_API_KEY 입력
 ```
 
-#### 3. Ollama 및 모델 설치
+#### 3. Frontend 설정
 ```bash
-# Ollama 설치
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Kosaul 모델 등록
-cd models
-ollama create kosaul-q4 -f ../Modelfile_Q4
-```
-
-#### 4. 프론트엔드 설치
-```bash
-cd app/frontend
+cd ../frontend
 npm install
 ```
 
-#### 5. 실행
+#### 4. 실행
 ```bash
-# 터미널 1: 백엔드 서버
+# 터미널 1: Backend 서버
 cd app/backend
 python -m uvicorn main:app --reload --port 8000
 
-# 터미널 2: 프론트엔드
+# 터미널 2: Frontend 개발 서버
 cd app/frontend
 npm start
 
-# 터미널 3: Electron (선택사항)
-npm run electron
+# 웹 브라우저에서 http://localhost:3000 접속
 ```
 
-### ⚠️ Python 버전 주의사항
+### ⚠️ 주의사항
 - **Python 3.10 필수**: transformers/torchvision 호환성
-- Python 3.13은 `RuntimeError: operator torchvision::nms does not exist` 오류 발생
-- Python 3.11, 3.12는 테스트 안 됨
+- **ChromaDB 데이터**: 팀원에게 벡터 DB 공유 받거나 `scripts/build_vectordb.py`로 구축
+- Python 3.13은 호환성 문제로 사용 불가
 
 ## 🗓️ 개발 로드맵
 
-### Phase 1: MVP (현재)
-- ✅ RAG 시스템 구축
-- ✅ 40,782개 문서 임베딩
-- ✅ Constitutional AI 적용
-- ✅ Kosaul GGUF 변환
-- ✅ 국가법령정보센터 Open API 승인 완료
-- 🔄 Open API 크롤링 시스템 개발
-  - `scripts/crawl_latest_precedents.py` 구현
-  - 로컬 저장 및 증분 업데이트 로직
-  - 자동 임베딩 + ChromaDB 인덱싱
-- 🔄 Electron 앱 개발
+### ✅ Phase 01: 웹 MVP (현재 진행 중 - 1-2일)
+**목표**: 실무 변호사 워크플로우 중심의 웹 애플리케이션
 
-### Phase 2: 데이터 확장 & 최적화 (1-2개월)
-- [ ] **HuggingFace 데이터셋 통합**
-  - [ ] 85,660개 판례 다운로드 및 중복 제거
-  - [ ] AI Hub 형식으로 변환
-  - [ ] 배치 임베딩 (GPU 권장)
-  - [ ] ChromaDB 증분 인덱싱
-  - [ ] 통합 후 성능 벤치마크
+- [x] RAG 시스템 구축 (Hybrid Search)
+- [x] 40,782개 문서 임베딩
+- [x] Constitutional AI 적용
+- [x] 기본 UI (React + FastAPI)
+- [ ] **OpenAI/Claude API 통합** 🔄
+- [ ] **파일 업로드 + AI 분석** 🔄
+- [ ] **문서 작성 템플릿** 🔄
+- [ ] **통합 테스트 & 배포** 🔄
 
-- [ ] **Open API 크롤링 자동화**
-  - [ ] 월간 스케줄러 구현
-  - [ ] 증분 업데이트 최적화
-  - [ ] 모니터링 대시보드
+📋 [Phase 01 상세 계획](./MVP_PHASE_01.md)
 
-- [ ] **성능 최적화**
-  - [ ] Metal/CUDA 가속 지원
-  - [ ] FAISS 전환 검토 (120K+ 문서)
-  - [ ] Hybrid Search 파라미터 재튜닝
-  - [ ] 응답 캐싱
-  - [ ] 모델 양자화 옵션 (Q4_K_M, Q8_0)
+### Phase 02: Desktop 앱 + 데이터 확장 (3-4개월)
+**목표**: Electron 앱 + 데이터 확장 + QDoRA Adapter
 
-### Phase 3: 기능 확장 (3개월)
-- [ ] 문서 편집기 통합
+- [ ] **Electron 데스크톱 통합**
+  - [ ] Windows/macOS/Linux 빌드
+  - [ ] 로컬 Ollama 연동
+  - [ ] 오프라인 모드
+
+- [ ] **QDoRA Adapter 시스템**
+  - [ ] 교통사고 전문 Adapter
+  - [ ] 형사/민사 Adapter
+  - [ ] Adapter 자동 교체
+
+- [ ] **데이터 확장**
+  - [ ] HuggingFace 85,660개 판례 통합
+  - [ ] Open API 크롤링 자동화
+  - [ ] 120,000+ 문서 달성
+
+### Phase 03: 기능 확장 (6개월+)
 - [ ] 판례 시각화 (그래프/차트)
-- [ ] 팀 협업 (로컬 네트워크)
-- [ ] 플러그인 시스템
 - [ ] 음성 인터페이스
+- [ ] 팀 협업 기능
+- [ ] 플러그인 시스템
+- [ ] 모바일 앱
 
-### Phase 4: 엔터프라이즈 (6개월)
+### Phase 04: 엔터프라이즈 (12개월+)
 - [ ] Active Directory 연동
-- [ ] 감사 로그
+- [ ] 감사 로그 & 규정 준수
 - [ ] 다중 사용자 지원
-- [ ] 백업/복구
-- [ ] 원격 관리
+- [ ] 클라우드 백업/복구
 
 ## 📦 패키징 및 배포
 
@@ -669,6 +685,7 @@ npm run dist
 
 ---
 
-**프로젝트 상태**: 🚧 개발 중
-**최종 목표**: 변호사를 위한 완전한 로컬 법률 AI 어시스턴트
+**프로젝트 상태**: 🚧 **Phase 01 개발 중** (웹 MVP)
+**현재 작업**: OpenAI API 통합 + 파일 업로드 기능
+**최종 목표**: 변호사를 위한 실무 중심 법률 AI 어시스턴트
 **문의**: [프로젝트 이슈](https://github.com/KernelAcademy-AICamp/ai-camp-1st-llm-agent-service-project-2/issues)

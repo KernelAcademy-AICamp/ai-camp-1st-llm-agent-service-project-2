@@ -1,0 +1,290 @@
+.legal-research {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.research-header {
+  margin-bottom: 32px;
+}
+
+.research-header h2 {
+  font-size: 32px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.research-header p {
+  font-size: 16px;
+  color: #666666;
+}
+
+/* Search Form */
+.search-form {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 24px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 20px;
+  font-size: 20px;
+  color: #999999;
+}
+
+.search-input {
+  flex: 1;
+  padding: 16px 20px 16px 52px;
+  font-size: 16px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  transition: border-color 0.3s ease;
+  background-color: #ffffff;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.search-input::placeholder {
+  color: #999999;
+}
+
+.search-button {
+  padding: 16px 32px;
+  margin-left: 12px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.search-button:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.search-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Search Filters */
+.search-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.filter-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666666;
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666666;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.filter-checkbox:hover {
+  color: #333333;
+}
+
+/* Search Results */
+.search-results {
+  margin-top: 24px;
+}
+
+.results-header {
+  margin-bottom: 16px;
+}
+
+.results-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.result-card {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.result-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.result-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.result-type-icon {
+  font-size: 20px;
+  color: #3b82f6;
+}
+
+.result-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.result-type-label {
+  padding: 4px 8px;
+  background-color: #eff6ff;
+  color: #3b82f6;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result-relevance {
+  font-size: 14px;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.result-summary {
+  color: #666666;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.result-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.result-date {
+  font-size: 13px;
+  color: #999999;
+}
+
+.result-citation {
+  font-size: 13px;
+  color: #666666;
+  font-style: italic;
+}
+
+/* Placeholder */
+.research-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.placeholder-content {
+  text-align: center;
+  max-width: 500px;
+}
+
+.placeholder-icon {
+  font-size: 64px;
+  color: #d1d5db;
+  margin-bottom: 24px;
+}
+
+.placeholder-content h3 {
+  font-size: 24px;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+}
+
+.placeholder-content p {
+  font-size: 16px;
+  color: #666666;
+  margin-bottom: 32px;
+}
+
+.example-queries {
+  text-align: left;
+  background-color: #f9fafb;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.example-queries h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666666;
+  margin-bottom: 12px;
+}
+
+.example-queries ul {
+  list-style: none;
+  padding: 0;
+}
+
+.example-queries li {
+  padding: 8px 0;
+  color: #3b82f6;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.example-queries li:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
