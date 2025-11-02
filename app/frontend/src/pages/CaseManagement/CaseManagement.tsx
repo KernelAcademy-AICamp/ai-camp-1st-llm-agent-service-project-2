@@ -1,41 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiFolder, FiUpload, FiPlus, FiFileText, FiTrash2, FiEye, FiAlertCircle, FiEdit, FiCpu } from 'react-icons/fi';
+import apiClient from '../../api/client';
+import { CaseAnalysis, CaseListItem } from '../../types';
 import './CaseManagement.css';
-
-interface CaseAnalysis {
-  case_id: string;
-  case_name: string;
-  summary: string;
-  scenario: string | null;
-  scenario_confidence: number | null;
-  document_types: string[];
-  issues: string[];
-  key_dates: Record<string, string>;
-  parties: Record<string, string>;
-  related_cases: Array<{
-    title: string;
-    summary: string;
-    date: string;
-    relevance: number;
-  }>;
-  suggested_case_name: string;
-  suggested_next_steps: string[];
-  uploaded_files: Array<{
-    filename: string;
-    size: number;
-  }>;
-}
-
-interface CaseListItem {
-  case_id: string;
-  case_name: string;
-  summary: string;
-  document_count: number;
-  created_at: number;
-}
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const CaseManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -53,9 +21,7 @@ const CaseManagement: React.FC = () => {
 
   const loadCases = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cases`);
-      if (!response.ok) throw new Error('Failed to load cases');
-      const data = await response.json();
+      const data = await apiClient.getCases();
       setCases(data.cases || []);
     } catch (error) {
       console.error('Error loading cases:', error);
@@ -80,22 +46,7 @@ const CaseManagement: React.FC = () => {
     setUploadError(null);
 
     try {
-      const formData = new FormData();
-      selectedFiles.forEach(file => {
-        formData.append('files', file);
-      });
-
-      const response = await fetch(`${API_BASE_URL}/cases/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Upload failed');
-      }
-
-      const analysis: CaseAnalysis = await response.json();
+      const analysis: CaseAnalysis = await apiClient.uploadCaseFiles(selectedFiles);
 
       // 사건 목록 새로고침
       await loadCases();
@@ -116,9 +67,7 @@ const CaseManagement: React.FC = () => {
   // 사건 상세 정보 로드
   const handleViewCase = async (caseId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cases/${caseId}`);
-      if (!response.ok) throw new Error('Failed to load case details');
-      const analysis: CaseAnalysis = await response.json();
+      const analysis: CaseAnalysis = await apiClient.getCase(caseId);
       setSelectedCase(analysis);
     } catch (error) {
       console.error('Error loading case details:', error);
@@ -130,11 +79,7 @@ const CaseManagement: React.FC = () => {
     if (!window.confirm('정말로 이 사건을 삭제하시겠습니까?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cases/${caseId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete case');
+      await apiClient.deleteCase(caseId);
 
       // 사건 목록 새로고침
       await loadCases();
@@ -239,13 +184,13 @@ const CaseManagement: React.FC = () => {
                   <div className="scenario-info-card">
                     <div className="scenario-name">
                       <FiCpu />
-                      <span>{selectedCase.scenario}</span>
+                      <span>{selectedCase.scenario.scenario_name}</span>
                       <span className="confidence">
-                        {Math.round((selectedCase.scenario_confidence || 0) * 100)}% 확신
+                        {Math.round(selectedCase.scenario.confidence * 100)}% 확신
                       </span>
                     </div>
                     <p className="scenario-desc">
-                      이 사건에 적합한 문서 템플릿을 추천해드립니다.
+                      {selectedCase.scenario.description}
                     </p>
                     <button
                       className="btn-primary"

@@ -1,56 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FiFileText, FiEdit3, FiCpu, FiDownload, FiTrash2, FiFolder, FiAlertCircle, FiLoader, FiStar, FiCheckCircle } from 'react-icons/fi';
+import apiClient from '../../api/client';
+import {
+  CaseListItem,
+  CaseAnalysis,
+  GeneratedDocument,
+  DocumentDetail,
+  Scenario,
+  TemplateField,
+  GenerationMode
+} from '../../types';
 import './DocumentEditor.css';
 
-interface CaseListItem {
+// 확장된 CaseDetail 인터페이스 (scenario 정보 포함)
+interface CaseDetail extends Partial<CaseAnalysis> {
   case_id: string;
-  case_name: string;
-  summary: string;
-  document_count: number;
-  created_at: number;
-}
-
-interface CaseDetail {
-  case_id: string;
-  case_name: string;
-  summary: string;
-  scenario: string | null;
-  scenario_confidence: number | null;
-  created_at: number;
-}
-
-interface GeneratedDocument {
-  document_id: string;
-  title: string;
-  template_used: string;
-  created_at: string;
-}
-
-interface DocumentDetail {
-  document_id: string;
-  title: string;
-  content: string;
-  template_used: string;
-  created_at: string;
-  metadata: any;
-}
-
-interface Scenario {
-  name: string;
-  description: string;
-  templates: string[];
-}
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-
-// 템플릿별 필수 입력 필드 정의
-interface TemplateField {
-  name: string;
-  label: string;
-  type: 'text' | 'number' | 'textarea' | 'date';
-  placeholder: string;
-  required: boolean;
+  case_name?: string;
+  created_at?: number;
 }
 
 const TEMPLATE_FIELDS: Record<string, TemplateField[]> = {
@@ -92,7 +59,7 @@ const DocumentEditor: React.FC = () => {
   const [scenarios, setScenarios] = useState<Record<string, Scenario>>({});
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const [generationMode, setGenerationMode] = useState<'quick' | 'custom'>('quick');
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('quick');
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
   const [userInstructions, setUserInstructions] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -122,9 +89,7 @@ const DocumentEditor: React.FC = () => {
 
   const loadCases = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cases`);
-      if (!response.ok) throw new Error('Failed to load cases');
-      const data = await response.json();
+      const data = await apiClient.getCases();
       setCases(data.cases || []);
     } catch (error) {
       console.error('Error loading cases:', error);
@@ -133,9 +98,7 @@ const DocumentEditor: React.FC = () => {
 
   const loadScenarios = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/scenarios`);
-      if (!response.ok) throw new Error('Failed to load scenarios');
-      const data = await response.json();
+      const data = await apiClient.getScenarios();
       setScenarios(data.scenarios || {});
     } catch (error) {
       console.error('Error loading scenarios:', error);
@@ -144,9 +107,7 @@ const DocumentEditor: React.FC = () => {
 
   const loadCaseDetail = async (caseId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cases/${caseId}`);
-      if (!response.ok) throw new Error('Failed to load case detail');
-      const data = await response.json();
+      const data = await apiClient.getCase(caseId);
       setCaseDetail(data);
     } catch (error) {
       console.error('Error loading case detail:', error);
@@ -155,9 +116,7 @@ const DocumentEditor: React.FC = () => {
 
   const loadDocuments = async (caseId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/${caseId}`);
-      if (!response.ok) throw new Error('Failed to load documents');
-      const data = await response.json();
+      const data = await apiClient.listDocuments(caseId);
       setDocuments(data.documents || []);
     } catch (error) {
       console.error('Error loading documents:', error);
@@ -186,26 +145,13 @@ const DocumentEditor: React.FC = () => {
     setGenerateError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          case_id: selectedCaseId,
-          template_name: selectedTemplate,
-          generation_mode: generationMode,
-          custom_fields: generationMode === 'custom' ? customFields : null,
-          user_instructions: userInstructions || null,
-        }),
+      const document: DocumentDetail = await apiClient.generateDocument({
+        case_id: selectedCaseId,
+        template_name: selectedTemplate,
+        generation_mode: generationMode,
+        custom_fields: generationMode === 'custom' ? customFields : undefined,
+        user_instructions: userInstructions || undefined,
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Generation failed');
-      }
-
-      const document: DocumentDetail = await response.json();
 
       // 문서 목록 새로고침
       await loadDocuments(selectedCaseId);
@@ -224,9 +170,7 @@ const DocumentEditor: React.FC = () => {
 
   const handleViewDocument = async (caseId: string, documentId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/${caseId}/${documentId}`);
-      if (!response.ok) throw new Error('Failed to load document');
-      const document: DocumentDetail = await response.json();
+      const document: DocumentDetail = await apiClient.getDocument(caseId, documentId);
       setSelectedDocument(document);
     } catch (error) {
       console.error('Error loading document:', error);
@@ -237,11 +181,7 @@ const DocumentEditor: React.FC = () => {
     if (!window.confirm('정말로 이 문서를 삭제하시겠습니까?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/${caseId}/${documentId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete document');
+      await apiClient.deleteDocument(caseId, documentId);
 
       // 문서 목록 새로고침
       await loadDocuments(caseId);
@@ -305,10 +245,10 @@ const DocumentEditor: React.FC = () => {
 
   // 추천 템플릿 (사건의 시나리오 기반)
   const getRecommendedTemplates = (): string[] => {
-    if (!caseDetail?.scenario || !scenarios[caseDetail.scenario]) {
+    if (!caseDetail?.scenario?.scenario_name || !scenarios[caseDetail.scenario.scenario_name]) {
       return [];
     }
-    return scenarios[caseDetail.scenario].templates || [];
+    return scenarios[caseDetail.scenario.scenario_name].templates || [];
   };
 
   // 이미 생성된 템플릿 목록
@@ -323,24 +263,10 @@ const DocumentEditor: React.FC = () => {
     setGenerateError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          case_id: selectedCaseId,
-          template_name: templateName,
-          user_instructions: null,
-        }),
+      const document: DocumentDetail = await apiClient.generateDocument({
+        case_id: selectedCaseId,
+        template_name: templateName,
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Generation failed');
-      }
-
-      const document: DocumentDetail = await response.json();
 
       // 문서 목록 새로고침
       await loadDocuments(selectedCaseId);
@@ -423,7 +349,7 @@ const DocumentEditor: React.FC = () => {
                 <div className="recommended-section">
                   <h3><FiStar /> 이 사건에 적합한 문서</h3>
                   <p className="scenario-info">
-                    {caseDetail.scenario} ({Math.round((caseDetail.scenario_confidence || 0) * 100)}% 확신)
+                    {caseDetail.scenario.scenario_name} ({Math.round(caseDetail.scenario.confidence * 100)}% 확신)
                   </p>
                   <div className="recommended-templates">
                     {getRecommendedTemplates().map((template, index) => {
