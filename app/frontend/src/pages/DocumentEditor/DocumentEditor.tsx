@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FiFileText, FiEdit3, FiCpu, FiDownload, FiTrash2, FiFolder, FiAlertCircle, FiLoader, FiStar, FiCheckCircle } from 'react-icons/fi';
+import { FiFileText, FiEdit3, FiCpu, FiDownload, FiTrash2, FiFolder, FiAlertCircle, FiLoader, FiStar, FiCheckCircle, FiX } from 'react-icons/fi';
 import apiClient from '../../api/client';
 import {
   CaseListItem,
@@ -20,32 +20,52 @@ interface CaseDetail extends Partial<CaseAnalysis> {
   created_at?: number;
 }
 
+// 공통 필드 정의 (모든 템플릿에 필요)
+const COMMON_FIELDS: TemplateField[] = [
+  { name: 'case_name', label: '사건명', type: 'text', placeholder: '예: 대여금 청구의 건', required: true },
+  { name: 'plaintiff_name', label: '원고/고소인 성명', type: 'text', placeholder: '홍길동', required: true },
+  { name: 'plaintiff_address', label: '원고/고소인 주소', type: 'text', placeholder: '서울시 강남구 테헤란로 123', required: false },
+  { name: 'defendant_name', label: '피고/피고소인 성명', type: 'text', placeholder: '임꺽정', required: true },
+  { name: 'defendant_address', label: '피고/피고소인 주소', type: 'text', placeholder: '서울시 마포구 월드컵로 456', required: false },
+];
+
+// 핵심 6개 템플릿 필드 정의
 const TEMPLATE_FIELDS: Record<string, TemplateField[]> = {
   '소장': [
+    ...COMMON_FIELDS,
     { name: 'claim_amount', label: '청구 금액', type: 'number', placeholder: '예: 50000000', required: true },
     { name: 'claim_purpose', label: '청구 취지', type: 'textarea', placeholder: '피고는 원고에게 금 ○○원을 지급하라', required: true },
     { name: 'case_summary', label: '사건 개요', type: 'textarea', placeholder: '계약 체결 경위 및 채무 불이행 사실', required: false },
   ],
   '답변서': [
+    ...COMMON_FIELDS,
     { name: 'admission', label: '인정 사항', type: 'textarea', placeholder: '원고 주장 중 인정하는 부분', required: false },
     { name: 'denial', label: '부인 사항', type: 'textarea', placeholder: '원고 주장 중 부인하는 부분과 이유', required: true },
     { name: 'defense', label: '항변 내용', type: 'textarea', placeholder: '소멸시효, 상계 등', required: false },
   ],
   '고소장': [
-    { name: 'suspect_name', label: '피고소인 성명', type: 'text', placeholder: '홍길동', required: true },
-    { name: 'suspect_info', label: '피고소인 정보', type: 'textarea', placeholder: '생년월일, 주소 등', required: false },
+    ...COMMON_FIELDS,
+    { name: 'crime_type', label: '죄명', type: 'text', placeholder: '예: 사기, 횡령, 절도', required: true },
     { name: 'crime_fact', label: '범죄 사실', type: 'textarea', placeholder: '육하원칙에 따른 범죄 사실 기술', required: true },
     { name: 'evidence_summary', label: '증거 개요', type: 'textarea', placeholder: '제출 증거 목록 및 설명', required: false },
   ],
   '변론요지서': [
+    ...COMMON_FIELDS,
     { name: 'defense_argument', label: '변론 요지', type: 'textarea', placeholder: '무죄 주장 근거 또는 정상 참작 사유', required: true },
     { name: 'evidence_critique', label: '검사 증거 반박', type: 'textarea', placeholder: '검사 측 증거의 문제점', required: false },
   ],
   '내용증명': [
-    { name: 'recipient_name', label: '수신인', type: 'text', placeholder: '홍길동', required: true },
+    ...COMMON_FIELDS,
     { name: 'debt_amount', label: '채무 금액', type: 'number', placeholder: '예: 10000000', required: true },
-    { name: 'deadline', label: '이행 기한', type: 'date', placeholder: '', required: true },
+    { name: 'deadline', label: '이행 기한', type: 'text', placeholder: '예: 7일 이내', required: true },
     { name: 'legal_action', label: '불이행 시 조치', type: 'text', placeholder: '예: 민사소송 제기', required: false },
+  ],
+  '손해배상청구서': [
+    ...COMMON_FIELDS,
+    { name: 'accident_date', label: '사고 발생일', type: 'date', placeholder: '', required: true },
+    { name: 'accident_location', label: '사고 장소', type: 'text', placeholder: '예: 서울시 강남구 테헤란로', required: true },
+    { name: 'damages_amount', label: '총 손해액', type: 'number', placeholder: '예: 5000000', required: true },
+    { name: 'damages_breakdown', label: '손해 내역', type: 'textarea', placeholder: '치료비, 휴업손해, 위자료 등 상세 내역', required: true },
   ],
 };
 
@@ -64,6 +84,10 @@ const DocumentEditor: React.FC = () => {
   const [userInstructions, setUserInstructions] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // 미리보기 모달 상태
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<DocumentDetail | null>(null);
 
   // 사건 목록 로드
   useEffect(() => {
@@ -124,8 +148,14 @@ const DocumentEditor: React.FC = () => {
   };
 
   const handleGenerateDocument = async () => {
-    if (!selectedCaseId || !selectedTemplate) {
-      setGenerateError('사건과 템플릿을 선택해주세요.');
+    if (!selectedTemplate) {
+      setGenerateError('템플릿을 선택해주세요.');
+      return;
+    }
+
+    // 사건이 없는 경우 빠른 생성 모드는 불가능
+    if (!selectedCaseId && generationMode === 'quick') {
+      setGenerateError('사건을 선택하지 않은 경우 맞춤 생성 모드만 사용할 수 있습니다.');
       return;
     }
 
@@ -146,20 +176,23 @@ const DocumentEditor: React.FC = () => {
 
     try {
       const document: DocumentDetail = await apiClient.generateDocument({
-        case_id: selectedCaseId,
+        ...(selectedCaseId && { case_id: selectedCaseId }),  // Only include if case is selected
         template_name: selectedTemplate,
         generation_mode: generationMode,
         custom_fields: generationMode === 'custom' ? customFields : undefined,
         user_instructions: userInstructions || undefined,
       });
 
-      // 문서 목록 새로고침
-      await loadDocuments(selectedCaseId);
+      // 사건 기반 문서인 경우에만 문서 목록 새로고침
+      if (selectedCaseId) {
+        await loadDocuments(selectedCaseId);
+      }
 
-      // 생성된 문서 선택
-      setSelectedDocument(document);
+      // 미리보기 모달 표시
+      setPreviewDocument(document);
+      setShowPreviewModal(true);
 
-      // 모달 닫기 및 초기화
+      // 입력 모달 닫기
       handleCloseModal();
     } catch (error: any) {
       setGenerateError(error.message || '문서 생성 중 오류가 발생했습니다.');
@@ -210,11 +243,49 @@ const DocumentEditor: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // 모달 열기 (사건 미선택 시 안내)
+  // 미리보기에서 다운로드
+  const handlePreviewDownload = () => {
+    if (!previewDocument) return;
+
+    const blob = new Blob([previewDocument.content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${previewDocument.title}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // 미리보기 모달 닫기 및 저장
+  const handlePreviewClose = () => {
+    if (previewDocument) {
+      setSelectedDocument(previewDocument);
+    }
+    setShowPreviewModal(false);
+    setPreviewDocument(null);
+  };
+
+  // 미리보기 모달 저장 없이 닫기
+  const handlePreviewDismiss = () => {
+    setShowPreviewModal(false);
+    setPreviewDocument(null);
+  };
+
+  // 미리보기에서 다시 생성
+  const handlePreviewRegenerate = () => {
+    setShowPreviewModal(false);
+    setPreviewDocument(null);
+    setShowGenerateModal(true);
+    // 기존 입력값 유지됨
+  };
+
+  // 모달 열기 (사건 선택 여부와 관계없이 가능)
   const handleOpenModal = () => {
+    // 사건이 선택되지 않은 경우 자동으로 맞춤 생성 모드로 설정
     if (!selectedCaseId) {
-      alert('먼저 왼쪽에서 사건을 선택해주세요.');
-      return;
+      setGenerationMode('custom');
     }
     setShowGenerateModal(true);
   };
@@ -282,12 +353,8 @@ const DocumentEditor: React.FC = () => {
     }
   };
 
-  // 모든 템플릿 목록 (시나리오에서 추출)
-  const allTemplates = Array.from(
-    new Set(
-      Object.values(scenarios).flatMap((scenario) => scenario.templates)
-    )
-  );
+  // 모든 템플릿 목록 (TEMPLATE_FIELDS에서 직접 추출)
+  const allTemplates = Object.keys(TEMPLATE_FIELDS);
 
   return (
     <div className="document-editor">
@@ -478,25 +545,39 @@ const DocumentEditor: React.FC = () => {
       {showGenerateModal && (
         <div className="modal-overlay" onClick={() => !isGenerating && handleCloseModal()}>
           <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
-            <h3>AI 문서 생성</h3>
-            <p>생성 방식을 선택하고 템플릿을 골라 문서를 작성하세요.</p>
+            <div className="modal-header">
+              <h3>AI 문서 생성</h3>
+              <p>생성 방식을 선택하고 템플릿을 골라 문서를 작성하세요.</p>
+            </div>
+
+            <div className="modal-body">
+              {/* 사건 미선택 시 안내 메시지 */}
+              {!selectedCaseId && (
+                <div className="scenario-info" style={{marginBottom: '16px'}}>
+                  ℹ️ 사건을 선택하지 않았습니다. 맞춤 생성 모드로 직접 정보를 입력하여 문서를 생성할 수 있습니다.
+                </div>
+              )}
 
             {/* 생성 방식 선택 */}
             <div className="generation-mode-section">
               <label className="section-label">🎯 생성 방식 선택</label>
               <div className="mode-options">
-                <label className={`mode-option ${generationMode === 'quick' ? 'active' : ''}`}>
+                <label className={`mode-option ${generationMode === 'quick' ? 'active' : ''} ${!selectedCaseId ? 'disabled' : ''}`}>
                   <input
                     type="radio"
                     name="generationMode"
                     value="quick"
                     checked={generationMode === 'quick'}
                     onChange={(e) => setGenerationMode(e.target.value as 'quick' | 'custom')}
-                    disabled={isGenerating}
+                    disabled={isGenerating || !selectedCaseId}
                   />
                   <div className="mode-content">
-                    <div className="mode-title">⚡ 빠른 생성 (추천)</div>
-                    <div className="mode-desc">AI가 사건 정보를 바탕으로 전체 문서를 자동 작성합니다</div>
+                    <div className="mode-title">⚡ 빠른 생성 {selectedCaseId && '(추천)'}</div>
+                    <div className="mode-desc">
+                      {selectedCaseId
+                        ? 'AI가 사건 정보를 바탕으로 전체 문서를 자동 작성합니다'
+                        : '사건 선택 필요 - 사건 분석 정보를 기반으로 문서를 생성합니다'}
+                    </div>
                   </div>
                 </label>
                 <label className={`mode-option ${generationMode === 'custom' ? 'active' : ''}`}>
@@ -509,7 +590,7 @@ const DocumentEditor: React.FC = () => {
                     disabled={isGenerating}
                   />
                   <div className="mode-content">
-                    <div className="mode-title">✏️ 맞춤 생성</div>
+                    <div className="mode-title">✏️ 맞춤 생성 {!selectedCaseId && '(독립 모드)'}</div>
                     <div className="mode-desc">핵심 정보를 입력하면 AI가 나머지를 채워넣습니다</div>
                   </div>
                 </label>
@@ -579,35 +660,84 @@ const DocumentEditor: React.FC = () => {
               </div>
             )}
 
-            {generateError && (
-              <div className="error-message">
-                <FiAlertCircle />
-                <span>{generateError}</span>
-              </div>
-            )}
+              {generateError && (
+                <div className="error-message">
+                  <FiAlertCircle />
+                  <span>{generateError}</span>
+                </div>
+              )}
+            </div>
 
-            <div className="modal-actions">
+            <div className="modal-footer">
+              <div className="modal-actions">
+                <button
+                  className="btn-secondary"
+                  onClick={handleCloseModal}
+                  disabled={isGenerating}
+                >
+                  취소
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={handleGenerateDocument}
+                  disabled={isGenerating || !selectedTemplate}
+                >
+                  {isGenerating ? (
+                    <>
+                      <FiLoader className="spinner" /> 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <FiCpu /> 문서 생성
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 미리보기 모달 */}
+      {showPreviewModal && previewDocument && (
+        <div className="modal-overlay" onClick={handlePreviewClose}>
+          <div className="modal-content modal-preview" onClick={(e) => e.stopPropagation()}>
+            <div className="preview-header">
+              <div>
+                <h3>{previewDocument.title}</h3>
+                <span className="template-badge">{previewDocument.template_used}</span>
+              </div>
+              <button
+                className="preview-close-btn"
+                onClick={handlePreviewDismiss}
+                title="닫기"
+              >
+                <FiX />
+              </button>
+            </div>
+
+            <div className="preview-content-wrapper">
+              <pre className="preview-content">{previewDocument.content}</pre>
+            </div>
+
+            <div className="preview-actions">
               <button
                 className="btn-secondary"
-                onClick={handleCloseModal}
-                disabled={isGenerating}
+                onClick={handlePreviewRegenerate}
               >
-                취소
+                <FiEdit3 /> 다시 생성
               </button>
               <button
                 className="btn-primary"
-                onClick={handleGenerateDocument}
-                disabled={isGenerating || !selectedTemplate}
+                onClick={handlePreviewDownload}
               >
-                {isGenerating ? (
-                  <>
-                    <FiLoader className="spinner" /> 생성 중...
-                  </>
-                ) : (
-                  <>
-                    <FiCpu /> 문서 생성
-                  </>
-                )}
+                <FiDownload /> 다운로드
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handlePreviewClose}
+              >
+                <FiFileText /> 저장하고 닫기
               </button>
             </div>
           </div>
