@@ -62,7 +62,14 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    CORS_ORIGINS: str
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """CORS origins as list"""
+        if not self.CORS_ORIGINS:
+            return ["*"]
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
     # Monitoring (Optional)
     SENTRY_DSN: Optional[str] = None

@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ocr_postgres
+    environment:
+      POSTGRES_USER: ocruser
+      POSTGRES_PASSWORD: ocrpassword
+      POSTGRES_DB: ocrdb
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocruser -d ocrdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ocr_network
+
+  # Redis Cache & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: ocr_redis
+    command: redis-server --appendonly yes --requirepass redispassword
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ocr_network
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: ocr_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ocr_network
+
+  # MinIO Client - Create buckets on startup
+  minio-client:
+    image: minio/mc:latest
+    container_name: ocr_minio_client
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin123;
+      /usr/bin/mc mb myminio/public-docs --ignore-existing;
+      /usr/bin/mc mb myminio/private-docs --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/public-docs;
+      /usr/bin/mc anonymous set none myminio/private-docs;
+      echo 'Buckets created successfully';
+      exit 0;
+      "
+    networks:
+      - ocr_network
+
+  # Celery Worker (Optional - uncomment when ready)
+  # celery-worker:
+  #   build: .
+  #   container_name: ocr_celery_worker
+  #   command: celery -A app.workers.ocr_worker worker --loglevel=info
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - minio
+  #   environment:
+  #     - DATABASE_URL=postgresql+asyncpg://ocruser:ocrpassword@postgres:5432/ocrdb
+  #     - REDIS_URL=redis://:redispassword@redis:6379/0
+  #     - CELERY_BROKER_URL=redis://:redispassword@redis:6379/0
+  #     - CELERY_RESULT_BACKEND=redis://:redispassword@redis:6379/0
+  #     - STORAGE_ENDPOINT=minio:9000
+  #     - STORAGE_ACCESS_KEY=minioadmin
+  #     - STORAGE_SECRET_KEY=minioadmin123
+  #   volumes:
+  #     - .:/app
+  #   networks:
+  #     - ocr_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  ocr_network:
+    driver: bridge
