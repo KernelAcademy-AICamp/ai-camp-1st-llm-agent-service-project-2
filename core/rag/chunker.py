@@ -354,5 +354,28 @@ def create_chunker(config: dict) -> ChunkingStrategy:
             window_size=config.get('window_size', 512),
             step_size=config.get('step_size', 256)
         )
+    # ========== [NEW] Legal Document Chunking Strategies ==========
+    elif strategy == 'legal_article':
+        from .legal_chunker import LegalArticleChunking
+        return LegalArticleChunking(
+            chunk_size=config.get('chunk_size', 512),
+            max_chunk_size=config.get('max_chunk_size', 1000),
+            include_header=config.get('include_header', True)
+        )
+    elif strategy == 'precedent_section':
+        from .legal_chunker import PrecedentSectionChunking
+        return PrecedentSectionChunking(
+            chunk_size=config.get('chunk_size', 600),
+            overlap=config.get('overlap', 50),
+            include_header=config.get('include_header', True)
+        )
+    elif strategy == 'qa_context':
+        from .legal_chunker import QAContextEnrichmentChunking
+        return QAContextEnrichmentChunking(
+            db_client=config.get('db_client'),
+            include_context=config.get('include_context', True),
+            context_length=config.get('context_length', 300)
+        )
+    # ===============================================================
     else:
         raise ValueError(f"Unknown chunking strategy: {strategy}")

@@ -113,7 +113,7 @@ class RAGExperimentCLI:
 
         try:
             # Load documents
-            documents = self._load_documents_for_config(config)
+            documents = self.load_data_from_config(config)
             print(f"📄 Loaded {len(documents)} documents")
 
             # Index documents
@@ -701,8 +701,84 @@ class RAGExperimentCLI:
             print(f"\n🏆 Best F1 Score: {best_f1['name']} ({best_f1['avg_f1']:.3f})")
             print(f"⚡ Fastest: {best_speed['name']} ({best_speed['avg_response_time']:.3f}s)")
 
+    def load_data_from_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Load data based on config with support for multiple loader types.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            List of document dictionaries with 'content' and 'metadata'
+        """
+        data_config = config.get('data', {})
+        loader_type = data_config.get('loader_type', 'default')
+
+        # ========== [NEW] Traffic Law Loader Support ==========
+        if loader_type == 'traffic':
+            # Use traffic law specialized loader
+            from scripts.traffic_law_data_loader import TrafficLawDataLoader
+            from core.database import PostgreSQLClient
+
+            loader = TrafficLawDataLoader(data_config.get('base_path'))
+
+            # Get configuration options
+            use_source = data_config.get('use_source', True)
+            use_labeled = data_config.get('use_labeled', True)
+            source_types = data_config.get('source_types', ['법령', '판결문', '결정례', '해석례'])
+            labeled_types = data_config.get('labeled_types', ['법령_QA', '판결문_QA', '결정례_QA', '해석례_QA'])
+            max_per_type = data_config.get('max_per_type', None)
+            split = data_config.get('split', 'training')
+            traffic_only = data_config.get('traffic_only', True)
+
+            # Check if PostgreSQL enrichment is enabled
+            use_db_enrichment = data_config.get('use_db_enrichment', False)
+
+            if use_db_enrichment:
+                # Load with PostgreSQL context enrichment
+                try:
+                    db_client = PostgreSQLClient()
+                    dataset = loader.load_with_enrichment(
+                        db_client=db_client,
+                        use_source=use_source,
+                        use_labeled=use_labeled,
+                        source_types=source_types,
+                        labeled_types=labeled_types,
+                        max_per_type=max_per_type,
+                        split=split,
+                        traffic_only=traffic_only
+                    )
+                    db_client.close()
+                except Exception as e:
+                    print(f"⚠️ PostgreSQL enrichment failed: {e}")
+                    print("   Falling back to basic traffic loader...")
+                    dataset = loader.load_traffic_only(
+                        use_source=use_source,
+                        use_labeled=use_labeled,
+                        source_types=source_types,
+                        labeled_types=labeled_types,
+                        max_per_type=max_per_type,
+                        split=split
+                    )
+            else:
+                # Load traffic data only (no DB enrichment)
+                dataset = loader.load_traffic_only(
+                    use_source=use_source,
+                    use_labeled=use_labeled,
+                    source_types=source_types,
+                    labeled_types=labeled_types,
+                    max_per_type=max_per_type,
+                    split=split
+                )
+
+            return dataset
+        # ======================================================
+
+        # Default loader (existing criminal law loader)
+        return self._load_documents_for_config(config)
+
     def _load_documents_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Load documents based on config."""
+        """Load documents based on config (default loader)."""
         data_config = config.get('data', {})
 
         # Check if using real criminal law data
