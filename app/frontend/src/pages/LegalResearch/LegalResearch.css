@@ -1,24 +1,26 @@
 .legal-research {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0;
+  padding: 2rem;
 }
 
 .research-header {
-  margin-bottom: 32px;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .research-header h2 {
-  font-size: 32px;
-  font-weight: 600;
+  font-size: 2rem;
+  font-weight: 700;
   color: #1a1a1a;
   margin-bottom: 8px;
   letter-spacing: -0.5px;
 }
 
 .research-header p {
-  font-size: 16px;
-  color: #666666;
+  font-size: 1rem;
+  color: #6b7280;
 }
 
 /* Search Form */
@@ -56,7 +58,7 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--color-primary);
 }
 
 .search-input::placeholder {
@@ -66,7 +68,7 @@
 .search-button {
   padding: 16px 32px;
   margin-left: 12px;
-  background-color: #3b82f6;
+  background-color: var(--color-primary);
   color: white;
   border: none;
   border-radius: 8px;
@@ -77,7 +79,7 @@
 }
 
 .search-button:hover:not(:disabled) {
-  background-color: #2563eb;
+  background-color: var(--color-primary-hover);
 }
 
 .search-button:disabled {
@@ -171,7 +173,7 @@
 
 .result-type-icon {
   font-size: 20px;
-  color: #3b82f6;
+  color: var(--color-primary);
 }
 
 .result-title {
@@ -189,8 +191,8 @@
 
 .result-type-label {
   padding: 4px 8px;
-  background-color: #eff6ff;
-  color: #3b82f6;
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
@@ -279,12 +281,64 @@
 
 .example-queries li {
   padding: 8px 0;
-  color: #3b82f6;
+  color: var(--color-primary);
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
 .example-queries li:hover {
-  color: #2563eb;
+  color: var(--color-primary-hover);
   text-decoration: underline;
+}
+
+/* Search Error */
+.search-error {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.error-icon {
+  font-size: 20px;
+  color: #dc2626;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-content h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #dc2626;
+  margin: 0 0 8px 0;
+}
+
+.error-content p {
+  font-size: 14px;
+  color: #991b1b;
+  margin: 0 0 12px 0;
+}
+
+.error-dismiss {
+  padding: 8px 16px;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.error-dismiss:hover {
+  background-color: var(--color-primary-hover);
 }

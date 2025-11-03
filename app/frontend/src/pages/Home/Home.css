@@ -6,7 +6,7 @@
   font-family: 'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   background: #F8F9FA;
   min-height: calc(100vh - 72px);
-  padding: 40px;
+  padding: 2rem;
 }
 
 .home-container {
@@ -16,10 +16,12 @@
 
 /* Main Title */
 .home-main-title {
-  font-size: 42px;
-  font-weight: 600;
+  font-size: 2rem;
+  font-weight: 700;
   color: #1a1a1a;
-  margin-bottom: 40px;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
   letter-spacing: -1px;
 }
 

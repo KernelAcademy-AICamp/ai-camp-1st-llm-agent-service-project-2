@@ -12,47 +12,47 @@ logger = logging.getLogger(__name__)
 class ScenarioDetector:
     """시나리오 자동 감지 클래스"""
 
-    # 8가지 시나리오 정의
+    # 8가지 시나리오 정의 (핵심 템플릿 6개로 축소)
     SCENARIOS = {
         "scenario_1_initial_consultation": {
             "name": "초기 상담 및 사건 접수",
             "description": "의뢰인이 처음 방문하여 각종 서류를 들고 왔을 때",
-            "templates": ["사건접수보고서", "법률검토의견서", "수임료견적서"]
+            "templates": []  # 초기 상담 단계에서는 문서 생성 불필요
         },
         "scenario_2_civil_plaintiff": {
             "name": "민사소송 - 원고 대리",
             "description": "돈을 받아야 하는 경우",
-            "templates": ["소장", "준비서면_원고", "증거목록", "답변서예상"]
+            "templates": ["소장"]
         },
         "scenario_3_civil_defendant": {
             "name": "민사소송 - 피고 대리",
             "description": "돈 달라는 소송을 당한 경우",
-            "templates": ["답변서", "준비서면_피고", "반소장", "증거목록"]
+            "templates": ["답변서"]
         },
         "scenario_4_criminal_defense": {
             "name": "형사변호 - 피고인 변호",
             "description": "형사 기소당한 경우",
-            "templates": ["변론요지서", "의견서_검찰", "양형참고자료", "항소이유서"]
+            "templates": ["변론요지서"]
         },
         "scenario_5_criminal_complaint": {
             "name": "형사 고소/고발",
             "description": "범죄 피해자",
-            "templates": ["고소장", "진정서", "의견서_수사"]
+            "templates": ["고소장"]
         },
         "scenario_6_contract_review": {
             "name": "계약서 검토/작성",
             "description": "계약서 서명 전 검토",
-            "templates": ["계약서검토의견서", "수정계약서초안", "법률자문의견서"]
+            "templates": []  # 계약서 검토는 별도 기능으로 분리 예정
         },
         "scenario_7_demand_letter": {
             "name": "내용증명/경고장",
             "description": "소송 전 의사 전달",
-            "templates": ["내용증명", "경고장", "합의서"]
+            "templates": ["내용증명"]
         },
         "scenario_8_damages": {
             "name": "교통사고/손해배상",
             "description": "손해배상을 받아야 하는 경우",
-            "templates": ["손해배상청구서", "합의제안서", "소장_손해배상"]
+            "templates": ["손해배상청구서"]
         }
     }
 

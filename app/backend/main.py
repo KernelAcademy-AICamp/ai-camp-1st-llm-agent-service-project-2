@@ -30,14 +30,26 @@ from app.backend.services.file_parser import FileParser
 from app.backend.services.case_analyzer import CaseAnalyzer
 from app.backend.services.scenario_detector import ScenarioDetector
 from app.backend.services.document_generator import DocumentGenerator
+from app.backend.services.scourt_scraper import SCourtScraper
+from app.backend.services.precedent_crawler import PrecedentCrawler
+from app.backend.services.scheduler import PrecedentScheduler
 
 # Routers 임포트
 from app.backend.routers.chat import setup_chat_routes
 from app.backend.routers.cases import setup_case_routes
 from app.backend.routers.documents import setup_document_routes
 from app.backend.routers.adapters import setup_adapter_routes
+from app.backend.routers.auth import setup_auth_routes
+from app.backend.routers.precedents import setup_precedent_routes
+
+# Database 임포트
+from app.backend.database import engine, Base
+from app.backend.models.precedent import Precedent
+from app.backend.models.user import User
 
 from configs.config import config
+import os
+import asyncio
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -153,6 +165,72 @@ if llm_client:
     logger.info("DocumentGenerator initialized successfully")
 
 # ============================================
+# Precedent Crawler & Scheduler 초기화
+# ============================================
+
+scourt_scraper = None
+precedent_crawler = None
+precedent_scheduler = None
+
+try:
+    # Supreme Court Portal Scraper 초기화
+    scourt_scraper = SCourtScraper()
+    logger.info("Supreme Court portal scraper initialized")
+
+    # Precedent Crawler 초기화
+    precedent_crawler = PrecedentCrawler(scraper=scourt_scraper)
+    logger.info("Precedent crawler initialized")
+
+    # Precedent Scheduler 초기화
+    precedent_scheduler = PrecedentScheduler(crawler=precedent_crawler)
+    logger.info("Precedent scheduler initialized")
+
+except Exception as e:
+    logger.error(f"Failed to initialize precedent crawling system: {e}")
+    logger.info("API will run without precedent crawling support")
+
+# ============================================
+# Database Tables 생성
+# ============================================
+
+async def create_db_tables():
+    """데이터베이스 테이블 생성"""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created successfully")
+
+# ============================================
+# Startup & Shutdown Events
+# ============================================
+
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 실행"""
+    logger.info("Starting LawLaw Backend...")
+
+    # 데이터베이스 테이블 생성
+    await create_db_tables()
+
+    # 스케줄러 시작
+    if precedent_scheduler:
+        precedent_scheduler.start()
+        logger.info("Precedent scheduler started")
+
+        # 초기 크롤링 실행 (비동기)
+        asyncio.create_task(precedent_scheduler.run_initial_crawl())
+        logger.info("Initial precedent crawl scheduled")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """앱 종료 시 실행"""
+    logger.info("Shutting down LawLaw Backend...")
+
+    # 스케줄러 종료
+    if precedent_scheduler:
+        precedent_scheduler.shutdown()
+        logger.info("Precedent scheduler shut down")
+
+# ============================================
 # Health Check Endpoint
 # ============================================
 
@@ -226,6 +304,14 @@ adapters_router = setup_adapter_routes(
     constitutional_chatbot=constitutional_chatbot
 )
 app.include_router(adapters_router)
+
+# Auth Router 등록
+auth_router = setup_auth_routes()
+app.include_router(auth_router)
+
+# Precedents Router 등록
+precedents_router = setup_precedent_routes(crawler=precedent_crawler)
+app.include_router(precedents_router)
 
 
 if __name__ == "__main__":

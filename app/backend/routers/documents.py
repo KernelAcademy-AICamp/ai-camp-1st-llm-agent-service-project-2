@@ -44,7 +44,7 @@ def validate_uuid(id_string: str, field_name: str = "ID") -> str:
 
 
 class DocumentGenerationRequest(BaseModel):
-    case_id: str
+    case_id: Optional[str] = None  # Optional for standalone document generation
     template_name: str
     generation_mode: Optional[str] = "quick"
     custom_fields: Optional[Dict[str, str]] = None
@@ -68,30 +68,57 @@ def setup_document_routes(
 
     @router.post("/generate", response_model=DocumentGenerationResponse)
     async def generate_document(request: DocumentGenerationRequest):
-        """템플릿 기반 법률 문서 생성"""
+        """템플릿 기반 법률 문서 생성 (사건 기반 또는 독립 실행)"""
         if not document_generator:
             raise HTTPException(status_code=503, detail="Document generator not available")
 
         try:
-            # Case ID 검증
-            validated_case_id = validate_uuid(request.case_id, "case_id")
+            # Case-based mode: Load case analysis from existing case
+            if request.case_id:
+                # Case ID 검증
+                validated_case_id = validate_uuid(request.case_id, "case_id")
 
-            case_dir = upload_dir / validated_case_id
-            analysis_path = case_dir / "analysis.json"
+                case_dir = upload_dir / validated_case_id
+                analysis_path = case_dir / "analysis.json"
 
-            # 경로 정규화 및 검증
-            resolved_path = analysis_path.resolve()
-            if not str(resolved_path).startswith(str(upload_dir.resolve())):
-                logger.error(f"Path traversal attempt: {resolved_path}")
-                raise HTTPException(status_code=400, detail="Invalid path")
+                # 경로 정규화 및 검증
+                resolved_path = analysis_path.resolve()
+                if not str(resolved_path).startswith(str(upload_dir.resolve())):
+                    logger.error(f"Path traversal attempt: {resolved_path}")
+                    raise HTTPException(status_code=400, detail="Invalid path")
 
-            if not analysis_path.exists():
-                raise HTTPException(status_code=404, detail="Case not found")
+                if not analysis_path.exists():
+                    raise HTTPException(status_code=404, detail="Case not found")
 
-            with open(analysis_path, "r", encoding="utf-8") as f:
-                case_analysis = json.load(f)
+                with open(analysis_path, "r", encoding="utf-8") as f:
+                    case_analysis = json.load(f)
 
-            logger.info(f"Generating document '{request.template_name}' for case {request.case_id} (mode: {request.generation_mode})")
+                logger.info(f"Generating document '{request.template_name}' for case {request.case_id} (mode: {request.generation_mode})")
+
+                # Save directory for case-based documents
+                documents_dir = case_dir / "documents"
+                documents_dir.mkdir(exist_ok=True)
+
+            # Standalone mode: Create minimal case analysis from custom fields
+            else:
+                logger.info(f"Generating standalone document '{request.template_name}' (mode: {request.generation_mode})")
+
+                # Create minimal case analysis for standalone generation
+                case_analysis = {
+                    "suggested_case_name": request.custom_fields.get("case_name", "독립 문서") if request.custom_fields else "독립 문서",
+                    "summary": request.custom_fields.get("case_summary", "") if request.custom_fields else "",
+                    "document_types": [request.template_name],
+                    "parties": {},
+                    "issues": [],
+                    "key_dates": {}
+                }
+
+                # Save directory for standalone documents
+                standalone_dir = upload_dir / "standalone"
+                standalone_dir.mkdir(exist_ok=True)
+                documents_dir = standalone_dir
+
+            # Generate document using DocumentGenerator
             document = await document_generator.generate_document(
                 template_name=request.template_name,
                 case_analysis=case_analysis,
@@ -101,12 +128,10 @@ def setup_document_routes(
             )
 
             document_id = str(uuid.uuid4())
-            documents_dir = case_dir / "documents"
-            documents_dir.mkdir(exist_ok=True)
-
             document_path = documents_dir / f"{document_id}.json"
             document_with_id = {
                 "document_id": document_id,
+                "case_id": request.case_id,  # null for standalone documents
                 "created_at": datetime.now().isoformat(),
                 **document
             }
@@ -114,7 +139,7 @@ def setup_document_routes(
             with open(document_path, "w", encoding="utf-8") as f:
                 json.dump(document_with_id, f, ensure_ascii=False, indent=2)
 
-            logger.info(f"Document generated and saved: {document_id}")
+            logger.info(f"Document generated and saved: {document_id} (standalone: {request.case_id is None})")
 
             return DocumentGenerationResponse(
                 document_id=document_id,

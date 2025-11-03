@@ -187,7 +187,7 @@ export interface CasesResponse {
 export type GenerationMode = 'quick' | 'custom';
 
 export interface DocumentGenerationRequest {
-  case_id: string;
+  case_id?: string;  // Optional for standalone document generation
   template_name: string;
   generation_mode?: GenerationMode;
   custom_fields?: Record<string, string>;
@@ -268,4 +268,82 @@ export interface SuccessResponse {
 
 export interface DeleteResponse extends SuccessResponse {
   // Inherits success and message
+}
+
+// ============================================
+// Authentication Types
+// ============================================
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  specializations: string[];
+  lawyer_registration_number?: string;
+  is_active: boolean;
+}
+
+export interface LoginRequest {
+  username: string; // OAuth2 standard uses 'username' for email
+  password: string;
+}
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  specializations: string[];
+  lawyer_registration_number?: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface ProfileUpdateRequest {
+  full_name?: string;
+  specializations?: string[];
+  lawyer_registration_number?: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+
+// ============================================
+// Precedent Types (판례)
+// ============================================
+
+export interface Precedent {
+  id: string;
+  case_number: string;
+  title: string;
+  summary: string | null;
+  court: string;
+  decision_date: string;
+  case_type: string;
+  specialization_tags: string[];
+  case_link: string | null;
+  created_at: string;
+}
+
+export interface PrecedentDetail extends Precedent {
+  full_text: string | null;
+  citation: string | null;
+  updated_at: string;
+}
+
+export interface PrecedentListResponse {
+  total: number;
+  precedents: Precedent[];
 }

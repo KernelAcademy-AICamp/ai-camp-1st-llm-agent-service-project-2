@@ -21,7 +21,17 @@ import {
   DocumentGenerationRequest,
   DocumentDetail,
   DocumentsResponse,
-  ScenariosResponse
+  ScenariosResponse,
+  LoginRequest,
+  SignupRequest,
+  TokenResponse,
+  User,
+  ProfileUpdateRequest,
+  ChangePasswordRequest,
+  SuccessResponse,
+  Precedent,
+  PrecedentDetail,
+  PrecedentListResponse
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -34,21 +44,33 @@ class APIClient {
   }
 
   /**
-   * Generic fetch wrapper with error handling
+   * Generic fetch wrapper with error handling and auth token
    */
   private async fetch<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    token?: string
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Merge existing headers
+    if (options.headers) {
+      Object.assign(headers, options.headers);
+    }
+
+    // Add Authorization header if token is provided
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
     try {
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -200,6 +222,124 @@ class APIClient {
 
   async getScenarios(): Promise<ScenariosResponse> {
     return this.fetch<ScenariosResponse>('/api/documents/scenarios');
+  }
+
+  // ============================================
+  // Authentication
+  // ============================================
+
+  async login(credentials: LoginRequest): Promise<TokenResponse> {
+    // OAuth2 expects form data, not JSON
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.username);
+    formData.append('password', credentials.password);
+
+    const url = `${this.baseURL}/api/auth/login`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Login failed');
+    }
+
+    return await response.json();
+  }
+
+  async signup(data: SignupRequest): Promise<TokenResponse> {
+    return this.fetch<TokenResponse>('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async logout(token: string): Promise<SuccessResponse> {
+    return this.fetch<SuccessResponse>('/api/auth/logout', {
+      method: 'POST',
+    }, token);
+  }
+
+  async getCurrentUser(token: string): Promise<User> {
+    return this.fetch<User>('/api/auth/me', {}, token);
+  }
+
+  async updateProfile(data: ProfileUpdateRequest, token: string): Promise<User> {
+    return this.fetch<User>('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, token);
+  }
+
+  async changePassword(data: ChangePasswordRequest, token: string): Promise<SuccessResponse> {
+    return this.fetch<SuccessResponse>('/api/auth/change-password', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, token);
+  }
+
+  async deactivateAccount(token: string): Promise<SuccessResponse> {
+    return this.fetch<SuccessResponse>('/api/auth/account', {
+      method: 'DELETE',
+    }, token);
+  }
+
+  // ============================================
+  // Precedents (판례)
+  // ============================================
+
+  async getRecentPrecedents(
+    limit: number = 10,
+    offset: number = 0,
+    caseType?: string
+  ): Promise<PrecedentListResponse> {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+
+    if (caseType) {
+      params.append('case_type', caseType);
+    }
+
+    return this.fetch<PrecedentListResponse>(`/api/precedents/recent?${params}`);
+  }
+
+  async getPrecedentDetail(precedentId: string): Promise<PrecedentDetail> {
+    return this.fetch<PrecedentDetail>(`/api/precedents/${precedentId}`);
+  }
+
+  async searchPrecedentsBySpecialization(
+    specialization: string,
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<PrecedentListResponse> {
+    const params = new URLSearchParams({
+      specialization,
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+
+    return this.fetch<PrecedentListResponse>(
+      `/api/precedents/search/by-specialization?${params}`
+    );
+  }
+
+  async refreshPrecedents(limit: number = 10): Promise<{ message: string; stored_count: number }> {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+    });
+
+    return this.fetch<{ message: string; stored_count: number }>(
+      `/api/precedents/refresh?${params}`,
+      { method: 'POST' }
+    );
   }
 }
 
