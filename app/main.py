@@ -9,6 +9,7 @@ import logging
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
+from app.api.v1 import api_router
 
 # 로깅 설정
 logging.basicConfig(
@@ -74,6 +75,10 @@ async def health_check():
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION
     }
+
+
+# API v1 라우터 등록
+app.include_router(api_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

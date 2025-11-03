@@ -10,6 +10,7 @@ python-multipart==0.0.6
 # Database
 sqlalchemy==2.0.23
 asyncpg==0.29.0
+greenlet==3.0.3  # Required for SQLAlchemy async
 alembic==1.12.1
 psycopg2-binary==2.9.9
 
