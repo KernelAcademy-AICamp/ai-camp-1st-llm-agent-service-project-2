@@ -59,7 +59,7 @@ STRONG_KEYWORDS = [
 ]
 
 # 최대 페이지 수 (None이면 전체)
-MAX_PAGES = None
+MAX_PAGES = 1  # 샘플 테스트용
 
 # 상세 정보 조회 여부
 FETCH_DETAILS = True
@@ -366,13 +366,13 @@ def main():
     logger.info(f"상세 정보 조회: {'예' if FETCH_DETAILS else '아니오'}")
     logger.info(f"페이지 제한: {MAX_PAGES if MAX_PAGES else '없음'}")
 
-    # 1. 판례 수집
-    logger.info("\n\n[1/2] 판례 수집 시작")
-    precedents = crawl_cases(TRAFFIC_KEYWORDS, target="prec")
+    # 1. 판례 수집 (샘플 테스트: 키워드 1개만)
+    logger.info("\n\n[1/2] 판례 수집 시작 (샘플 테스트)")
+    precedents = crawl_cases(["교통사고"], target="prec")
 
-    # 2. 해석례 수집
-    logger.info("\n\n[2/2] 해석례 수집 시작")
-    interpretations = crawl_cases(TRAFFIC_KEYWORDS, target="expc")
+    # 2. 해석례 수집 (샘플 테스트: 키워드 1개만)
+    logger.info("\n\n[2/2] 해석례 수집 시작 (샘플 테스트)")
+    interpretations = crawl_cases(["교통사고"], target="expc")
 
     # 결과 통합
     all_results = {
