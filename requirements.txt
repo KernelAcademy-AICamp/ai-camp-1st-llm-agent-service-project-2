@@ -76,5 +76,6 @@ pylint>=2.17.0  # Linter
 # wandb>=0.15.0  # Weights & Biases
 
 # Database
-# psycopg2-binary>=2.9.0  # PostgreSQL
+psycopg2-binary>=2.9.0  # PostgreSQL
+sqlalchemy>=2.0.0  # SQL toolkit and ORM
 # redis>=5.0.0  # Redis cache
