@@ -110,3 +110,11 @@ htmlcov/
 *.temp
 tmp/
 temp/
+
+# ===================================
+# OCR Test Outputs
+# ===================================
+output_*.json
+output_*.csv
+계약서_*.json
+계약서_*.csv
