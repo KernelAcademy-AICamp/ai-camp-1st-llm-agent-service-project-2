@@ -68,6 +68,37 @@ export interface SourceDocument {
 }
 
 // ============================================
+// RAG Chat Types
+// ============================================
+
+export interface RAGChatRequest {
+  query: string;
+  top_k?: number;
+  include_sources?: boolean;
+}
+
+export interface RAGSource {
+  rank: number;
+  source: string;
+  type: string;
+  title: string;
+  case_number: string;
+  date: string;
+  citation: string;
+  text_snippet: string;
+  score: number;
+}
+
+export interface RAGChatResponse {
+  answer: string;
+  sources: RAGSource[];
+  query: string;
+  model: string;
+  timestamp: string;
+  revised: boolean;
+}
+
+// ============================================
 // Document Analysis Types
 // ============================================
 

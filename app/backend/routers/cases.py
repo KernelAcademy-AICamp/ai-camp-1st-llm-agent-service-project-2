@@ -24,6 +24,11 @@ MAX_FILES_PER_UPLOAD = 5
 ALLOWED_FILENAME_PATTERN = re.compile(r'^[\w\-. ()\[\]가-힣]+$')  # 안전한 파일명만 허용
 
 
+class UploadedFileInfo(BaseModel):
+    filename: str
+    size: int
+
+
 class CaseAnalysisResponse(BaseModel):
     case_id: str
     summary: str
@@ -34,7 +39,7 @@ class CaseAnalysisResponse(BaseModel):
     related_cases: List[Dict[str, Any]]
     suggested_case_name: str
     suggested_next_steps: List[str]
-    uploaded_files: List[Dict[str, str]]
+    uploaded_files: List[UploadedFileInfo]
     scenario: Dict[str, Any]
 
 

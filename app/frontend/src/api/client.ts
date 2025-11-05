@@ -9,6 +9,8 @@ import {
   SearchResult,
   ChatRequest,
   ChatResponse,
+  RAGChatRequest,
+  RAGChatResponse,
   AnalyzeRequest,
   AnalyzeResponse,
   HealthResponse,
@@ -113,6 +115,17 @@ class APIClient {
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     return this.fetch<ChatResponse>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * RAG Chat with Constitutional AI
+   * ChromaDB 388K docs + Hybrid Search + Constitutional AI
+   */
+  async chatWithRAG(request: RAGChatRequest): Promise<RAGChatResponse> {
+    return this.fetch<RAGChatResponse>('/api/chat-with-rag', {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -339,6 +352,72 @@ class APIClient {
     return this.fetch<{ message: string; stored_count: number }>(
       `/api/precedents/refresh?${params}`,
       { method: 'POST' }
+    );
+  }
+
+  async scrapePrecedentByKeyword(
+    keyword: string,
+    limit: number = 10
+  ): Promise<{ success: boolean; message: string; stored_count: number; fetched_count: number }> {
+    return this.fetch<{ success: boolean; message: string; stored_count: number; fetched_count: number }>(
+      `/api/precedents/search-keyword`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ keyword, limit }),
+      }
+    );
+  }
+
+  async searchVectorDB(
+    keyword: string,
+    top_k: number = 20
+  ): Promise<{
+    success: boolean;
+    message: string;
+    total_count: number;
+    results: Array<{
+      case_number: string;
+      title: string;
+      summary: string;
+      court: string;
+      decision_date: string;
+      score: number;
+    }>;
+  }> {
+    return this.fetch<{
+      success: boolean;
+      message: string;
+      total_count: number;
+      results: Array<{
+        case_number: string;
+        title: string;
+        summary: string;
+        court: string;
+        decision_date: string;
+        score: number;
+      }>;
+    }>(
+      `/api/precedents/search-vectordb`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ keyword, top_k }),
+      }
+    );
+  }
+
+  async searchPrecedentsByKeyword(
+    keyword: string,
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<PrecedentListResponse> {
+    const params = new URLSearchParams({
+      keyword,
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+
+    return this.fetch<PrecedentListResponse>(
+      `/api/precedents/search/keyword?${params}`
     );
   }
 }

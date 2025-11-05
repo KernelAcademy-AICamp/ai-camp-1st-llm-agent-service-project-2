@@ -33,6 +33,7 @@ from app.backend.services.document_generator import DocumentGenerator
 from app.backend.services.scourt_scraper import SCourtScraper
 from app.backend.services.precedent_crawler import PrecedentCrawler
 from app.backend.services.scheduler import PrecedentScheduler
+from app.backend.services.openlaw_client import OpenLawAPIClient
 
 # Routers 임포트
 from app.backend.routers.chat import setup_chat_routes
@@ -41,6 +42,8 @@ from app.backend.routers.documents import setup_document_routes
 from app.backend.routers.adapters import setup_adapter_routes
 from app.backend.routers.auth import setup_auth_routes
 from app.backend.routers.precedents import setup_precedent_routes
+from app.backend.routers.precedent_scraping import router as scraping_router
+from app.backend.routers.precedent_search import router as search_router
 
 # Database 임포트
 from app.backend.database import engine, Base
@@ -83,9 +86,9 @@ try:
     embedder = KoreanLegalEmbedder()
     logger.info("Embedder initialized successfully")
 
-    # 벡터 DB 초기화 (기존 데이터 로드)
+    # 벡터 DB 초기화 (형사법 ChromaDB 로드)
     vectordb = ChromaVectorDB(
-        persist_directory=str(BASE_DIR / "data" / "vectordb" / "chroma"),
+        persist_directory=str(BASE_DIR / "data" / "vectordb" / "chroma_criminal_law"),
         collection_name="criminal_law_docs"
     )
     logger.info(f"Vector DB loaded with {vectordb.get_count()} documents")
@@ -94,7 +97,7 @@ try:
     bm25_index_path = BASE_DIR / "data" / "vectordb" / "bm25"
     if bm25_index_path.exists():
         bm25_index = BM25Index()
-        bm25_index.load(str(bm25_index_path / "bm25_index.pkl"))
+        bm25_index.load(str(bm25_index_path))
         logger.info(f"BM25 index loaded with {bm25_index.get_count()} documents")
 
     # Semantic Retriever 초기화
@@ -171,8 +174,14 @@ if llm_client:
 scourt_scraper = None
 precedent_crawler = None
 precedent_scheduler = None
+openlaw_client = None
 
 try:
+    # OpenLaw API Client 초기화
+    OPENLAW_API_KEY = os.getenv("OPENLAW_API_KEY", "fox_racer")  # 기본값: 공용 키
+    openlaw_client = OpenLawAPIClient(api_key=OPENLAW_API_KEY)
+    logger.info(f"OpenLaw API client initialized (key: {OPENLAW_API_KEY[:10]}...)")
+
     # Supreme Court Portal Scraper 초기화
     scourt_scraper = SCourtScraper()
     logger.info("Supreme Court portal scraper initialized")
@@ -278,7 +287,8 @@ async def health_check():
 chat_router = setup_chat_routes(
     constitutional_chatbot=constitutional_chatbot,
     llm_client=llm_client,
-    hybrid_retriever=hybrid_retriever
+    hybrid_retriever=hybrid_retriever,
+    openlaw_client=openlaw_client
 )
 app.include_router(chat_router)
 
@@ -310,10 +320,16 @@ auth_router = setup_auth_routes()
 app.include_router(auth_router)
 
 # Precedents Router 등록
-precedents_router = setup_precedent_routes(crawler=precedent_crawler)
+precedents_router = setup_precedent_routes(crawler=precedent_crawler, openlaw_client=openlaw_client)
 app.include_router(precedents_router)
+
+# Precedent Scraping Router 등록 (Playwright 기반)
+app.include_router(scraping_router)
+
+# Precedent VectorDB Search Router 등록 (ChromaDB 기반)
+app.include_router(search_router)
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)

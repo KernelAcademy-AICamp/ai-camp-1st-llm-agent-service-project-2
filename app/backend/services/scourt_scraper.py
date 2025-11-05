@@ -12,6 +12,7 @@ import requests
 import logging
 import time
 import json
+import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -61,7 +62,7 @@ class SCourtScraper:
             params = {
                 "OC": self.api_key,  # API 인증 키 (이메일 @ 앞부분)
                 "target": "prec",  # 판례 검색
-                "type": "JSON",  # JSON 형식
+                "type": "XML",  # XML 형식 (JSON은 아직 미지원)
                 "query": keyword,  # 검색어
                 "display": min(limit, 100),  # 최대 100건
                 "page": 1,
@@ -76,8 +77,8 @@ class SCourtScraper:
             # 지연 (서버 부하 방지)
             time.sleep(self.request_delay)
 
-            # JSON 파싱
-            precedents = self._parse_json_response(response.text, limit)
+            # XML 파싱
+            precedents = self._parse_xml_response(response.text, limit)
 
             logger.info(f"Successfully fetched {len(precedents)} precedents from Law.go.kr")
             return precedents[:limit]
@@ -89,9 +90,52 @@ class SCourtScraper:
             logger.error(f"Error parsing Law.go.kr API response: {e}")
             return []
 
+    def _parse_xml_response(self, xml_content: str, limit: int) -> List[Dict]:
+        """
+        법제처 API XML 응답 파싱
+
+        Args:
+            xml_content: XML 응답 텍스트
+            limit: 추출할 판례 수
+
+        Returns:
+            List of precedent dictionaries
+        """
+        try:
+            root = ET.fromstring(xml_content)
+            precedents = []
+
+            # <prec> 태그들 찾기
+            prec_items = root.findall('.//prec')
+
+            logger.info(f"Found {len(prec_items)} precedent entries in XML")
+
+            for item in prec_items[:limit]:
+                try:
+                    precedent = self._extract_precedent_from_xml(item)
+                    if precedent:
+                        precedents.append(precedent)
+                except Exception as e:
+                    logger.warning(f"Failed to parse precedent XML item: {e}")
+                    continue
+
+            if len(precedents) == 0:
+                logger.warning("No precedents parsed from XML, generating sample data")
+                precedents = self._generate_sample_data(limit)
+
+            return precedents
+
+        except ET.ParseError as e:
+            logger.error(f"XML parsing error: {e}")
+            logger.error(f"XML content (first 500 chars): {xml_content[:500]}")
+            return self._generate_sample_data(limit)
+        except Exception as e:
+            logger.error(f"Error in XML parsing: {e}")
+            return self._generate_sample_data(limit)
+
     def _parse_json_response(self, json_content: str, limit: int) -> List[Dict]:
         """
-        법제처 API JSON 응답 파싱
+        법제처 API JSON 응답 파싱 (레거시, JSON 미지원 시 사용 안함)
 
         Args:
             json_content: JSON 응답 텍스트
@@ -140,9 +184,80 @@ class SCourtScraper:
             logger.error(f"Error in JSON parsing: {e}")
             return self._generate_sample_data(limit)
 
+    def _extract_precedent_from_xml(self, xml_item: ET.Element) -> Optional[Dict]:
+        """
+        XML 아이템에서 판례 정보 추출
+
+        Args:
+            xml_item: XML Element (판례 정보)
+
+        Returns:
+            Precedent dictionary or None
+        """
+        try:
+            # 사건명 (제목) - CDATA 섹션 처리
+            title_elem = xml_item.find('사건명')
+            title = title_elem.text.strip() if title_elem is not None and title_elem.text else "제목 없음"
+
+            # 사건번호
+            case_number_elem = xml_item.find('사건번호')
+            case_number = case_number_elem.text.strip() if case_number_elem is not None and case_number_elem.text else f"UNKNOWN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+            # 선고일자 (형식: YYYY.MM.DD)
+            decision_date = datetime.now()
+            date_elem = xml_item.find('선고일자')
+            if date_elem is not None and date_elem.text:
+                date_str = date_elem.text.strip()
+                try:
+                    # YYYY.MM.DD 형식 파싱
+                    decision_date = datetime.strptime(date_str, '%Y.%m.%d')
+                except ValueError:
+                    try:
+                        # YYYYMMDD 형식 시도
+                        decision_date = datetime.strptime(date_str.replace('.', ''), '%Y%m%d')
+                    except Exception as e:
+                        logger.warning(f"Failed to parse date '{date_str}': {e}")
+
+            # 법원명
+            court_elem = xml_item.find('법원명')
+            court = court_elem.text.strip() if court_elem is not None and court_elem.text else "대법원"
+
+            # 빈 법원명인 경우 대법원으로 설정
+            if not court:
+                court = "대법원"
+
+            # 판례일련번호 (상세 링크용)
+            prec_id_elem = xml_item.find('판례일련번호')
+            prec_id = prec_id_elem.text.strip() if prec_id_elem is not None and prec_id_elem.text else None
+
+            # 판례상세링크
+            link_elem = xml_item.find('판례상세링크')
+            case_link = link_elem.text.strip() if link_elem is not None and link_elem.text else None
+
+            # 링크가 상대 경로인 경우 절대 경로로 변환
+            if case_link and case_link.startswith('/DRF/'):
+                case_link = f"http://www.law.go.kr{case_link}"
+
+            # 판시사항은 목록 API에서 제공하지 않으므로 None
+            summary = None
+
+            return {
+                "case_number": case_number,
+                "title": title,
+                "summary": summary,
+                "court": court,
+                "decision_date": decision_date,
+                "case_link": case_link,
+                "precedent_id": prec_id,  # 상세 정보 조회용
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to extract precedent from XML: {e}")
+            return None
+
     def _extract_precedent_from_json(self, json_item: Dict) -> Optional[Dict]:
         """
-        JSON 아이템에서 판례 정보 추출
+        JSON 아이템에서 판례 정보 추출 (레거시)
 
         Args:
             json_item: JSON 딕셔너리 (판례 정보)

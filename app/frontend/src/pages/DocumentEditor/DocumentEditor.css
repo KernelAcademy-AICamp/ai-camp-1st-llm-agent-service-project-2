@@ -323,7 +323,57 @@
 
 .viewer-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 아이콘 전용 버튼 (다운로드/삭제) */
+.btn-icon-only {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.btn-icon-only:hover {
+  background-color: #e5e7eb;
+  color: #1f2937;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-icon-only:active {
+  transform: translateY(0);
+}
+
+.btn-icon-only.btn-download {
+  color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.btn-icon-only.btn-download:hover {
+  background-color: var(--color-primary);
+  color: white;
+  box-shadow: 0 2px 12px rgba(67, 56, 202, 0.3);
+}
+
+.btn-icon-only.btn-delete {
+  color: #dc2626;
+  background-color: #fee2e2;
+}
+
+.btn-icon-only.btn-delete:hover {
+  background-color: #dc2626;
+  color: white;
+  box-shadow: 0 2px 12px rgba(220, 38, 38, 0.3);
 }
 
 .viewer-content {

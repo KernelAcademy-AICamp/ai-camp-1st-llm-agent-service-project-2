@@ -62,6 +62,12 @@ class Precedent(Base):
     summary = Column(Text, nullable=True)
     full_text = Column(Text, nullable=True)
 
+    # Additional details from Supreme Court Portal
+    judgment_summary = Column(Text, nullable=True)  # 판시사항
+    reference_statutes = Column(JSONList, default=list, nullable=False)  # 참조조문
+    reference_precedents = Column(JSONList, default=list, nullable=False)  # 참조판례
+    precedent_id = Column(String(100), nullable=True, index=True)  # 대법원 포털 판례 ID
+
     # Court and date
     court = Column(String(100), default="대법원", nullable=False)
     decision_date = Column(DateTime, index=True, nullable=False)
@@ -97,6 +103,10 @@ class Precedent(Base):
             "title": self.title,
             "summary": self.summary,
             "full_text": self.full_text,
+            "judgment_summary": self.judgment_summary,
+            "reference_statutes": self.reference_statutes,
+            "reference_precedents": self.reference_precedents,
+            "precedent_id": self.precedent_id,
             "court": self.court,
             "decision_date": self.decision_date.isoformat() if self.decision_date else None,
             "case_type": self.case_type,

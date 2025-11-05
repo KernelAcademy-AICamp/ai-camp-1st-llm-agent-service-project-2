@@ -514,17 +514,22 @@ const DocumentEditor: React.FC = () => {
                   <span className="template-badge">{selectedDocument.template_used}</span>
                 </div>
                 <div className="viewer-actions">
-                  <button className="btn-secondary" onClick={handleDownloadDocument}>
-                    <FiDownload /> 다운로드
+                  <button
+                    className="btn-icon-only btn-download"
+                    onClick={handleDownloadDocument}
+                    title="다운로드"
+                  >
+                    <FiDownload />
                   </button>
                   <button
-                    className="btn-icon btn-danger"
+                    className="btn-icon-only btn-delete"
                     onClick={() =>
                       selectedCaseId &&
                       handleDeleteDocument(selectedCaseId, selectedDocument.document_id)
                     }
+                    title="삭제"
                   >
-                    <FiTrash2 /> 삭제
+                    <FiTrash2 />
                   </button>
                 </div>
               </div>

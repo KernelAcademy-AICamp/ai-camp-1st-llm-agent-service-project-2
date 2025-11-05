@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiFolder, FiUpload, FiPlus, FiFileText, FiTrash2, FiEye, FiAlertCircle, FiEdit, FiCpu } from 'react-icons/fi';
+import { FiFolder, FiUpload, FiPlus, FiFileText, FiTrash2, FiEye, FiAlertCircle, FiEdit, FiCpu, FiLoader } from 'react-icons/fi';
 import apiClient from '../../api/client';
 import { CaseAnalysis, CaseListItem } from '../../types';
 import './CaseManagement.css';
@@ -339,6 +339,16 @@ const CaseManagement: React.FC = () => {
               <div className="error-message">
                 <FiAlertCircle />
                 <span>{uploadError}</span>
+              </div>
+            )}
+
+            {isUploading && (
+              <div className="upload-loading-overlay">
+                <div className="upload-spinner">
+                  <FiLoader className="spinner-icon" />
+                </div>
+                <p className="upload-status">파일 업로드 및 AI 분석 중...</p>
+                <p className="upload-detail">문서 파싱, 쟁점 분석, 관련 판례 검색 진행 중</p>
               </div>
             )}
 

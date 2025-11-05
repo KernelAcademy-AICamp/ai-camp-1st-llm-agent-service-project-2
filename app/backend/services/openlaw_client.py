@@ -74,6 +74,10 @@ class OpenLawAPIClient:
             response = self.session.get(endpoint, params=params, timeout=30)
             response.raise_for_status()
 
+            # Log raw response for debugging
+            logger.info(f"OpenLaw API raw response (first 500 chars): {response.text[:500]}")
+            logger.debug(f"Full response content-type: {response.headers.get('content-type')}")
+
             # XML 파싱
             precedents = self._parse_precedent_list_xml(response.text)
 
@@ -111,6 +115,9 @@ class OpenLawAPIClient:
 
             response = self.session.get(endpoint, params=params, timeout=30)
             response.raise_for_status()
+
+            # Log raw response for debugging
+            logger.info(f"OpenLaw API detail response (first 500 chars): {response.text[:500]}")
 
             detail = self._parse_precedent_detail_xml(response.text)
 
@@ -179,6 +186,8 @@ class OpenLawAPIClient:
 
         except ET.ParseError as e:
             logger.error(f"XML parsing error: {e}")
+            logger.error(f"Failed XML content (first 1000 chars): {xml_text[:1000]}")
+            logger.error(f"XML content around error line 15: {xml_text.split(chr(10))[10:20] if len(xml_text.split(chr(10))) > 15 else 'N/A'}")
             return []
 
     def _parse_precedent_detail_xml(self, xml_text: str) -> Optional[Dict]:
@@ -229,6 +238,7 @@ class OpenLawAPIClient:
 
         except ET.ParseError as e:
             logger.error(f"XML parsing error for detail: {e}")
+            logger.error(f"Failed XML content (first 1000 chars): {xml_text[:1000]}")
             return None
 
     def _get_xml_text(self, element: ET.Element, *tag_names: str) -> Optional[str]:

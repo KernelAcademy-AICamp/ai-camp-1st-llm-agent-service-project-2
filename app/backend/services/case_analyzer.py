@@ -143,27 +143,67 @@ JSON 형식으로만 응답하세요."""
         return list(set(types))  # 중복 제거
 
     async def _search_related_cases(self, query: str) -> List[Dict[str, Any]]:
-        """RAG로 관련 판례 검색"""
+        """
+        RAG로 관련 판례 검색
+
+        ChromaDB 메타데이터 구조:
+        - case_number: 사건번호 (예: "2023노7795")
+        - court: 법원명 (예: "수원지방법원")
+        - decision_date: 선고일 (예: "2023.11.15")
+        - source: 원본 파일명 (예: "HS_P_314016")
+        - type: 문서 타입 (예: "precedent")
+        """
         try:
+            # 메타데이터 필터: 판례만 검색
+            filter_metadata = {"type": "precedent"}
+
             results = self.retriever.retrieve(
                 query=query,
-                top_k=5
+                top_k=5,
+                filter_metadata=filter_metadata
             )
 
             related_cases = []
-            for result in results:
+            for idx, result in enumerate(results, 1):
                 metadata = result.get('metadata', {})
+
+                # Title 생성 (우선순위: case_number > court > source > fallback)
+                case_number = metadata.get('case_number', '')
+                court = metadata.get('court', '')
+                source = metadata.get('source', '')
+
+                if case_number and court:
+                    title = f"{court} {case_number}"
+                elif case_number:
+                    title = f"판례 {case_number}"
+                elif court:
+                    title = f"{court} 판결"
+                elif source:
+                    title = f"판례 ({source})"
+                else:
+                    title = f"관련 판례 {idx}"
+
+                # Summary: 더 긴 텍스트 활용 (200자 → 350자)
+                summary_text = result.get('text', '').strip()
+                summary = summary_text[:350] + "..." if len(summary_text) > 350 else summary_text
+
+                # Date 정리
+                date = metadata.get('decision_date', metadata.get('date', ''))
+
                 related_cases.append({
-                    "title": metadata.get('title', 'Unknown'),
-                    "summary": result.get('text', '')[:200],
-                    "date": metadata.get('date', ''),
-                    "relevance": round(result.get('score', 0) * 100, 1)
+                    "title": title,
+                    "summary": summary,
+                    "date": date,
+                    "relevance": round(result.get('score', 0) * 100, 1),
+                    "case_number": case_number,
+                    "court": court
                 })
 
+            logger.info(f"Found {len(related_cases)} related precedents for query: '{query[:50]}...'")
             return related_cases
 
         except Exception as e:
-            logger.error(f"Failed to search related cases: {e}")
+            logger.error(f"Failed to search related cases: {e}", exc_info=True)
             return []
 
     def _suggest_next_steps(self, analysis: Dict[str, Any]) -> List[str]:
