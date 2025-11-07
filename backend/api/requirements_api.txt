@@ -1,0 +1,16 @@
+# FastAPI 웹 프레임워크
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# 파일 업로드 처리
+python-multipart==0.0.6
+
+# 기존 OCR 파이프라인 의존성
+PyMuPDF==1.23.8
+pytesseract==0.3.10
+pdf2image==1.16.3
+Pillow==10.1.0
+numpy==1.26.2
+
+# 추가 유틸리티
+aiofiles==23.2.1  # 비동기 파일 처리

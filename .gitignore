@@ -114,3 +114,15 @@ htmlcov/
 *.temp
 tmp/
 temp/
+
+# ===================================
+# OCR Pipeline Outputs
+# ===================================
+# 처리 결과 (개인 테스트용)
+imaged_pdf_output*/
+test_results/
+output/
+results/
+
+# 테스트용 로그
+*.log

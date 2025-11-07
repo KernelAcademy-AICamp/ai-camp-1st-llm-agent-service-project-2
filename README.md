@@ -173,3 +173,53 @@ develop 브랜치에 Merge
 3.  **임베딩 및 DB 모듈**: 임베딩 추출 및 Vector DB 저장 모듈 소스코드
 4.  **핵심 기능 모듈**: RAG 응답, 유사 논문 추천, 비교, 트렌드 분석 모듈 코드
 5.  **최종 발표 자료 및 데모 영상**
+
+
+---
+
+## 📄 OCR 파이프라인
+
+본 프로젝트는 법률 문서 PDF의 텍스트 추출 및 구조화를 위한 OCR 파이프라인을 포함합니다.
+
+### 주요 기능
+- **PyMuPDF 우선 텍스트 추출**: 빠르고 정확한 텍스트 추출
+- **적응형 OCR 전처리**: 문서 품질에 따른 선택적 이미지 전처리
+- **문서 타입별 자동 구조화**: 판결문, 소장, 내용증명, 합의서 등 자동 인식 및 필드 추출
+- **FastAPI 기반 REST API**: 프론트엔드 연동 준비 완료
+- **OCR 후처리**: 자동 오인식 교정 (11+ 규칙)
+
+### 성능 지표
+- **처리 시간**: 10-20초/파일 (3페이지 기준)
+- **OCR 신뢰도**: 평균 75.5% (최고 92.1%)
+- **데이터 완전성**: 내용증명 94%, 소장 80%
+
+### 빠른 시작
+```bash
+# OCR 의존성 설치
+pip install -r requirements.txt
+
+# Tesseract OCR 설치 (macOS)
+brew install tesseract tesseract-lang
+
+# API 서버 실행
+uvicorn backend.api.main:app --reload
+
+# 단일 파일 테스트
+python scripts/test_single_pdf.py /path/to/file.pdf
+```
+
+### 상세 문서
+- [📘 OCR 파이프라인 개요](docs/ocr/README.md)
+- [⚙️ 설치 가이드](docs/ocr/SETUP.md)
+- [🚀 빠른 시작](docs/ocr/QUICK_START.md)
+- [🔌 API 가이드](docs/ocr/API_GUIDE.md)
+- [💻 프론트엔드 예제](docs/ocr/FRONTEND_EXAMPLES.md)
+
+### 디렉토리 구조
+```
+core/ocr/              # 핵심 파이프라인 모듈
+backend/api/           # FastAPI 서버
+scripts/               # 실행 스크립트
+tests/ocr/             # 테스트 코드 및 샘플 데이터
+docs/ocr/              # 상세 문서
+```
