@@ -267,6 +267,55 @@
   flex: 1;
 }
 
+/* 문서 항목 액션 버튼 */
+.document-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-left: 8px;
+}
+
+.btn-icon-view,
+.btn-icon-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: transparent;
+}
+
+.btn-icon-view {
+  color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.btn-icon-view:hover {
+  background-color: var(--color-primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(67, 56, 202, 0.2);
+}
+
+.btn-icon-delete {
+  color: #dc2626;
+  background-color: #fee2e2;
+}
+
+.btn-icon-delete:hover {
+  background-color: #dc2626;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+
 .document-item-info h4 {
   font-size: 14px;
   font-weight: 600;

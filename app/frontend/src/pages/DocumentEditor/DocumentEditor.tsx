@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FiFileText, FiEdit3, FiCpu, FiDownload, FiTrash2, FiFolder, FiAlertCircle, FiLoader, FiStar, FiCheckCircle, FiX } from 'react-icons/fi';
+import { FiFileText, FiEdit3, FiCpu, FiDownload, FiTrash2, FiFolder, FiAlertCircle, FiLoader, FiStar, FiCheckCircle, FiX, FiEye } from 'react-icons/fi';
 import apiClient from '../../api/client';
 import {
   CaseListItem,
@@ -88,6 +88,10 @@ const DocumentEditor: React.FC = () => {
   // 미리보기 모달 상태
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DocumentDetail | null>(null);
+
+  // 문서 상세보기 모달 상태
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [modalDocument, setModalDocument] = useState<DocumentDetail | null>(null);
 
   // 사건 목록 로드
   useEffect(() => {
@@ -207,6 +211,16 @@ const DocumentEditor: React.FC = () => {
       setSelectedDocument(document);
     } catch (error) {
       console.error('Error loading document:', error);
+    }
+  };
+
+  const handleViewDocumentModal = async (caseId: string, documentId: string) => {
+    try {
+      const document: DocumentDetail = await apiClient.getDocument(caseId, documentId);
+      setModalDocument(document);
+      setShowDocumentModal(true);
+    } catch (error) {
+      console.error('Error loading document for modal:', error);
     }
   };
 
@@ -488,13 +502,28 @@ const DocumentEditor: React.FC = () => {
                             <small>{new Date(doc.created_at).toLocaleString()}</small>
                           </div>
                         </div>
-                        <button
-                          className="btn-icon btn-danger"
-                          onClick={() => handleDeleteDocument(selectedCaseId, doc.document_id)}
-                          title="삭제"
-                        >
-                          <FiTrash2 />
-                        </button>
+                        <div className="document-item-actions">
+                          <button
+                            className="btn-icon-view"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDocumentModal(selectedCaseId, doc.document_id);
+                            }}
+                            title="상세보기"
+                          >
+                            <FiEye />
+                          </button>
+                          <button
+                            className="btn-icon-delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDocument(selectedCaseId, doc.document_id);
+                            }}
+                            title="삭제"
+                          >
+                            <FiTrash2 />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -743,6 +772,56 @@ const DocumentEditor: React.FC = () => {
                 onClick={handlePreviewClose}
               >
                 <FiFileText /> 저장하고 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 문서 상세보기 모달 */}
+      {showDocumentModal && modalDocument && (
+        <div className="modal-overlay" onClick={() => setShowDocumentModal(false)}>
+          <div className="modal-content modal-preview" onClick={(e) => e.stopPropagation()}>
+            <div className="preview-header">
+              <div>
+                <h3>{modalDocument.title}</h3>
+                <span className="template-badge">{modalDocument.template_used}</span>
+              </div>
+              <button
+                className="preview-close-btn"
+                onClick={() => setShowDocumentModal(false)}
+                title="닫기"
+              >
+                <FiX />
+              </button>
+            </div>
+
+            <div className="preview-content-wrapper">
+              <pre className="preview-content">{modalDocument.content}</pre>
+            </div>
+
+            <div className="preview-actions">
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  const blob = new Blob([modalDocument.content], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${modalDocument.title}.txt`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <FiDownload /> 다운로드
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => setShowDocumentModal(false)}
+              >
+                닫기
               </button>
             </div>
           </div>

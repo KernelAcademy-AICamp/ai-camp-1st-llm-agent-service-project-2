@@ -270,6 +270,110 @@ def setup_chat_routes(
         logger.info(f"Total search results: {len(search_results)}")
         return search_results[:request.limit or 10]
 
+    @router.get("/document/{source_id}")
+    async def get_document_detail(source_id: str):
+        """문서 상세 정보 조회 (전체 텍스트 포함)
+
+        Args:
+            source_id: 문서 소스 ID (예: HS_P_338200)
+
+        Returns:
+            문서 전체 텍스트 및 메타데이터 (모든 청크 결합)
+        """
+        if not hybrid_retriever:
+            raise HTTPException(
+                status_code=503,
+                detail="Document retrieval service not available"
+            )
+
+        try:
+            logger.info(f"Fetching document detail for: {source_id}")
+
+            # ChromaDB에서 해당 source_id를 가진 모든 청크 조회
+            results = hybrid_retriever.semantic_retriever.vectordb.collection.get(
+                where={"source": source_id},
+                include=["documents", "metadatas"]
+            )
+
+            if not results or not results['ids']:
+                # source_id가 정확하지 않으면 부분 검색 시도
+                all_results = hybrid_retriever.semantic_retriever.vectordb.collection.get(
+                    include=["documents", "metadatas"]
+                )
+
+                # source_id가 포함된 문서 찾기
+                matching_chunks = []
+                for i, metadata in enumerate(all_results['metadatas']):
+                    if source_id in metadata.get('source', ''):
+                        matching_chunks.append({
+                            'id': all_results['ids'][i],
+                            'document': all_results['documents'][i],
+                            'metadata': metadata
+                        })
+
+                if not matching_chunks:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Document not found: {source_id}"
+                    )
+
+                # 청크 정렬 및 결합
+                matching_chunks.sort(key=lambda x: int(x['metadata'].get('chunk_id', 0)))
+                full_text = '\n\n'.join([chunk['document'] for chunk in matching_chunks])
+
+                return {
+                    'id': matching_chunks[0]['id'],
+                    'source': matching_chunks[0]['metadata'].get('source', ''),
+                    'title': matching_chunks[0]['metadata'].get('title', ''),
+                    'type': matching_chunks[0]['metadata'].get('type', 'unknown'),
+                    'case_number': matching_chunks[0]['metadata'].get('case_number', ''),
+                    'date': matching_chunks[0]['metadata'].get('date', ''),
+                    'citation': matching_chunks[0]['metadata'].get('citation', ''),
+                    'full_text': full_text,
+                    'metadata': matching_chunks[0]['metadata']
+                }
+
+            # 모든 청크를 chunk_id로 정렬
+            chunks = []
+            for i in range(len(results['ids'])):
+                chunks.append({
+                    'id': results['ids'][i],
+                    'document': results['documents'][i],
+                    'metadata': results['metadatas'][i]
+                })
+
+            # chunk_id로 정렬 (없으면 0으로 간주)
+            chunks.sort(key=lambda x: int(x['metadata'].get('chunk_id', 0)))
+
+            # 모든 청크의 텍스트를 결합
+            full_text = '\n\n'.join([chunk['document'] for chunk in chunks])
+
+            # 첫 번째 청크의 메타데이터 사용 (모든 청크가 같은 메타데이터 공유)
+            metadata = chunks[0]['metadata']
+
+            logger.info(f"Combined {len(chunks)} chunks for document: {source_id}")
+
+            return {
+                'id': chunks[0]['id'],
+                'source': metadata.get('source', ''),
+                'title': metadata.get('title', ''),
+                'type': metadata.get('type', 'unknown'),
+                'case_number': metadata.get('case_number', ''),
+                'date': metadata.get('date', ''),
+                'citation': metadata.get('citation', ''),
+                'full_text': full_text,
+                'metadata': metadata
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Document detail error: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"문서 조회 오류: {str(e)}"
+            )
+
     @router.post("/analyze", response_model=AnalyzeResponse)
     async def analyze_document(request: AnalyzeRequest):
         """법률 문서 분석 (Constitutional AI 적용)"""

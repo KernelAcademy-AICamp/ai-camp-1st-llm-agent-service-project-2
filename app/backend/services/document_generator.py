@@ -97,7 +97,7 @@ class DocumentGenerator:
         custom_fields: Dict[str, str],
         generation_mode: str
     ) -> Dict[str, str]:
-        """변수 딕셔너리 준비"""
+        """변수 딕셔너리 준비 - 템플릿별 맞춤 매핑"""
 
         variables = {}
 
@@ -108,24 +108,38 @@ class DocumentGenerator:
         variables['case_name'] = custom_fields.get('case_name') or \
                                  case_analysis.get('suggested_case_name', '미정')
 
-        # 당사자 정보 (공통 필드)
+        # 당사자 정보 추출 - 한글/영문 키 모두 지원, 문자열/객체 모두 지원
         parties = case_analysis.get('parties', {})
 
-        # 원고/고소인/청구인 정보
-        variables['plaintiff_name'] = custom_fields.get('plaintiff_name') or \
-                                       parties.get('plaintiff', {}).get('name', '___________')
-        variables['plaintiff_address'] = custom_fields.get('plaintiff_address') or \
-                                          parties.get('plaintiff', {}).get('address', '___________')
-        variables['plaintiff_contact'] = custom_fields.get('plaintiff_contact') or \
-                                          parties.get('plaintiff', {}).get('contact', '___________')
+        # Helper function to extract party info
+        def extract_party_info(party_keys: list) -> tuple:
+            """당사자 정보 추출 (여러 키 시도, 문자열/객체 모두 지원)"""
+            for key in party_keys:
+                party_info = parties.get(key)
+                if party_info:
+                    if isinstance(party_info, dict):
+                        return party_info.get('name', '___________'), party_info.get('address', '___________'), party_info.get('contact', '___________')
+                    elif isinstance(party_info, str):
+                        return party_info, '___________', '___________'
+            return '___________', '___________', '___________'
 
-        # 피고/피고소인/피청구인 정보
-        variables['defendant_name'] = custom_fields.get('defendant_name') or \
-                                       parties.get('defendant', {}).get('name', '___________')
-        variables['defendant_address'] = custom_fields.get('defendant_address') or \
-                                          parties.get('defendant', {}).get('address', '___________')
-        variables['defendant_contact'] = custom_fields.get('defendant_contact') or \
-                                          parties.get('defendant', {}).get('contact', '___________')
+        # 원고/고소인 정보
+        plaintiff_name, plaintiff_address, plaintiff_contact = extract_party_info(['원고', 'plaintiff', '고소인'])
+        variables['plaintiff_name'] = custom_fields.get('plaintiff_name') or plaintiff_name
+        variables['plaintiff_address'] = custom_fields.get('plaintiff_address') or plaintiff_address
+        variables['plaintiff_contact'] = custom_fields.get('plaintiff_contact') or plaintiff_contact
+
+        # 피고/피고인 정보
+        defendant_name, defendant_address, defendant_contact = extract_party_info(['피고', 'defendant', '피고인'])
+        variables['defendant_name'] = custom_fields.get('defendant_name') or defendant_name
+        variables['defendant_address'] = custom_fields.get('defendant_address') or defendant_address
+        variables['defendant_contact'] = custom_fields.get('defendant_contact') or defendant_contact
+
+        # 피고소인 정보 (고소장용)
+        suspect_name, suspect_address, suspect_contact = extract_party_info(['피고소인', 'suspect'])
+        variables['suspect_name'] = custom_fields.get('suspect_name') or suspect_name
+        variables['suspect_info'] = custom_fields.get('suspect_info') or \
+                                     (f'주소: {suspect_address}' if suspect_address != '___________' else '생년월일 및 주소 불상')
 
         # 법원/검찰 정보
         variables['court_name'] = custom_fields.get('court_name') or '서울중앙지방법원'
