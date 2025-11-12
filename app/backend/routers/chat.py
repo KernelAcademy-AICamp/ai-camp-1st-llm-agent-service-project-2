@@ -3,11 +3,15 @@ Chat & Search Router
 챗봇 및 검색 관련 엔드포인트
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import logging
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.backend.database import get_db
+from app.backend.core.retrieval.feedback_filter import get_excluded_precedent_ids
 
 logger = logging.getLogger(__name__)
 
@@ -136,12 +140,13 @@ def setup_chat_routes(
             raise HTTPException(status_code=503, detail="Chat service not available")
 
     @router.post("/chat-with-rag", response_model=RAGChatResponse)
-    async def chat_with_rag(request: RAGChatRequest):
+    async def chat_with_rag(request: RAGChatRequest, db: AsyncSession = Depends(get_db)):
         """ChromaDB RAG + Constitutional AI 기반 법률 챗봇
 
         - Hybrid Search (Semantic + BM25, RRF k=60, Adaptive Weighting)
         - Constitutional AI (6 principles + Self-Critique + 3-shot Learning)
         - 388,767개 형사법 문서 기반 RAG
+        - 사용자 피드백 기반 필터링 (싫어요가 많은 판례 제외)
         """
         if not constitutional_chatbot:
             raise HTTPException(
@@ -152,22 +157,73 @@ def setup_chat_routes(
         try:
             logger.info(f"RAG Chat request: '{request.query}' (top_k={request.top_k})")
 
+            # 사용자 피드백 기반 제외 판례 ID 조회
+            excluded_ids = await get_excluded_precedent_ids(db)
+            if excluded_ids:
+                logger.info(f"Filtering out {len(excluded_ids)} precedents based on user feedback")
+
             # Constitutional AI + Hybrid RAG로 답변 생성
+            # top_k를 증가시켜서 중복 제거 및 필터링 후에도 충분한 문서 확보
+            # 청크 중복을 고려하여 2배로 검색 (예: top_k=5 -> 검색 10개 -> 중복 제거 후 ~5개)
+            retrieval_top_k = request.top_k * 2
+            if excluded_ids:
+                retrieval_top_k += len(excluded_ids)
+                logger.info(f"Retrieving {retrieval_top_k} chunks (accounting for {len(excluded_ids)} excluded + deduplication)")
+
             result = constitutional_chatbot.chat(
                 query=request.query,
-                top_k=request.top_k,
+                top_k=retrieval_top_k,
                 include_critique_log=False
             )
 
-            # 소스 정보 포맷팅
+            # 피드백 기반 필터링 적용
+            filtered_sources = result.get('sources', [])
+            if excluded_ids and filtered_sources:
+                original_count = len(filtered_sources)
+                # metadata.source를 기준으로 필터링
+                filtered_sources = [
+                    s for s in filtered_sources
+                    if s.get('metadata', {}).get('source') not in excluded_ids
+                ]
+                if len(filtered_sources) < original_count:
+                    logger.info(f"Filtered {original_count - len(filtered_sources)} sources based on feedback")
+
+            # 소스 정보 포맷팅 (청크 중복 제거)
             sources = []
-            if request.include_sources and result.get('sources'):
-                for i, source in enumerate(result['sources'], 1):
+            seen_sources = set()  # 이미 처리된 source ID 추적
+
+            if request.include_sources and filtered_sources:
+                rank = 1
+                for source in filtered_sources:
                     metadata = source.get('metadata', {})
+                    source_id = metadata.get('source', 'Unknown')
+
+                    # 같은 판례의 청크 중복 제거 (첫 번째 청크만 유지)
+                    if source_id in seen_sources:
+                        logger.debug(f"Skipping duplicate source: {source_id}")
+                        continue
+
+                    seen_sources.add(source_id)
+
+                    # Source ID 패턴 분석으로 문서 타입 추론
+                    doc_type = metadata.get('type', 'unknown')
+                    source_str = metadata.get('source', '')
+
+                    # Source ID나 메타데이터로 타입 추론
+                    if '_P_' in source_str or '판례' in source_str:
+                        doc_type = 'case'
+                    elif '법령' in source_str:
+                        doc_type = 'law'
+                    elif '해석례' in source_str:
+                        doc_type = 'interpretation'
+                    elif doc_type == 'unknown':
+                        # 기본값: 형사법 데이터는 대부분 판례
+                        doc_type = 'case'
+
                     sources.append({
-                        'rank': i,
-                        'source': metadata.get('source', 'Unknown'),
-                        'type': metadata.get('type', 'unknown'),
+                        'rank': rank,
+                        'source': source_id,
+                        'type': doc_type,
                         'title': metadata.get('title', ''),
                         'case_number': metadata.get('case_number', ''),
                         'date': metadata.get('date', ''),
@@ -175,6 +231,13 @@ def setup_chat_routes(
                         'text_snippet': source.get('text', '')[:200],
                         'score': source.get('score', 0.0)
                     })
+                    rank += 1
+
+                    # top_k 개수에 도달하면 중단
+                    if len(sources) >= request.top_k:
+                        break
+
+                logger.info(f"Deduplicated sources: {len(filtered_sources)} chunks -> {len(sources)} unique precedents")
 
             # Constitutional AI가 self-critique를 통해 답변을 수정했는지 확인
             revised = result.get('revised', False)

@@ -142,6 +142,24 @@ class APIClient {
     });
   }
 
+  /**
+   * Get full document detail by source ID
+   * Retrieves complete text and metadata from VectorDB
+   */
+  async getDocumentDetail(sourceId: string): Promise<{
+    id: string;
+    source: string;
+    title: string;
+    type: string;
+    case_number: string;
+    date: string;
+    citation: string;
+    full_text: string;
+    metadata: Record<string, any>;
+  }> {
+    return this.fetch(`/api/document/${encodeURIComponent(sourceId)}`);
+  }
+
   // ============================================
   // Adapter Management (QDoRA)
   // ============================================
@@ -419,6 +437,45 @@ class APIClient {
     return this.fetch<PrecedentListResponse>(
       `/api/precedents/search/keyword?${params}`
     );
+  }
+
+  // ============================================
+  // Precedent Feedback (판례 피드백)
+  // ============================================
+
+  async submitPrecedentFeedback(data: {
+    precedent_id: string;
+    query: string;
+    feedback_type: 'like' | 'dislike';
+    is_helpful: boolean;
+    relevance_score?: number;
+    comment?: string;
+    user_id?: string;
+    session_id?: string;
+  }): Promise<{
+    id: string;
+    precedent_id: string;
+    feedback_type: string;
+    is_helpful: boolean;
+    created_at: string;
+    message: string;
+  }> {
+    return this.fetch('/api/feedback/submit', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPrecedentFeedbackStats(precedentId: string): Promise<{
+    precedent_id: string;
+    total_likes: number;
+    total_dislikes: number;
+    like_ratio: number;
+    total_feedback_count: number;
+    avg_relevance_score: number | null;
+    should_exclude: boolean;
+  }> {
+    return this.fetch(`/api/feedback/stats/${encodeURIComponent(precedentId)}`);
   }
 }
 

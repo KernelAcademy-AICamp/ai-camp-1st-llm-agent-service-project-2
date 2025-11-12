@@ -283,15 +283,33 @@
 }
 
 .example-queries li {
-  padding: 8px 0;
+  padding: 12px 16px;
   color: var(--color-primary);
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  font-weight: 500;
+  background-color: transparent;
+  border: 1px solid transparent;
 }
 
-.example-queries li:hover {
+.example-query-item {
+  padding: 12px 16px;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  font-weight: 500;
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.example-queries li:hover,
+.example-query-item:hover {
   color: var(--color-primary-hover);
-  text-decoration: underline;
+  background-color: rgba(67, 56, 202, 0.1);
+  border-color: var(--color-primary);
+  transform: translateX(4px);
 }
 
 /* Search Error */
@@ -712,9 +730,11 @@
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
   border-left: 4px solid #e5e7eb;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .source-card:hover {
@@ -874,6 +894,52 @@
   font-size: 12px;
   color: #6b7280;
   font-style: italic;
+}
+
+/* Feedback Buttons */
+.source-feedback-buttons {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  justify-content: flex-end;
+}
+
+.feedback-btn {
+  padding: 8px 16px;
+  border: 2px solid #e5e7eb;
+  background-color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.feedback-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.feedback-btn.active.liked {
+  background-color: #d1fae5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.feedback-btn.active.disliked {
+  background-color: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.feedback-btn.active {
+  font-weight: 600;
 }
 
 /* Loading Indicator */

@@ -42,7 +42,7 @@ class ScenarioDetector:
         "scenario_6_contract_review": {
             "name": "계약서 검토/작성",
             "description": "계약서 서명 전 검토",
-            "templates": []  # 계약서 검토는 별도 기능으로 분리 예정
+            "templates": ["근로계약서", "임대차계약서", "업무위탁계약서", "매매계약서"]
         },
         "scenario_7_demand_letter": {
             "name": "내용증명/경고장",
@@ -139,9 +139,13 @@ class ScenarioDetector:
         score_6 = 0
         if "계약서" in doc_types or "계약서" in combined_text:
             score_6 += 0.6
+        # 특정 계약서 유형 키워드 체크
+        contract_keywords = ["근로계약", "임대차", "전세", "월세", "업무위탁", "용역", "매매", "부동산"]
+        if any(keyword in combined_text for keyword in contract_keywords):
+            score_6 += 0.4
         if not any(keyword in combined_text for keyword in ["소장", "판결", "고소"]):
             score_6 += 0.3  # 소송 단계 아님
-        if any(keyword in combined_text for keyword in ["검토", "서명", "체결"]):
+        if any(keyword in combined_text for keyword in ["검토", "서명", "체결", "작성"]):
             score_6 += 0.2
         scores["scenario_6_contract_review"] = score_6
 

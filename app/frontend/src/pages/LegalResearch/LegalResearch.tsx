@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown } from 'react-icons/fi';
 import './LegalResearch.css';
 import { apiClient } from '../../api/client';
 import type { RAGChatResponse } from '../../types';
+import PrecedentModal from '../../components/PrecedentModal/PrecedentModal';
 
 const LegalResearch: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -12,6 +13,14 @@ const LegalResearch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPrecedent, setSelectedPrecedent] = useState<any>(null);
+  const [isLoadingPrecedent, setIsLoadingPrecedent] = useState(false);
+
+  // Feedback states
+  const [feedbackState, setFeedbackState] = useState<Record<string, 'like' | 'dislike' | null>>({});
 
   const handleCopyAnswer = async () => {
     if (ragResponse?.answer) {
@@ -83,6 +92,81 @@ const LegalResearch: React.FC = () => {
       case 'law': return '법령';
       case 'interpretation': return '해석례';
       default: return '기타';
+    }
+  };
+
+  const handlePrecedentClick = async (sourceId: string) => {
+    setIsLoadingPrecedent(true);
+    setIsModalOpen(true);
+    setSelectedPrecedent(null);
+
+    try {
+      const detail = await apiClient.getDocumentDetail(sourceId);
+      setSelectedPrecedent(detail);
+    } catch (err) {
+      console.error('Failed to load precedent detail:', err);
+      setError(err instanceof Error ? err.message : '판례 상세 정보를 불러오는 데 실패했습니다.');
+      setIsModalOpen(false);
+    } finally {
+      setIsLoadingPrecedent(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedPrecedent(null);
+  };
+
+  const handleFeedback = async (precedentId: string, feedbackType: 'like' | 'dislike') => {
+    try {
+      // 세션 ID 생성 (익명 사용자용)
+      let sessionId = localStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('session_id', sessionId);
+      }
+
+      await apiClient.submitPrecedentFeedback({
+        precedent_id: precedentId,
+        query: searchQuery,
+        feedback_type: feedbackType,
+        is_helpful: feedbackType === 'like',
+        session_id: sessionId,
+      });
+
+      // 상태 업데이트
+      setFeedbackState(prev => ({
+        ...prev,
+        [precedentId]: feedbackType
+      }));
+
+    } catch (err) {
+      console.error('Failed to submit feedback:', err);
+      setError(err instanceof Error ? err.message : '피드백 제출에 실패했습니다.');
+    }
+  };
+
+  const handleExampleClick = async (exampleQuery: string) => {
+    setSearchQuery(exampleQuery);
+    setIsSearching(true);
+    setError(null);
+    setHasSearched(true);
+
+    try {
+      // RAG Chat API 호출
+      const response = await apiClient.chatWithRAG({
+        query: exampleQuery,
+        top_k: topK,
+        include_sources: true
+      });
+
+      setRagResponse(response);
+    } catch (err) {
+      console.error('RAG chat error:', err);
+      setError(err instanceof Error ? err.message : 'AI 답변 생성 중 오류가 발생했습니다.');
+      setRagResponse(null);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -232,33 +316,66 @@ const LegalResearch: React.FC = () => {
                 </p>
               </div>
               <div className="sources-list">
-                {ragResponse.sources.map((source, index) => (
-                  <div key={index} className={`source-card ${getScoreColor(source.score)}`}>
-                    <div className="source-header">
-                      <div className="source-rank">#{source.rank}</div>
-                      <div className="source-title-wrapper">
-                        <span className="source-type-icon">{getTypeIcon(source.type)}</span>
-                        <h4 className="source-title">{source.title || source.source}</h4>
+                {ragResponse.sources.map((source, index) => {
+                  const currentFeedback = feedbackState[source.source];
+                  return (
+                    <div
+                      key={index}
+                      className={`source-card ${getScoreColor(source.score)}`}
+                    >
+                      <div
+                        onClick={() => handlePrecedentClick(source.source)}
+                        style={{ cursor: 'pointer', flex: 1 }}
+                      >
+                        <div className="source-header">
+                          <div className="source-rank">#{source.rank}</div>
+                          <div className="source-title-wrapper">
+                            <span className="source-type-icon">{getTypeIcon(source.type)}</span>
+                            <h4 className="source-title">{source.title || source.source}</h4>
+                          </div>
+                          <div className="source-meta">
+                            <span className="source-type-label">{getTypeLabel(source.type)}</span>
+                            <span className={`source-score ${getScoreColor(source.score)}`}>
+                              {getScoreLabel(source.score, source.rank)}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="source-snippet">{source.text_snippet}</p>
+                        <div className="source-footer">
+                          <span className="source-date">{source.date}</span>
+                          {source.case_number && (
+                            <span className="source-case-number">{source.case_number}</span>
+                          )}
+                          {source.citation && (
+                            <span className="source-citation">{source.citation}</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="source-meta">
-                        <span className="source-type-label">{getTypeLabel(source.type)}</span>
-                        <span className={`source-score ${getScoreColor(source.score)}`}>
-                          {getScoreLabel(source.score, source.rank)}
-                        </span>
+                      <div className="source-feedback-buttons">
+                        <button
+                          className={`feedback-btn ${currentFeedback === 'like' ? 'active liked' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFeedback(source.source, 'like');
+                          }}
+                          title="도움이 되었습니다"
+                        >
+                          <FiThumbsUp />
+                        </button>
+                        <button
+                          className={`feedback-btn ${currentFeedback === 'dislike' ? 'active disliked' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFeedback(source.source, 'dislike');
+                          }}
+                          title="도움이 되지 않았습니다"
+                        >
+                          <FiThumbsDown />
+                        </button>
                       </div>
                     </div>
-                    <p className="source-snippet">{source.text_snippet}</p>
-                    <div className="source-footer">
-                      <span className="source-date">{source.date}</span>
-                      {source.case_number && (
-                        <span className="source-case-number">{source.case_number}</span>
-                      )}
-                      {source.citation && (
-                        <span className="source-citation">{source.citation}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -274,10 +391,30 @@ const LegalResearch: React.FC = () => {
             <div className="example-queries">
               <h4>예시 질문:</h4>
               <ul>
-                <li>"절도죄의 구성요건은?"</li>
-                <li>"위법수집증거 배제 원칙의 예외는?"</li>
-                <li>"음주운전 양형 기준"</li>
-                <li>"정당방위 성립 요건"</li>
+                <li
+                  className="example-query-item"
+                  onClick={() => handleExampleClick('절도죄의 구성요건은?')}
+                >
+                  절도죄의 구성요건은?
+                </li>
+                <li
+                  className="example-query-item"
+                  onClick={() => handleExampleClick('위법수집증거 배제 원칙의 예외는?')}
+                >
+                  위법수집증거 배제 원칙의 예외는?
+                </li>
+                <li
+                  className="example-query-item"
+                  onClick={() => handleExampleClick('음주운전 양형 기준')}
+                >
+                  음주운전 양형 기준
+                </li>
+                <li
+                  className="example-query-item"
+                  onClick={() => handleExampleClick('정당방위 성립 요건')}
+                >
+                  정당방위 성립 요건
+                </li>
               </ul>
             </div>
             <div className="tech-info">
@@ -295,18 +432,27 @@ const LegalResearch: React.FC = () => {
                       <li>
                         <strong>Semantic Search</strong>
                         <span className="tech-description">jhgan/ko-sroberta-multitask (768차원 임베딩)</span>
+                        <span className="tech-description">코사인 유사도로 의미적 관련성 측정</span>
                       </li>
                       <li>
                         <strong>BM25 (Keyword)</strong>
                         <span className="tech-description">Okapi BM25 (k1=1.5, b=0.75)</span>
+                        <span className="tech-description">IDF로 희귀 키워드 가중치 부여</span>
                       </li>
                       <li>
                         <strong>RRF Fusion</strong>
                         <span className="tech-description">Reciprocal Rank Fusion (k=60)</span>
+                        <span className="tech-description">순위 기반으로 두 검색 결과 융합</span>
                       </li>
                       <li>
                         <strong>Adaptive Weighting</strong>
-                        <span className="tech-description">쿼리 유형별 가중치 자동 조정</span>
+                        <span className="tech-description">조항 번호 → BM25 강화 (0.2)</span>
+                        <span className="tech-description">의미 질문 → Semantic 강화 (0.7)</span>
+                      </li>
+                      <li>
+                        <strong>실시간 검색</strong>
+                        <span className="tech-description">평균 검색 시간 &lt; 1초</span>
+                        <span className="tech-description">388,767개 문서 대상 고속 검색</span>
                       </li>
                     </ul>
                     <div className="tech-card-rationale">
@@ -323,44 +469,37 @@ const LegalResearch: React.FC = () => {
                   </div>
                   <div className="tech-card-content">
                     <h5 className="tech-card-title">Constitutional AI</h5>
-                    <p className="tech-card-description">6가지 원칙으로 법률 AI의 정확성과 안전성 보장</p>
+                    <p className="tech-card-description">RAG와 6가지 원칙으로 법률 AI의 정확성과 안전성 보장</p>
                     <ul className="tech-card-list">
                       <li>
-                        <strong>정확성</strong>
-                        <span className="tech-description">검색 문서 기반, 추측 금지</span>
+                        <strong>RAG (검색 증강 생성)</strong>
+                        <span className="tech-description">검색된 문서 기반 답변 생성</span>
+                        <span className="tech-description">환각(Hallucination) 방지</span>
                       </li>
                       <li>
-                        <strong>출처 명시</strong>
-                        <span className="tech-description">모든 주장에 출처 표시</span>
-                      </li>
-                      <li>
-                        <strong>환각 방지</strong>
-                        <span className="tech-description">모르면 "정보 부족" 명시</span>
-                      </li>
-                      <li>
-                        <strong>전문적 어조</strong>
-                        <span className="tech-description">객관적, 법률적 표현</span>
-                      </li>
-                      <li>
-                        <strong>면책 조항</strong>
-                        <span className="tech-description">법률 정보 제공 (자문 아님)</span>
-                      </li>
-                      <li>
-                        <strong>용어 정확성</strong>
-                        <span className="tech-description">정확한 법률 용어</span>
+                        <strong>Constitutional Principles</strong>
+                        <span className="tech-description">정확성, 출처 명시, 환각 방지, 전문적 어조</span>
+                        <span className="tech-description">면책 조항, 용어 정확성 (6가지 원칙)</span>
                       </li>
                       <li>
                         <strong>Self-Critique</strong>
                         <span className="tech-description">6가지 원칙 검증 후 수정</span>
+                        <span className="tech-description">답변 품질 자동 개선</span>
                       </li>
                       <li>
-                        <strong>3-Shot Learning</strong>
-                        <span className="tech-description">예시 기반 패턴 학습</span>
+                        <strong>Few-Shot Learning</strong>
+                        <span className="tech-description">3-Shot: 예시 기반 패턴 학습</span>
+                        <span className="tech-description">법률 답변 스타일 일관성 유지</span>
+                      </li>
+                      <li>
+                        <strong>Prompt Engineering</strong>
+                        <span className="tech-description">고급 프롬프트 최적화 기법</span>
+                        <span className="tech-description">Chain-of-Thought 추론</span>
                       </li>
                     </ul>
                     <div className="tech-card-rationale">
                       <div className="rationale-icon">💡</div>
-                      <p className="rationale-text">법률 분야는 정확성과 신뢰성이 생명입니다. 일반 LLM의 환각(hallucination) 문제를 해결하고, 모든 답변에 출처를 명시하여 사용자가 검증 가능하도록 했습니다.</p>
+                      <p className="rationale-text">RAG로 검색된 실제 법률 문서를 기반으로 답변을 생성하여 환각을 방지합니다. Constitutional AI 원칙으로 법률 AI의 정확성, 신뢰성, 검증 가능성을 보장합니다.</p>
                     </div>
                   </div>
                 </div>
@@ -380,20 +519,188 @@ const LegalResearch: React.FC = () => {
                     <ul className="tech-card-list">
                       <li>
                         <strong>LLM</strong>
-                        <span className="tech-description">GPT-4 Turbo (Preview)</span>
+                        <span className="tech-description">GPT-4 Turbo (gpt-4-turbo-preview)</span>
                       </li>
                       <li>
                         <strong>Vector DB</strong>
-                        <span className="tech-description">ChromaDB (Persistent, 3.9GB)</span>
+                        <span className="tech-description">ChromaDB (HNSW, 3.9GB)</span>
+                      </li>
+                      <li>
+                        <strong>BM25 Index</strong>
+                        <span className="tech-description">388,767 documents indexed</span>
                       </li>
                       <li>
                         <strong>Embedding Model</strong>
                         <span className="tech-description">KR-SBERT (768-dim)</span>
                       </li>
+                      <li>
+                        <strong>데이터 출처</strong>
+                        <span className="tech-description">법제처 Open API, 대법원 종합법률정보</span>
+                      </li>
                     </ul>
                     <div className="tech-card-rationale">
                       <div className="rationale-icon">💡</div>
                       <p className="rationale-text">형사법 전문 AI를 위해 판례, 법령, 해석례 등 38만여 건의 실제 법률 문서를 수집했습니다. GPT-4 Turbo와 한국어 특화 임베딩 모델로 최고의 성능을 보장합니다.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Feedback Card */}
+                <div className="tech-card">
+                  <div className="tech-card-icon-wrapper">
+                    <span className="tech-card-icon">👍</span>
+                  </div>
+                  <div className="tech-card-content">
+                    <h5 className="tech-card-title">사용자 피드백</h5>
+                    <p className="tech-card-description">검색 품질 향상을 위한 피드백 시스템</p>
+                    <ul className="tech-card-list">
+                      <li>
+                        <strong>피드백 수집</strong>
+                        <span className="tech-description">좋아요/싫어요 양방향 평가</span>
+                        <span className="tech-description">검색 쿼리와 판례 ID 매핑 저장</span>
+                      </li>
+                      <li>
+                        <strong>판례 상세 보기</strong>
+                        <span className="tech-description">Modal 기반 전문 내용 표시</span>
+                        <span className="tech-description">사건번호, 선고일, 판결요지 구조화</span>
+                      </li>
+                      <li>
+                        <strong>세션 추적</strong>
+                        <span className="tech-description">LocalStorage 기반 익명 세션 ID</span>
+                        <span className="tech-description">검색 히스토리 및 클릭 패턴 분석</span>
+                      </li>
+                      <li>
+                        <strong>데이터베이스 저장</strong>
+                        <span className="tech-description">PostgreSQL 기반 피드백 영구 저장</span>
+                        <span className="tech-description">향후 Ranking 모델 학습 데이터 활용</span>
+                      </li>
+                    </ul>
+                    <div className="tech-card-rationale">
+                      <div className="rationale-icon">💡</div>
+                      <p className="rationale-text">사용자 피드백을 수집하여 검색 결과의 정확도를 지속적으로 개선합니다. 실제 사용 패턴을 분석해 법률 전문가의 요구에 맞춰 진화하는 시스템입니다.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Automation Card */}
+                <div className="tech-card">
+                  <div className="tech-card-icon-wrapper">
+                    <span className="tech-card-icon">🔄</span>
+                  </div>
+                  <div className="tech-card-content">
+                    <h5 className="tech-card-title">자동화 시스템</h5>
+                    <p className="tech-card-description">최신 판례 자동 수집 및 업데이트</p>
+                    <ul className="tech-card-list">
+                      <li>
+                        <strong>일일 판례 크롤링</strong>
+                        <span className="tech-description">매일 00:00 최신 형사 판례 자동 수집</span>
+                        <span className="tech-description">Playwright로 대법원 웹사이트 동적 크롤링</span>
+                        <span className="tech-description">최신 판결 10건 자동 인덱싱</span>
+                      </li>
+                      <li>
+                        <strong>주간 맞춤 크롤링</strong>
+                        <span className="tech-description">일요일 00:00 선호도 기반 수집</span>
+                        <span className="tech-description">사용자 피드백 반영 판례 선별</span>
+                      </li>
+                      <li>
+                        <strong>APScheduler</strong>
+                        <span className="tech-description">Python 기반 스케줄링 시스템</span>
+                        <span className="tech-description">Cron 표현식으로 정확한 시간 관리</span>
+                      </li>
+                      <li>
+                        <strong>Law.go.kr API</strong>
+                        <span className="tech-description">법제처 공식 API 연동</span>
+                        <span className="tech-description">XML 파싱 및 자동 인덱싱</span>
+                      </li>
+                    </ul>
+                    <div className="tech-card-rationale">
+                      <div className="rationale-icon">💡</div>
+                      <p className="rationale-text">최신 판례를 자동으로 수집하여 데이터베이스를 실시간으로 업데이트합니다. 법률 환경의 변화를 즉시 반영해 항상 최신 정보를 제공합니다.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Document Generation Card */}
+                <div className="tech-card">
+                  <div className="tech-card-icon-wrapper">
+                    <span className="tech-card-icon">📝</span>
+                  </div>
+                  <div className="tech-card-content">
+                    <h5 className="tech-card-title">문서 자동 생성</h5>
+                    <p className="tech-card-description">AI 기반 법률 문서 자동 작성 시스템</p>
+                    <ul className="tech-card-list">
+                      <li>
+                        <strong>8가지 시나리오 자동 감지</strong>
+                        <span className="tech-description">키워드 매칭 기반 점수 계산 (0.0~1.0)</span>
+                        <span className="tech-description">문서 타입, 당사자, 법률 용어 분석</span>
+                        <span className="tech-description">Confidence Score 기반 추천 시스템</span>
+                      </li>
+                      <li>
+                        <strong>6가지 템플릿 지원</strong>
+                        <span className="tech-description">소장, 답변서, 고소장, 변론요지서, 내용증명, 손해배상청구서</span>
+                        <span className="tech-description">변수 자동 치환 ({"{{placeholder}}"} → 실제 값)</span>
+                      </li>
+                      <li>
+                        <strong>AI 사건 분석</strong>
+                        <span className="tech-description">GPT 기반 문서 요약 및 쟁점 추출</span>
+                        <span className="tech-description">당사자/날짜/증거 자동 인식</span>
+                        <span className="tech-description">관련 판례 RAG 검색 및 추천</span>
+                      </li>
+                      <li>
+                        <strong>스마트 매핑 시스템</strong>
+                        <span className="tech-description">업로드 문서에서 당사자 정보 자동 추출</span>
+                        <span className="tech-description">금액/날짜 자동 포맷팅 (천단위 콤마)</span>
+                        <span className="tech-description">Unfilled placeholder 검증 및 경고</span>
+                      </li>
+                    </ul>
+                    <div className="tech-card-rationale">
+                      <div className="rationale-icon">💡</div>
+                      <p className="rationale-text">변호사의 반복 작업을 AI로 자동화하여 시간을 절약합니다. 템플릿 기반 생성으로 일관성을 유지하고, RAG로 판례 기반 맞춤형 문서를 작성합니다.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Document-Aware Chunking Card */}
+                <div className="tech-card">
+                  <div className="tech-card-icon-wrapper">
+                    <span className="tech-card-icon">📑</span>
+                  </div>
+                  <div className="tech-card-content">
+                    <h5 className="tech-card-title">도메인 특화 청킹 전략</h5>
+                    <p className="tech-card-description">문서 타입별로 최적화된 청킹 전략 적용</p>
+                    <ul className="tech-card-list">
+                      <li>
+                        <strong>판례 문서 (37,000건)</strong>
+                        <span className="tech-description">문장 기반 적응형 청킹 (Sentence-Based)</span>
+                        <span className="tech-description">500자 고정 (~250 토큰)</span>
+                        <span className="tech-description">마침표·줄바꿈 기준, 오버랩 없음</span>
+                        <span className="tech-description">순차적 서술 구조 유지</span>
+                      </li>
+                      <li>
+                        <strong>법령 문서 (3,000건)</strong>
+                        <span className="tech-description">조문 단위 의미론적 청킹 (Article-Based)</span>
+                        <span className="tech-description">가변 길이 (100~1500자, 조문별)</span>
+                        <span className="tech-description">제N조 경계 기준, 조문 완전성 보장</span>
+                        <span className="tech-description">법률 구조 준수</span>
+                      </li>
+                      <li>
+                        <strong>범용 처리 (Langchain)</strong>
+                        <span className="tech-description">계층적 재귀 분할 (RecursiveCharacterTextSplitter)</span>
+                        <span className="tech-description">500자 목표, 50자 오버랩 (10%)</span>
+                        <span className="tech-description">단락 → 문장 → 구 → 단어 순 분리</span>
+                        <span className="tech-description">자연스러운 경계 우선, 문맥 연결</span>
+                      </li>
+                      <li>
+                        <strong>기술 스택</strong>
+                        <span className="tech-description">커스텀 파서 (판례/법령 특화 처리)</span>
+                        <span className="tech-description">Langchain RecursiveCharacterTextSplitter</span>
+                        <span className="tech-description">정규식 메타데이터 자동 추출</span>
+                        <span className="tech-description">총 청크 수: 388,767개 (ChromaDB)</span>
+                      </li>
+                    </ul>
+                    <div className="tech-card-rationale">
+                      <div className="rationale-icon">💡</div>
+                      <p className="rationale-text">판례는 순차적 서술이므로 문장 단위로 분할하고, 법령은 조문별 독립성이 중요하므로 조문 단위로 처리합니다. 각 문서 도메인의 특성을 존중하여 검색 정밀도를 최적화했습니다.</p>
                     </div>
                   </div>
                 </div>
@@ -421,6 +728,14 @@ const LegalResearch: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Precedent Modal */}
+      <PrecedentModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        precedentData={selectedPrecedent}
+        isLoading={isLoadingPrecedent}
+      />
     </div>
   );
 };

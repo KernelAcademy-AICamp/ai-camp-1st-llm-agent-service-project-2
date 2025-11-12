@@ -44,10 +44,12 @@ from app.backend.routers.auth import setup_auth_routes
 from app.backend.routers.precedents import setup_precedent_routes
 from app.backend.routers.precedent_scraping import router as scraping_router
 from app.backend.routers.precedent_search import router as search_router
+from app.backend.routers.feedback import setup_feedback_routes
 
 # Database 임포트
 from app.backend.database import engine, Base
 from app.backend.models.precedent import Precedent
+from app.backend.models.precedent_feedback import PrecedentFeedback, PrecedentFeedbackStats
 from app.backend.models.user import User
 
 from configs.config import config
@@ -328,6 +330,10 @@ app.include_router(scraping_router)
 
 # Precedent VectorDB Search Router 등록 (ChromaDB 기반)
 app.include_router(search_router)
+
+# Feedback Router 등록
+feedback_router = setup_feedback_routes()
+app.include_router(feedback_router)
 
 
 if __name__ == "__main__":
