@@ -6,10 +6,9 @@ _본 레포지토리는 'LLM Agent 서비스 개발'을 위한 템플릿입니�
 
 | 이름 | GitHub |
 | :--- |  :--- |
-| [박남욱] |  [nwpark82](https://github.com/wh5905) |
+| [박남욱] |  [nwpark82](https://github.com/nwpark82) |
 | [정원형] |  [wh5905](https://github.com/wh5905) |
 | [박재형] |  [baaakgun4543](https://github.com/baaakgun4543) |
-| [김지윤] |  [YuliSpiel](https://github.com/YuliSpiel) |
 
 ---
 
