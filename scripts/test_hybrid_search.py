@@ -16,11 +16,11 @@ sys.path.insert(0, str(project_root))
 
 from loguru import logger
 from configs.config import config
-from src.embeddings.embedder import KoreanLegalEmbedder
-from src.embeddings.vectordb import create_vector_db
-from src.retrieval.retriever import LegalDocumentRetriever
-from src.retrieval.bm25_index import BM25Index
-from src.retrieval.hybrid_retriever import HybridRetriever
+from backend.core.embeddings.embedder import KoreanLegalEmbedder
+from backend.core.embeddings.vectordb import create_vector_db
+from backend.core.retrieval.retriever import LegalDocumentRetriever
+from backend.core.retrieval.bm25_index import BM25Index
+from backend.core.retrieval.hybrid_retriever import HybridRetriever
 
 
 def load_indexes():

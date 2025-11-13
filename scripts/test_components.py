@@ -19,9 +19,9 @@ sys.path.insert(0, str(project_root))
 
 from loguru import logger
 from configs.config import config
-from src.data.loader import LawDataLoader
-from src.data.preprocessor import LawTextPreprocessor
-from src.embeddings.embedder import KoreanLegalEmbedder
+from backend.core.data.loader import LawDataLoader
+from backend.core.data.preprocessor import LawTextPreprocessor
+from backend.core.embeddings.embedder import KoreanLegalEmbedder
 
 def test_step_1_data_loading():
     """Step 1: 데이터 로딩 테스트"""

@@ -13,9 +13,9 @@ sys.path.insert(0, str(project_root))
 
 from loguru import logger
 from configs.config import config
-from src.embeddings.embedder import KoreanLegalEmbedder
-from src.embeddings.vectordb import create_vector_db
-from src.retrieval.retriever import LegalDocumentRetriever
+from backend.core.embeddings.embedder import KoreanLegalEmbedder
+from backend.core.embeddings.vectordb import create_vector_db
+from backend.core.retrieval.retriever import LegalDocumentRetriever
 
 def test_queries():
     """여러 쿼리로 검색 테스트"""
