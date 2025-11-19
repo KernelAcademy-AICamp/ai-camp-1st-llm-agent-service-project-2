@@ -146,3 +146,6 @@ dist/
 build/
 *.egg-info/
 
+# Node.js
+node_modules/
+
