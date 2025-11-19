@@ -11,10 +11,10 @@ from pydantic import BaseModel, EmailStr, validator
 from typing import List, Optional
 import logging
 
-from backend.database import get_db
-from backend.models.user import User
-from backend.core.auth.jwt import create_access_token, hash_password, verify_password
-from backend.core.auth.dependencies import get_current_user, get_current_active_user
+from apps.backend.database import get_db
+from apps.backend.models.user import User
+from apps.backend.core.auth.jwt import create_access_token, hash_password, verify_password
+from apps.backend.core.auth.dependencies import get_current_user, get_current_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -405,7 +405,7 @@ async def reset_password(request: ResetPasswordRequest, db: AsyncSession = Depen
     logger.info("Password reset confirmation attempt")
 
     # 토큰 검증
-    from backend.core.auth.jwt import decode_token
+    from apps.backend.core.auth.jwt import decode_token
 
     payload = decode_token(request.token)
     if payload is None or payload.get("type") != "password_reset":

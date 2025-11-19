@@ -7,9 +7,9 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
-from backend.database import get_db
-from backend.models.user import User
-from backend.core.auth.jwt import decode_token
+from apps.backend.database import get_db
+from apps.backend.models.user import User
+from apps.backend.core.auth.jwt import decode_token
 
 # OAuth2 scheme for token authentication
 # tokenUrl is the endpoint where users can get tokens

@@ -8,7 +8,7 @@ from sqlalchemy.types import TypeDecorator, String as SQLString
 import uuid
 import json
 from datetime import datetime
-from backend.database import Base
+from apps.backend.database import Base
 
 
 class JSONList(TypeDecorator):

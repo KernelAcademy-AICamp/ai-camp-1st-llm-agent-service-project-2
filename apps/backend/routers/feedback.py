@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 import uuid
 
-from backend.database import get_db
-from backend.models.precedent_feedback import PrecedentFeedback, PrecedentFeedbackStats
+from apps.backend.database import get_db
+from apps.backend.models.precedent_feedback import PrecedentFeedback, PrecedentFeedbackStats
 
 
 # ============================================

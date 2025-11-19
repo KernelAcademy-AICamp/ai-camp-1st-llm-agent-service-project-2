@@ -1,11 +1,14 @@
 from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 from loguru import logger
+import time
 
 try:
     from openai import OpenAI
+    import httpx
 except ImportError:
     OpenAI = None
+    httpx = None
 
 try:
     from anthropic import Anthropic
@@ -33,24 +36,44 @@ class LLMClient(ABC):
 
 
 class OpenAIClient(LLMClient):
-    """OpenAI GPT 클라이언트"""
+    """OpenAI GPT 클라이언트 (OpenAI API 호환 서버 지원)"""
 
     def __init__(
         self,
         api_key: str,
         model: str = "gpt-4-turbo-preview",
         temperature: float = 0.1,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        base_url: Optional[str] = None
     ):
         if OpenAI is None:
             raise ImportError("openai package not installed. Run: pip install openai")
 
-        self.client = OpenAI(api_key=api_key)
+        # base_url이 제공되면 사용 (로컬 LLM 서버 지원)
+        if base_url:
+            # Ensure base_url ends with /v1
+            normalized_base_url = base_url.rstrip("/")
+            if not normalized_base_url.endswith("/v1"):
+                normalized_base_url += "/v1"
+
+            # 긴 타임아웃 및 재시도 설정 (외부 LLM API의 불안정성 대비)
+            # Note: OpenAI SDK will create its own httpx client internally
+            # Custom httpx.Client causes issues with uvicorn's async event loop
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url=normalized_base_url,
+                timeout=120.0,  # 2분 타임아웃
+                max_retries=5,   # 최대 5회 재시도
+                http_client=None  # Let OpenAI SDK manage HTTP client
+            )
+            logger.info(f"Initialized OpenAI-compatible client (base_url={normalized_base_url}, model={model}, timeout=120s, max_retries=5)")
+        else:
+            self.client = OpenAI(api_key=api_key, timeout=60.0, max_retries=3)
+            logger.info(f"Initialized OpenAI client (model={model})")
+
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-
-        logger.info(f"Initialized OpenAI client (model={model})")
 
     def generate(self, prompt: str, **kwargs) -> str:
         """텍스트 생성"""
@@ -62,20 +85,35 @@ class OpenAIClient(LLMClient):
         temperature = kwargs.get('temperature', self.temperature)
         max_tokens = kwargs.get('max_tokens', self.max_tokens)
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
+        # Manual retry with exponential backoff (in addition to OpenAI SDK's built-in retries)
+        max_manual_retries = 3
+        base_delay = 2.0
 
-            content = response.choices[0].message.content
-            return content
+        for attempt in range(max_manual_retries + 1):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
 
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise
+                content = response.choices[0].message.content
+                return content
+
+            except Exception as e:
+                error_str = str(e).lower()
+                is_retryable = any(code in error_str for code in ['502', '503', '504', 'timeout', 'connection'])
+
+                if is_retryable and attempt < max_manual_retries:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"OpenAI API error (attempt {attempt + 1}/{max_manual_retries + 1}): {e}")
+                    logger.info(f"Retrying in {delay}s...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.error(f"OpenAI API error (final attempt): {e}")
+                    raise
 
 
 class OllamaClient(LLMClient):
@@ -291,6 +329,7 @@ def create_llm_client(
     provider: str,
     api_key: str,
     model: Optional[str] = None,
+    base_url: Optional[str] = None,
     **kwargs
 ) -> LLMClient:
     """
@@ -300,6 +339,7 @@ def create_llm_client(
         provider: 'openai', 'anthropic', or 'ollama'
         api_key: API 키 (ollama의 경우 필요 없음)
         model: 모델 이름 (None이면 기본값 사용)
+        base_url: Base URL for OpenAI-compatible endpoints (optional)
         **kwargs: 추가 파라미터
 
     Returns:
@@ -310,6 +350,7 @@ def create_llm_client(
         return OpenAIClient(
             api_key=api_key,
             model=model or default_model,
+            base_url=base_url,
             **kwargs
         )
     elif provider.lower() == "anthropic":

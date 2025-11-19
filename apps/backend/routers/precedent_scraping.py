@@ -11,9 +11,9 @@ from typing import Optional
 from pydantic import BaseModel, Field
 import logging
 
-from backend.database import get_db
-from backend.models.precedent import Precedent
-from backend.services.scourt_playwright_client import ScourtPlaywrightClient
+from apps.backend.database import get_db
+from apps.backend.models.precedent import Precedent
+from apps.backend.services.scourt_playwright_client import ScourtPlaywrightClient
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +195,7 @@ async def fetch_latest_precedents_background(
 async def _fetch_and_store_background(limit: int):
     """Background task for fetching precedents"""
     try:
-        from backend.database import get_async_session
+        from apps.backend.database import get_async_session
 
         async with get_async_session() as db:
             async with ScourtPlaywrightClient() as client:

@@ -10,8 +10,8 @@ from datetime import datetime
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import get_db
-from backend.core.retrieval.feedback_filter import get_excluded_precedent_ids
+from apps.backend.database import get_db
+from apps.backend.core.retrieval.feedback_filter import get_excluded_precedent_ids
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +163,12 @@ def setup_chat_routes(
                 logger.info(f"Filtering out {len(excluded_ids)} precedents based on user feedback")
 
             # Constitutional AI + Hybrid RAG로 답변 생성
-            # top_k를 증가시켜서 중복 제거 및 필터링 후에도 충분한 문서 확보
-            # 청크 중복을 고려하여 2배로 검색 (예: top_k=5 -> 검색 10개 -> 중복 제거 후 ~5개)
-            retrieval_top_k = request.top_k * 2
+            # Hybrid Retriever가 이미 3배 배수를 적용하므로 여기서는 배수 제거
+            retrieval_top_k = request.top_k
             if excluded_ids:
-                retrieval_top_k += len(excluded_ids)
-                logger.info(f"Retrieving {retrieval_top_k} chunks (accounting for {len(excluded_ids)} excluded + deduplication)")
+                # 필터링으로 인한 손실 보상만 추가
+                retrieval_top_k += min(len(excluded_ids), 3)  # 최대 3개까지만 추가
+                logger.info(f"Retrieving {retrieval_top_k} chunks (accounting for {len(excluded_ids)} excluded)")
 
             result = constitutional_chatbot.chat(
                 query=request.query,

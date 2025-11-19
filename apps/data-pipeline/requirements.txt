@@ -1,0 +1,29 @@
+# apps/data-pipeline Requirements
+# ETL/임베딩 배치 작업
+
+# Python version
+# Python >= 3.11
+
+# CLI
+click>=8.1.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+
+# Vector DB Clients
+qdrant-client>=1.7.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Local dependencies (libs/rag-core 재사용)
+# pip install -e ../../libs/rag-core
+# pip install -e ../../libs/domain-model

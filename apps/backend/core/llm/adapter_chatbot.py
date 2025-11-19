@@ -14,9 +14,9 @@ QDoRA Adapter를 지원하는 Constitutional AI 챗봇
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from backend.core.llm.constitutional_chatbot import ConstitutionalLawChatbot
-from backend.core.llm.llm_client import LLMClient, OllamaClient
-from backend.core.retrieval.retriever import LegalDocumentRetriever
+from apps.backend.core.llm.constitutional_chatbot import ConstitutionalLawChatbot
+from apps.backend.core.llm.llm_client import LLMClient, OllamaClient
+from apps.backend.core.retrieval.retriever import LegalDocumentRetriever
 
 
 # Adapter 전용 System Prompt 템플릿

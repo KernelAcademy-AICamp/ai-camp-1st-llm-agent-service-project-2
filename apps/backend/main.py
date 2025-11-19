@@ -13,45 +13,45 @@ import sys
 from pathlib import Path
 
 # 프로젝트 루트 경로를 Python path에 추가
-# backend/main.py → backend/ → lawlaw/
-BASE_DIR = Path(__file__).parent.parent
+# apps/backend/main.py → apps/ → middle_proj/
+BASE_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 # Core 모듈 임포트
-from backend.core.llm.llm_client import create_llm_client
-from backend.core.embeddings.embedder import KoreanLegalEmbedder
-from backend.core.embeddings.vectordb import ChromaVectorDB
-from backend.core.retrieval.retriever import LegalDocumentRetriever
-from backend.core.retrieval.bm25_index import BM25Index
-from backend.core.retrieval.hybrid_retriever import HybridRetriever
-from backend.core.llm.adapter_chatbot import AdapterChatbot
+from apps.backend.core.llm.llm_client import create_llm_client
+from apps.backend.core.embeddings.embedder import KoreanLegalEmbedder
+from apps.backend.core.embeddings.vectordb import ChromaVectorDB
+from apps.backend.core.retrieval.retriever import LegalDocumentRetriever
+from apps.backend.core.retrieval.bm25_index import BM25Index
+from apps.backend.core.retrieval.hybrid_retriever import HybridRetriever
+from apps.backend.core.llm.adapter_chatbot import AdapterChatbot
 
 # Services 모듈 임포트
-from backend.services.file_parser import FileParser
-from backend.services.case_analyzer import CaseAnalyzer
-from backend.services.scenario_detector import ScenarioDetector
-from backend.services.document_generator import DocumentGenerator
-from backend.services.scourt_scraper import SCourtScraper
-from backend.services.precedent_crawler import PrecedentCrawler
-from backend.services.scheduler import PrecedentScheduler
-from backend.services.openlaw_client import OpenLawAPIClient
+from apps.backend.services.file_parser import FileParser
+from apps.backend.services.case_analyzer import CaseAnalyzer
+from apps.backend.services.scenario_detector import ScenarioDetector
+from apps.backend.services.document_generator import DocumentGenerator
+from apps.backend.services.scourt_scraper import SCourtScraper
+from apps.backend.services.precedent_crawler import PrecedentCrawler
+from apps.backend.services.scheduler import PrecedentScheduler
+from apps.backend.services.openlaw_client import OpenLawAPIClient
 
 # Routers 임포트
-from backend.routers.chat import setup_chat_routes
-from backend.routers.cases import setup_case_routes
-from backend.routers.documents import setup_document_routes
-from backend.routers.adapters import setup_adapter_routes
-from backend.routers.auth import setup_auth_routes
-from backend.routers.precedents import setup_precedent_routes
-from backend.routers.precedent_scraping import router as scraping_router
-from backend.routers.precedent_search import router as search_router
-from backend.routers.feedback import setup_feedback_routes
+from apps.backend.routers.chat import setup_chat_routes
+from apps.backend.routers.cases import setup_case_routes
+from apps.backend.routers.documents import setup_document_routes
+from apps.backend.routers.adapters import setup_adapter_routes
+from apps.backend.routers.auth import setup_auth_routes
+from apps.backend.routers.precedents import setup_precedent_routes
+from apps.backend.routers.precedent_scraping import router as scraping_router
+from apps.backend.routers.precedent_search import router as search_router
+from apps.backend.routers.feedback import setup_feedback_routes
 
 # Database 임포트
-from backend.database import engine, Base
-from backend.models.precedent import Precedent
-from backend.models.precedent_feedback import PrecedentFeedback, PrecedentFeedbackStats
-from backend.models.user import User
+from apps.backend.database import engine, Base
+from apps.backend.models.precedent import Precedent
+from apps.backend.models.precedent_feedback import PrecedentFeedback, PrecedentFeedbackStats
+from apps.backend.models.user import User
 
 from configs.config import config
 import os
@@ -126,18 +126,25 @@ except Exception as e:
 
 # LLM 클라이언트 초기화
 llm_client = None
-OPENAI_API_KEY = config.llm.openai_api_key
-MODEL_NAME = "gpt-4-turbo-preview"
+LLM_API_KEY = config.llm.api_key  # Use unified LLM_API_KEY
+LLM_BASE_URL = config.llm.base_url  # Optional base_url for custom endpoints
+LLM_MODEL = config.llm.model
+LLM_PROVIDER = config.llm.provider
 
 try:
     llm_client = create_llm_client(
-        provider="openai",
-        api_key=OPENAI_API_KEY,
-        model=MODEL_NAME,
-        temperature=0.1,
-        max_tokens=2000
+        provider=LLM_PROVIDER,
+        api_key=LLM_API_KEY,
+        model=LLM_MODEL,
+        base_url=LLM_BASE_URL,  # Pass base_url for local/custom LLM servers
+        temperature=config.llm.temperature,
+        max_tokens=config.llm.max_tokens
     )
-    logger.info(f"OpenAI LLM client initialized successfully (model={MODEL_NAME})")
+
+    if LLM_BASE_URL:
+        logger.info(f"LLM client initialized (provider={LLM_PROVIDER}, base_url={LLM_BASE_URL}, model={LLM_MODEL})")
+    else:
+        logger.info(f"LLM client initialized (provider={LLM_PROVIDER}, model={LLM_MODEL})")
 
     if hybrid_retriever and llm_client:
         constitutional_chatbot = AdapterChatbot(
@@ -264,7 +271,7 @@ async def root():
 async def health_check():
     """서버 및 모델 상태 확인"""
     try:
-        if llm_client and OPENAI_API_KEY:
+        if llm_client and LLM_API_KEY:
             model_available = True
         else:
             model_available = False

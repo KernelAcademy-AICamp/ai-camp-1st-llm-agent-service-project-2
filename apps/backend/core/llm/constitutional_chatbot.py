@@ -15,9 +15,9 @@ from typing import Dict, List, Any, Optional
 import json
 from loguru import logger
 
-from backend.core.retrieval.retriever import LegalDocumentRetriever
-from backend.core.llm.llm_client import LLMClient
-from backend.core.llm.constitutional_prompts import (
+from apps.backend.core.retrieval.retriever import LegalDocumentRetriever
+from apps.backend.core.llm.llm_client import LLMClient
+from apps.backend.core.llm.constitutional_prompts import (
     ConstitutionalPromptBuilder,
     ConstitutionalPrinciples,
     FewShotExamples

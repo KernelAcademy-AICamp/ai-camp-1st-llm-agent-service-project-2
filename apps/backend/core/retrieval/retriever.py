@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from loguru import logger
-from backend.core.embeddings.embedder import KoreanLegalEmbedder
-from backend.core.embeddings.vectordb import VectorDB
+from apps.backend.core.embeddings.embedder import KoreanLegalEmbedder
+from apps.backend.core.embeddings.vectordb import VectorDB
 
 
 class LegalDocumentRetriever:

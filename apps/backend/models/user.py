@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime
-from backend.database import Base
+from apps.backend.database import Base
 
 
 class User(Base):

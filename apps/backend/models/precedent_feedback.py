@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
-from backend.database import Base
+from apps.backend.database import Base
 
 
 class PrecedentFeedback(Base):

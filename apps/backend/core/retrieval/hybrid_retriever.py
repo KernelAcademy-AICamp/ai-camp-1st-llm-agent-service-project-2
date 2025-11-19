@@ -11,8 +11,8 @@ Hybrid Retriever: Semantic Search + BM25 융합
 from typing import List, Dict, Any, Optional, Literal
 from loguru import logger
 import re
-from backend.core.retrieval.retriever import LegalDocumentRetriever
-from backend.core.retrieval.bm25_index import BM25Index
+from apps.backend.core.retrieval.retriever import LegalDocumentRetriever
+from apps.backend.core.retrieval.bm25_index import BM25Index
 
 
 class HybridRetriever:
@@ -88,17 +88,17 @@ class HybridRetriever:
         )
 
         # 1. Semantic Search
-        # 더 많은 문서를 가져와서 융합 시 다양성 확보
+        # 더 많은 문서를 가져와서 융합 시 다양성 확보 (3배 → 2배로 축소)
         semantic_results = self.semantic_retriever.retrieve(
             query,
-            top_k=top_k * 3,
+            top_k=top_k * 2,
             filter_metadata=filter_metadata
         )
 
         # 2. BM25 Search
         bm25_results = self.bm25_index.search(
             query,
-            top_k=top_k * 3
+            top_k=top_k * 2
         )
 
         # 3. Fusion

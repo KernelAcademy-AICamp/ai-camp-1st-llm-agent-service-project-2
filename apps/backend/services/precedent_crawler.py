@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from datetime import datetime
 
-from backend.services.scourt_scraper import SCourtScraper
-from backend.services.scourt_client import ScourtClient
-from backend.models.precedent import Precedent
-from backend.models.user import User
+from apps.backend.services.scourt_scraper import SCourtScraper
+from apps.backend.services.scourt_client import ScourtClient
+from apps.backend.models.precedent import Precedent
+from apps.backend.models.user import User
 
 logger = logging.getLogger(__name__)
 

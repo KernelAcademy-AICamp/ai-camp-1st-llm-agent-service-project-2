@@ -93,13 +93,21 @@ class ChromaVectorDB(VectorDB):
                     cleaned_meta[key] = str(value)
             cleaned_metadatas.append(cleaned_meta)
 
-        # Add to collection
-        self.collection.add(
-            ids=ids,
-            embeddings=embeddings_list,
-            documents=texts,
-            metadatas=cleaned_metadatas
-        )
+        # Add to collection in batches (ChromaDB limit: ~5000)
+        batch_size = 5000
+        total_docs = len(texts)
+
+        for i in range(0, total_docs, batch_size):
+            end_idx = min(i + batch_size, total_docs)
+
+            self.collection.add(
+                ids=ids[i:end_idx],
+                embeddings=embeddings_list[i:end_idx],
+                documents=texts[i:end_idx],
+                metadatas=cleaned_metadatas[i:end_idx]
+            )
+
+            logger.info(f"Added batch {i//batch_size + 1}/{(total_docs + batch_size - 1)//batch_size}: {end_idx - i} documents ({end_idx}/{total_docs})")
 
         logger.info(f"Added {len(texts)} documents to ChromaDB")
 

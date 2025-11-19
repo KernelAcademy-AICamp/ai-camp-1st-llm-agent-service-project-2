@@ -9,7 +9,7 @@ from typing import List, Dict, Optional
 from datetime import datetime
 from playwright.async_api import async_playwright, Page, Browser, TimeoutError as PlaywrightTimeoutError
 
-from backend.services.rate_limiter import RateLimiter, RequestCounter
+from apps.backend.services.rate_limiter import RateLimiter, RequestCounter
 
 logger = logging.getLogger(__name__)
 

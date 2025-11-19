@@ -15,6 +15,8 @@ sentence-transformers>=2.2.2
 # Vector Database & RAG
 chromadb>=0.4.18
 langchain>=0.0.340
+faiss-cpu>=1.7.4
+rank-bm25>=0.2.2
 
 # LLM Integration
 ollama>=0.1.7
@@ -36,6 +38,7 @@ sqlalchemy>=2.0.0
 aiosqlite>=0.19.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt==4.0.1  # passlib 1.7.4와 호환성 문제로 인해 4.0.1 버전 사용 (5.0.0은 __about__ 속성이 제거됨)
 
 # Scheduling & Web Crawling
 apscheduler>=3.10.4

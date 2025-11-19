@@ -9,7 +9,7 @@ from sqlalchemy import select
 from loguru import logger
 import asyncio
 
-from backend.models.precedent_feedback import PrecedentFeedbackStats
+from apps.backend.models.precedent_feedback import PrecedentFeedbackStats
 
 
 class FeedbackFilter:

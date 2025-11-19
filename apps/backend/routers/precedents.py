@@ -11,9 +11,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-from backend.database import get_db
-from backend.models.precedent import Precedent
-from backend.services.precedent_crawler import PrecedentCrawler
+from apps.backend.database import get_db
+from apps.backend.models.precedent import Precedent
+from apps.backend.services.precedent_crawler import PrecedentCrawler
 
 import logging
 

@@ -11,7 +11,7 @@ class KoreanLegalEmbedder:
     def __init__(
         self,
         model_name: str = "jhgan/ko-sroberta-multitask",
-        device: str = "cpu",
+        device: str = None,
         batch_size: int = 32
     ):
         """
@@ -20,10 +20,28 @@ class KoreanLegalEmbedder:
                 - jhgan/ko-sroberta-multitask: 한국어 특화 (추천)
                 - BM-K/KoSimCSE-roberta: 한국어 SimCSE
                 - snunlp/KR-SBERT-V40K-klueNLI-augSTS: 한국어 SBERT
-            device: 'cpu' or 'cuda'
+            device: 'cpu', 'cuda', 'mps' or None (auto-detect)
+                - None: 자동 감지 (MPS > CUDA > CPU)
+                - 'mps': Apple Silicon (M1/M2/M3) GPU
+                - 'cuda': NVIDIA GPU
+                - 'cpu': CPU only
             batch_size: 배치 크기
         """
         self.model_name = model_name
+
+        # Auto-detect device if not specified
+        if device is None:
+            import torch
+            if torch.backends.mps.is_available():
+                device = "mps"  # Apple Silicon M1/M2/M3 GPU
+                logger.info("Auto-detected Apple Silicon GPU (MPS)")
+            elif torch.cuda.is_available():
+                device = "cuda"  # NVIDIA GPU
+                logger.info("Auto-detected NVIDIA GPU (CUDA)")
+            else:
+                device = "cpu"
+                logger.info("No GPU detected, using CPU")
+
         self.device = device
         self.batch_size = batch_size
 

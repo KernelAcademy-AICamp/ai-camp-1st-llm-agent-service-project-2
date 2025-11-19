@@ -10,7 +10,7 @@ import logging
 import numpy as np
 from pathlib import Path
 
-from backend.core.embeddings.vectordb import ChromaVectorDB
+from apps.backend.core.embeddings.vectordb import ChromaVectorDB
 
 logger = logging.getLogger(__name__)
 

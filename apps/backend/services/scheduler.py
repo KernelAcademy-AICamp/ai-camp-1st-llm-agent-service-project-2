@@ -9,9 +9,9 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 from typing import Optional
 
-from backend.database import async_session
-from backend.services.precedent_crawler import PrecedentCrawler
-from backend.models.user import User
+from apps.backend.database import async_session
+from apps.backend.services.precedent_crawler import PrecedentCrawler
+from apps.backend.models.user import User
 
 logger = logging.getLogger(__name__)
 
