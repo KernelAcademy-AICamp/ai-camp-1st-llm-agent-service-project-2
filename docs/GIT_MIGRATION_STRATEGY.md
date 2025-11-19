@@ -178,7 +178,7 @@ git push -u origin feature/monorepo-migration
 
 > ⚠️ **Phase 1은 별도 문서에서 진행합니다**
 >
-> **실행 문서**: [QUICK_START_GUIDE.md](./QUICK_START_GUIDE.md) 또는 [START_HERE.md](./START_HERE.md)
+> **실행 문서**: [QUICK_START_GUIDE.md](./QUICK_START_GUIDE.md)
 >
 > **왜 별도 문서인가요?**
 > - 복사 & 붙여넣기 가능한 실행 가이드
@@ -429,126 +429,40 @@ ls -la libs/rag-core/llm/
 
 ### Step 2.4: Retrieval 모듈 이동
 
+> ⚠️ **중요**: `feedback_filter.py`는 DB 의존적이므로 이동하지 않습니다.
+> - `feedback_filter.py`는 `apps/backend/core/retrieval/`에 유지
+> - `AsyncSession` 및 DB 모델 의존성 때문에 libs로 이동 불가능
+> - 실제 사용처: `apps/backend/routers/chat.py`
+
 ```bash
-# 1. Retrieval 파일 복사 (feedback_filter 제외)
+# 1. Retrieval 파일 복사 (feedback_filter.py 제외)
 cp apps/backend/core/retrieval/retriever.py libs/rag-core/retrieval/
 cp apps/backend/core/retrieval/bm25_index.py libs/rag-core/retrieval/
 cp apps/backend/core/retrieval/hybrid_retriever.py libs/rag-core/retrieval/
 
-# 2. 순수 로직 filters.py 작성 (DB 비의존)
-cat > libs/rag-core/retrieval/filters.py << 'EOF'
-"""
-RAG Core Filters Module
-검색 결과 필터링 순수 로직 (DB 비의존)
-"""
-
-from typing import Set, List, Dict, Any
-
-
-def filter_results(
-    results: List[Dict[str, Any]],
-    excluded_ids: Set[str],
-    id_key: str = 'source'
-) -> List[Dict[str, Any]]:
-    """
-    검색 결과 필터링 (순수 로직, DB 비의존)
-
-    Args:
-        results: 검색 결과 리스트
-        excluded_ids: 제외할 ID 집합
-        id_key: 결과에서 ID를 가져올 키
-
-    Returns:
-        필터링된 검색 결과
-    """
-    if not excluded_ids:
-        return results
-
-    filtered = []
-    for result in results:
-        doc_id = result.get(id_key)
-        if doc_id and doc_id not in excluded_ids:
-            filtered.append(result)
-
-    return filtered
-
-
-def apply_quality_threshold(
-    results: List[Dict[str, Any]],
-    min_score: float = 0.0,
-    score_key: str = 'score'
-) -> List[Dict[str, Any]]:
-    """
-    품질 임계값 기반 필터링
-
-    Args:
-        results: 검색 결과 리스트
-        min_score: 최소 점수
-        score_key: 점수 키
-
-    Returns:
-        필터링된 검색 결과
-    """
-    return [
-        result for result in results
-        if result.get(score_key, 0.0) >= min_score
-    ]
-
-
-def deduplicate_results(
-    results: List[Dict[str, Any]],
-    id_key: str = 'source'
-) -> List[Dict[str, Any]]:
-    """
-    중복 제거
-
-    Args:
-        results: 검색 결과 리스트
-        id_key: ID 키
-
-    Returns:
-        중복 제거된 검색 결과
-    """
-    seen = set()
-    deduplicated = []
-
-    for result in results:
-        doc_id = result.get(id_key)
-        if doc_id and doc_id not in seen:
-            seen.add(doc_id)
-            deduplicated.append(result)
-
-    return deduplicated
-EOF
-
-# 3. retrieval/__init__.py 작성
+# 2. retrieval/__init__.py 작성 (filters 제외)
 cat > libs/rag-core/retrieval/__init__.py << 'EOF'
 """
 RAG Core Retrieval Module
-검색 및 필터링 로직
+검색 로직 (DB 비의존)
+
+Note: feedback_filter.py는 DB 의존적이므로 apps/backend/core/retrieval/에 유지됨
 """
 
 from .retriever import LegalDocumentRetriever
 from .bm25_index import BM25Index
 from .hybrid_retriever import HybridRetriever
-from .filters import (
-    filter_results,
-    apply_quality_threshold,
-    deduplicate_results
-)
 
 __all__ = [
     'LegalDocumentRetriever',
     'BM25Index',
-    'HybridRetriever',
-    'filter_results',
-    'apply_quality_threshold',
-    'deduplicate_results'
+    'HybridRetriever'
 ]
 EOF
 
-# 4. 확인
+# 3. 확인
 ls -la libs/rag-core/retrieval/
+# retriever.py, bm25_index.py, hybrid_retriever.py, __init__.py만 있어야 함
 ```
 
 ### Step 2.5: libs/rag-core 내부 import 경로 수정
@@ -597,13 +511,16 @@ RAG Core Library
 이 라이브러리는 apps/backend, apps/ai-service, apps/data-pipeline에서
 공통으로 사용하는 RAG 핵심 로직을 포함합니다.
 
+Note:
+    - feedback_filter.py는 DB 의존적이므로 apps/backend/core/retrieval/에 유지됨
+    - 피드백 필터링은 apps.backend.core.retrieval.feedback_filter에서 import
+
 Usage:
     from libs.rag_core import (
         KoreanLegalEmbedder,
         ChromaVectorDB,
         create_llm_client,
-        HybridRetriever,
-        filter_results
+        HybridRetriever
     )
 """
 
@@ -634,10 +551,7 @@ from .llm import (
 from .retrieval import (
     LegalDocumentRetriever,
     BM25Index,
-    HybridRetriever,
-    filter_results,
-    apply_quality_threshold,
-    deduplicate_results
+    HybridRetriever
 )
 
 __version__ = '1.0.0'
@@ -665,10 +579,7 @@ __all__ = [
     # Retrieval
     'LegalDocumentRetriever',
     'BM25Index',
-    'HybridRetriever',
-    'filter_results',
-    'apply_quality_threshold',
-    'deduplicate_results'
+    'HybridRetriever'
 ]
 EOF
 ```
@@ -691,15 +602,13 @@ try:
         KoreanLegalEmbedder,
         ChromaVectorDB,
         create_llm_client,
-        HybridRetriever,
-        filter_results
+        HybridRetriever
     )
     print("✅ All imports successful!")
     print(f"  - KoreanLegalEmbedder: {KoreanLegalEmbedder}")
     print(f"  - ChromaVectorDB: {ChromaVectorDB}")
     print(f"  - create_llm_client: {create_llm_client}")
     print(f"  - HybridRetriever: {HybridRetriever}")
-    print(f"  - filter_results: {filter_results}")
 except Exception as e:
     print(f"❌ Import failed: {e}")
     import traceback
@@ -1100,23 +1009,44 @@ grep -r "from apps.backend.core" apps/backend/ || echo "✅ No old imports found
 
 ### Step 3.3: apps/backend/core/ 정리
 
+> ⚠️ **중요**: `core/retrieval/feedback_filter.py`는 삭제하지 않습니다!
+> - DB 의존적 모듈이므로 apps/backend에 유지
+> - `routers/chat.py`에서 사용 중
+
 ```bash
 cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2/apps/backend
 
 # 1. 백업 (혹시 모를 경우 대비)
+mkdir -p ../../backups
 tar -czf ../../backups/backend_core_$(date +%Y%m%d).tar.gz core/
 
-# 2. libs/로 이동한 모듈 삭제
+# 2. libs/로 이동한 모듈만 삭제
 rm -rf core/embeddings
 rm -rf core/llm
-rm -rf core/retrieval
 
-# 3. auth만 남아있는지 확인
+# 3. core/retrieval에서 libs로 이동한 파일만 삭제
+rm -f core/retrieval/retriever.py
+rm -f core/retrieval/bm25_index.py
+rm -f core/retrieval/hybrid_retriever.py
+
+# feedback_filter.py는 유지됨 (삭제하지 않음!)
+
+# 4. core/__init__.py 제거 (있는 경우)
+rm -f core/__init__.py
+rm -f core/retrieval/__init__.py
+
+# 5. 최종 상태 확인
+echo "=== core/ 최종 구조 ==="
 ls -la core/
-# core/auth/ 만 남아있어야 함
+# auth/, retrieval/ 두 디렉토리만 남아있어야 함
 
-# 4. core/auth는 FastAPI 전용이므로 유지
+echo -e "\n=== core/auth/ ==="
 ls -la core/auth/
+# __init__.py, dependencies.py, jwt.py
+
+echo -e "\n=== core/retrieval/ ==="
+ls -la core/retrieval/
+# feedback_filter.py만 남아있어야 함 (__init__.py 제거됨)
 ```
 
 ### Step 3.4: apps/backend 실행 테스트
@@ -1149,10 +1079,14 @@ git commit -m "refactor: migrate apps/backend to use libs/rag-core
 
 - Update import paths from apps.backend.core to libs.rag_core
 - Refactor main.py to use libs/rag-core modules
-- Remove apps/backend/core/{embeddings,llm,retrieval}
+- Remove apps/backend/core/{embeddings,llm}
+- Remove apps/backend/core/retrieval/{retriever,bm25_index,hybrid_retriever}.py
 - Keep apps/backend/core/auth (FastAPI-specific)
+- Keep apps/backend/core/retrieval/feedback_filter.py (DB-dependent)
 - Update PYTHONPATH to monorepo root
 - Tested: Backend runs successfully on port 8000
+
+Note: feedback_filter.py kept in apps/backend due to AsyncSession dependency
 
 Co-dependent with: libs/rag-core"
 
@@ -1878,6 +1812,11 @@ Local middle_proj_copy (발전 버전 - 2025-11-19)
 ---
 
 ### 📚 변경 이력
+- **v2.4** (2025-11-19): Phase 2 수정 - feedback_filter.py 처리 방식 변경
+  - `feedback_filter.py`를 apps/backend/core/retrieval/에 유지 (DB 의존성)
+  - `filters.py` 생성 제거 (불필요)
+  - Step 2.4, 2.6, 2.7, 3.3 수정
+  - 실제 사용 현황 분석 결과 반영
 - **v2.3** (2025-11-19): Git vs Local 코드 비교 분석 추가, 개선사항 반영
 - **v2.2** (2025-11-19): Phase 0-1을 QUICK_START_GUIDE.md로 분리, 문서 구조 개선
 - **v2.1** (2025-11-19): Shell 호환성 개선 (`shopt` 제거, `git mv` 사용)
