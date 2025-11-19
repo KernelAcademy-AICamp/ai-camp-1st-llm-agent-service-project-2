@@ -1,7 +1,6 @@
 """
 LawLaw Backend Server
-FastAPI 기반 백엔드 서버 - Ollama를 통한 로컬 LLM 연동
-RAG + Constitutional AI 통합
+FastAPI 기반 백엔드 서버 - Monorepo 구조
 """
 
 from fastapi import FastAPI
@@ -12,21 +11,28 @@ import logging
 import sys
 from pathlib import Path
 
-# 프로젝트 루트 경로를 Python path에 추가
-# apps/backend/main.py → apps/ → middle_proj/
-BASE_DIR = Path(__file__).parent.parent.parent
+# ==========================================
+# PYTHONPATH 설정 (Monorepo 구조)
+# ==========================================
+BASE_DIR = Path(__file__).parent.parent.parent  # ai-camp-1st-llm-agent-service-project-2/
 sys.path.insert(0, str(BASE_DIR))
 
-# Core 모듈 임포트
-from apps.backend.core.llm.llm_client import create_llm_client
-from apps.backend.core.embeddings.embedder import KoreanLegalEmbedder
-from apps.backend.core.embeddings.vectordb import ChromaVectorDB
-from apps.backend.core.retrieval.retriever import LegalDocumentRetriever
-from apps.backend.core.retrieval.bm25_index import BM25Index
-from apps.backend.core.retrieval.hybrid_retriever import HybridRetriever
-from apps.backend.core.llm.adapter_chatbot import AdapterChatbot
+# ==========================================
+# libs/rag_core Import
+# ==========================================
+from libs.rag_core import (
+    create_llm_client,
+    KoreanLegalEmbedder,
+    ChromaVectorDB,
+    BM25Index,
+    LegalDocumentRetriever,
+    HybridRetriever,
+    AdapterChatbot
+)
 
-# Services 모듈 임포트
+# ==========================================
+# apps/backend Import
+# ==========================================
 from apps.backend.services.file_parser import FileParser
 from apps.backend.services.case_analyzer import CaseAnalyzer
 from apps.backend.services.scenario_detector import ScenarioDetector
@@ -36,7 +42,7 @@ from apps.backend.services.precedent_crawler import PrecedentCrawler
 from apps.backend.services.scheduler import PrecedentScheduler
 from apps.backend.services.openlaw_client import OpenLawAPIClient
 
-# Routers 임포트
+# Routers
 from apps.backend.routers.chat import setup_chat_routes
 from apps.backend.routers.cases import setup_case_routes
 from apps.backend.routers.documents import setup_document_routes
@@ -47,12 +53,13 @@ from apps.backend.routers.precedent_scraping import router as scraping_router
 from apps.backend.routers.precedent_search import router as search_router
 from apps.backend.routers.feedback import setup_feedback_routes
 
-# Database 임포트
+# Database
 from apps.backend.database import engine, Base
 from apps.backend.models.precedent import Precedent
 from apps.backend.models.precedent_feedback import PrecedentFeedback, PrecedentFeedbackStats
 from apps.backend.models.user import User
 
+# Config
 from configs.config import config
 import os
 import asyncio
@@ -64,8 +71,8 @@ logger = logging.getLogger(__name__)
 # FastAPI 앱 생성
 app = FastAPI(
     title="LawLaw Backend API",
-    description="형사법 전문 AI 어시스턴트 백엔드 API",
-    version="0.1.0"
+    description="형사법 전문 AI 어시스턴트 백엔드 API (Monorepo)",
+    version="1.0.0"
 )
 
 # CORS 설정
@@ -77,7 +84,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# RAG 시스템 초기화
+# ==========================================
+# RAG 시스템 초기화 (libs/rag_core 활용)
+# ==========================================
+
 embedder = None
 vectordb = None
 bm25_index = None
@@ -87,26 +97,29 @@ constitutional_chatbot = None
 try:
     # 임베딩 모델 초기화
     embedder = KoreanLegalEmbedder()
-    logger.info("Embedder initialized successfully")
+    logger.info("✅ Embedder initialized (from libs/rag_core)")
 
-    # 벡터 DB 초기화 (형사법 ChromaDB 로드)
+    # 벡터 DB 초기화
     vectordb = ChromaVectorDB(
         persist_directory=str(BASE_DIR / "data" / "vectordb" / "chroma_criminal_law"),
         collection_name="criminal_law_docs"
     )
-    logger.info(f"Vector DB loaded with {vectordb.get_count()} documents")
+    logger.info(f"✅ Vector DB loaded: {vectordb.get_count()} documents")
 
     # BM25 인덱스 초기화
     bm25_index_path = BASE_DIR / "data" / "vectordb" / "bm25"
     if bm25_index_path.exists():
         bm25_index = BM25Index()
         bm25_index.load(str(bm25_index_path))
-        logger.info(f"BM25 index loaded with {bm25_index.get_count()} documents")
+        logger.info(f"✅ BM25 index loaded: {bm25_index.get_count()} documents")
 
     # Semantic Retriever 초기화
-    semantic_retriever = LegalDocumentRetriever(embedder=embedder, vectordb=vectordb)
+    semantic_retriever = LegalDocumentRetriever(
+        embedder=embedder,
+        vectordb=vectordb
+    )
 
-    # Hybrid Retriever 초기화 (Semantic + BM25)
+    # Hybrid Retriever 초기화
     if bm25_index:
         hybrid_retriever = HybridRetriever(
             semantic_retriever=semantic_retriever,
@@ -115,36 +128,27 @@ try:
             semantic_weight=0.5,
             enable_adaptive_weighting=True
         )
-        logger.info("Hybrid Retriever initialized successfully")
+        logger.info("✅ Hybrid Retriever initialized")
     else:
         hybrid_retriever = semantic_retriever
-        logger.info("Using Semantic Retriever only (BM25 index not found)")
+        logger.info("⚠️  Using Semantic Retriever only (BM25 not found)")
 
 except Exception as e:
-    logger.error(f"Failed to initialize RAG system: {e}")
+    logger.error(f"❌ Failed to initialize RAG system: {e}")
     logger.info("Will use fallback mode without RAG")
 
 # LLM 클라이언트 초기화
 llm_client = None
-LLM_API_KEY = config.llm.api_key  # Use unified LLM_API_KEY
-LLM_BASE_URL = config.llm.base_url  # Optional base_url for custom endpoints
-LLM_MODEL = config.llm.model
-LLM_PROVIDER = config.llm.provider
-
 try:
     llm_client = create_llm_client(
-        provider=LLM_PROVIDER,
-        api_key=LLM_API_KEY,
-        model=LLM_MODEL,
-        base_url=LLM_BASE_URL,  # Pass base_url for local/custom LLM servers
+        provider=config.llm.provider,
+        api_key=config.llm.api_key,
+        model=config.llm.model,
+        base_url=config.llm.base_url,
         temperature=config.llm.temperature,
         max_tokens=config.llm.max_tokens
     )
-
-    if LLM_BASE_URL:
-        logger.info(f"LLM client initialized (provider={LLM_PROVIDER}, base_url={LLM_BASE_URL}, model={LLM_MODEL})")
-    else:
-        logger.info(f"LLM client initialized (provider={LLM_PROVIDER}, model={LLM_MODEL})")
+    logger.info(f"✅ LLM client initialized (provider={config.llm.provider})")
 
     if hybrid_retriever and llm_client:
         constitutional_chatbot = AdapterChatbot(
@@ -153,13 +157,13 @@ try:
             enable_self_critique=True,
             critique_threshold=0.5
         )
-        logger.info("Adapter-enabled Constitutional AI Chatbot initialized successfully")
+        logger.info("✅ Constitutional AI Chatbot initialized")
 
 except Exception as e:
-    logger.warning(f"Failed to initialize LLM client: {e}")
+    logger.warning(f"⚠️  Failed to initialize LLM: {e}")
     logger.info("API will run without LLM support")
 
-# 업로드 디렉토리 설정
+# 업로드 디렉토리
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -170,130 +174,87 @@ scenario_detector = ScenarioDetector()
 case_analyzer = None
 if llm_client:
     case_analyzer = CaseAnalyzer(llm_client=llm_client, retriever=hybrid_retriever)
-    logger.info("CaseAnalyzer initialized successfully")
+    logger.info("✅ CaseAnalyzer initialized")
 
 document_generator = None
 if llm_client:
     document_generator = DocumentGenerator(llm_client=llm_client)
-    logger.info("DocumentGenerator initialized successfully")
+    logger.info("✅ DocumentGenerator initialized")
 
-# ============================================
 # Precedent Crawler & Scheduler 초기화
-# ============================================
-
 scourt_scraper = None
 precedent_crawler = None
 precedent_scheduler = None
 openlaw_client = None
 
 try:
-    # OpenLaw API Client 초기화
-    OPENLAW_API_KEY = os.getenv("OPENLAW_API_KEY", "fox_racer")  # 기본값: 공용 키
-    openlaw_client = OpenLawAPIClient(api_key=OPENLAW_API_KEY)
-    logger.info(f"OpenLaw API client initialized (key: {OPENLAW_API_KEY[:10]}...)")
-
-    # Supreme Court Portal Scraper 초기화
+    openlaw_client = OpenLawAPIClient(api_key=os.getenv("OPENLAW_API_KEY", "fox_racer"))
     scourt_scraper = SCourtScraper()
-    logger.info("Supreme Court portal scraper initialized")
-
-    # Precedent Crawler 초기화
     precedent_crawler = PrecedentCrawler(scraper=scourt_scraper)
-    logger.info("Precedent crawler initialized")
-
-    # Precedent Scheduler 초기화
     precedent_scheduler = PrecedentScheduler(crawler=precedent_crawler)
-    logger.info("Precedent scheduler initialized")
-
+    logger.info("✅ Precedent crawling system initialized")
 except Exception as e:
-    logger.error(f"Failed to initialize precedent crawling system: {e}")
-    logger.info("API will run without precedent crawling support")
+    logger.error(f"❌ Failed to initialize precedent system: {e}")
 
-# ============================================
-# Database Tables 생성
-# ============================================
+# ==========================================
+# Database Tables
+# ==========================================
 
 async def create_db_tables():
-    """데이터베이스 테이블 생성"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created successfully")
+    logger.info("✅ Database tables created")
 
-# ============================================
-# Startup & Shutdown Events
-# ============================================
+# ==========================================
+# Startup & Shutdown
+# ==========================================
 
 @app.on_event("startup")
 async def startup_event():
-    """앱 시작 시 실행"""
-    logger.info("Starting LawLaw Backend...")
-
-    # 데이터베이스 테이블 생성
+    logger.info("🚀 Starting LawLaw Backend (Monorepo)...")
     await create_db_tables()
 
-    # 스케줄러 시작
     if precedent_scheduler:
         precedent_scheduler.start()
-        logger.info("Precedent scheduler started")
-
-        # 초기 크롤링 실행 (비동기)
         asyncio.create_task(precedent_scheduler.run_initial_crawl())
-        logger.info("Initial precedent crawl scheduled")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """앱 종료 시 실행"""
-    logger.info("Shutting down LawLaw Backend...")
-
-    # 스케줄러 종료
+    logger.info("👋 Shutting down LawLaw Backend...")
     if precedent_scheduler:
         precedent_scheduler.shutdown()
-        logger.info("Precedent scheduler shut down")
 
-# ============================================
-# Health Check Endpoint
-# ============================================
+# ==========================================
+# Health Check
+# ==========================================
 
 class HealthResponse(BaseModel):
     status: str
     model_status: str
+    rag_status: str
     timestamp: str
 
 @app.get("/")
 async def root():
-    """API 루트 엔드포인트"""
     return {
-        "name": "LawLaw Backend API",
-        "version": "0.1.0",
+        "name": "LawLaw Backend API (Monorepo)",
+        "version": "1.0.0",
         "status": "running"
     }
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """서버 및 모델 상태 확인"""
-    try:
-        if llm_client and LLM_API_KEY:
-            model_available = True
-        else:
-            model_available = False
+    return HealthResponse(
+        status="healthy" if llm_client else "degraded",
+        model_status="available" if llm_client else "not_configured",
+        rag_status="available" if hybrid_retriever else "not_configured",
+        timestamp=datetime.now().isoformat()
+    )
 
-        return HealthResponse(
-            status="healthy" if model_available else "degraded",
-            model_status="available" if model_available else "not_configured",
-            timestamp=datetime.now().isoformat()
-        )
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return HealthResponse(
-            status="unhealthy",
-            model_status="error",
-            timestamp=datetime.now().isoformat()
-        )
-
-# ============================================
+# ==========================================
 # Router Registration
-# ============================================
+# ==========================================
 
-# Chat & Search Router 등록
 chat_router = setup_chat_routes(
     constitutional_chatbot=constitutional_chatbot,
     llm_client=llm_client,
@@ -302,7 +263,6 @@ chat_router = setup_chat_routes(
 )
 app.include_router(chat_router)
 
-# Cases Router 등록
 cases_router = setup_case_routes(
     case_analyzer=case_analyzer,
     scenario_detector=scenario_detector,
@@ -311,7 +271,6 @@ cases_router = setup_case_routes(
 )
 app.include_router(cases_router)
 
-# Documents Router 등록
 documents_router = setup_document_routes(
     document_generator=document_generator,
     scenario_detector=scenario_detector,
@@ -319,30 +278,25 @@ documents_router = setup_document_routes(
 )
 app.include_router(documents_router)
 
-# Adapters Router 등록
 adapters_router = setup_adapter_routes(
     constitutional_chatbot=constitutional_chatbot
 )
 app.include_router(adapters_router)
 
-# Auth Router 등록
 auth_router = setup_auth_routes()
 app.include_router(auth_router)
 
-# Precedents Router 등록
-precedents_router = setup_precedent_routes(crawler=precedent_crawler, openlaw_client=openlaw_client)
+precedents_router = setup_precedent_routes(
+    crawler=precedent_crawler,
+    openlaw_client=openlaw_client
+)
 app.include_router(precedents_router)
 
-# Precedent Scraping Router 등록 (Playwright 기반)
 app.include_router(scraping_router)
-
-# Precedent VectorDB Search Router 등록 (ChromaDB 기반)
 app.include_router(search_router)
 
-# Feedback Router 등록
 feedback_router = setup_feedback_routes()
 app.include_router(feedback_router)
-
 
 if __name__ == "__main__":
     import uvicorn
