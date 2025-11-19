@@ -1,7 +1,7 @@
 # Git 연동 마이그레이션 전체 계획
 
 > **Last Updated**: 2025-11-19
-> **Version**: 2.5 (Phase 2 Python naming convention 적용)
+> **Version**: 2.6 (Phase 3 실행 오류 수정 반영)
 > **팀 협의**: ✅ 완료
 >
 > ⚠️ **Phase 0-1 실행은**: [QUICK_START_GUIDE.md](./QUICK_START_GUIDE.md) 참조
@@ -702,7 +702,7 @@ BASE_DIR = Path(__file__).parent.parent.parent  # ai-camp-1st-llm-agent-service-
 sys.path.insert(0, str(BASE_DIR))
 
 # ==========================================
-# libs/rag-core Import
+# libs/rag_core Import
 # ==========================================
 from libs.rag_core import (
     create_llm_client,
@@ -711,8 +711,7 @@ from libs.rag_core import (
     BM25Index,
     LegalDocumentRetriever,
     HybridRetriever,
-    AdapterChatbot,
-    filter_results
+    AdapterChatbot
 )
 
 # ==========================================
@@ -1021,6 +1020,68 @@ find apps/backend -name "*.bak" -delete
 grep -r "from apps.backend.core" apps/backend/ || echo "✅ No old imports found"
 ```
 
+### Step 3.2.1: 수동 수정 필요 (자동 변경 후 오류 수정)
+
+> ⚠️ **중요**: 자동 변경 후 다음 2가지를 수동으로 수정해야 합니다.
+
+#### 3.2.1-1. feedback_filter import 경로 수정
+
+`routers/chat.py`에서 feedback_filter는 DB 의존적이므로 apps/backend에 유지됩니다.
+
+```bash
+# apps/backend/routers/chat.py 확인 및 수정
+cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
+
+# 잘못된 import 찾기
+grep "from libs.rag_core.*feedback_filter" apps/backend/routers/chat.py
+
+# 수동 수정 (있는 경우):
+# from libs.rag_core.feedback_filter import get_excluded_precedent_ids
+# ↓ 변경
+# from apps.backend.core.retrieval.feedback_filter import get_excluded_precedent_ids
+```
+
+**수정 방법**: `apps/backend/routers/chat.py` 파일을 열고:
+```python
+# 변경 전
+from libs.rag_core.feedback_filter import get_excluded_precedent_ids
+
+# 변경 후
+from apps.backend.core.retrieval.feedback_filter import get_excluded_precedent_ids
+```
+
+#### 3.2.1-2. precedent_search.py의 잘못된 import 수정
+
+```bash
+# apps/backend/routers/precedent_search.py 확인 및 수정
+grep "from libs.rag_core.vectordb" apps/backend/routers/precedent_search.py
+
+# 잘못된 import가 있는 경우 수정:
+# from libs.rag_core.vectordb import ChromaVectorDB
+# ↓ 변경
+# from libs.rag_core import ChromaVectorDB
+```
+
+**수정 방법**: `apps/backend/routers/precedent_search.py` 파일을 열고:
+```python
+# 변경 전
+from libs.rag_core.vectordb import ChromaVectorDB
+
+# 변경 후
+from libs.rag_core import ChromaVectorDB
+```
+
+#### 3.2.1-3. 최종 확인
+
+```bash
+# auth와 feedback_filter 제외하고 apps.backend.core import 확인
+grep -r "from apps.backend.core" apps/backend/ --include="*.py" | grep -v "auth" | grep -v "__pycache__"
+
+# 예상 출력:
+# apps/backend/routers/chat.py:from apps.backend.core.retrieval.feedback_filter import get_excluded_precedent_ids
+# (이것만 남아있어야 함)
+```
+
 ### Step 3.3: apps/backend/core/ 정리
 
 > ⚠️ **중요**: `core/retrieval/feedback_filter.py`는 삭제하지 않습니다!
@@ -1071,13 +1132,44 @@ cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
 # PYTHONPATH 설정
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
-# Backend 실행
-cd apps/backend
-python main.py
+# 1. libs/rag_core import 테스트
+python3 << 'EOF'
+import sys
+print("✅ Python path:", sys.path[:3])
 
-# 다른 터미널에서 테스트
-curl http://localhost:8000/health
-curl http://localhost:8000/
+# libs/rag_core import 테스트
+try:
+    from libs.rag_core import (
+        create_llm_client,
+        KoreanLegalEmbedder,
+        ChromaVectorDB,
+        BM25Index,
+        LegalDocumentRetriever,
+        HybridRetriever,
+        AdapterChatbot
+    )
+    print("✅ All libs/rag_core imports successful!")
+    print(f"  - KoreanLegalEmbedder: {KoreanLegalEmbedder}")
+    print(f"  - ChromaVectorDB: {ChromaVectorDB}")
+    print(f"  - create_llm_client: {create_llm_client}")
+    print(f"  - HybridRetriever: {HybridRetriever}")
+except Exception as e:
+    print(f"❌ Import failed: {e}")
+    import traceback
+    traceback.print_exc()
+    exit(1)
+EOF
+
+# 2. Backend main.py import 테스트
+python3 -c "import apps.backend.main; print('✅ Backend main.py import successful!')"
+
+# 3. Backend 실행 (선택 사항)
+# cd apps/backend
+# python main.py
+
+# 4. 다른 터미널에서 테스트 (Backend 실행 중일 때)
+# curl http://localhost:8000/health
+# curl http://localhost:8000/
 ```
 
 ### Step 3.5: Commit (apps/backend 마이그레이션 완료)
@@ -1089,20 +1181,22 @@ cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
 git add apps/backend/
 
 # Commit
-git commit -m "refactor: migrate apps/backend to use libs/rag-core
+git commit -m "refactor: migrate apps/backend to use libs/rag_core
 
 - Update import paths from apps.backend.core to libs.rag_core
-- Refactor main.py to use libs/rag-core modules
+- Refactor main.py to use libs/rag_core modules
 - Remove apps/backend/core/{embeddings,llm}
 - Remove apps/backend/core/retrieval/{retriever,bm25_index,hybrid_retriever}.py
 - Keep apps/backend/core/auth (FastAPI-specific)
 - Keep apps/backend/core/retrieval/feedback_filter.py (DB-dependent)
+- Fix feedback_filter import in routers/chat.py
+- Fix ChromaVectorDB import in routers/precedent_search.py
 - Update PYTHONPATH to monorepo root
-- Tested: Backend runs successfully on port 8000
+- Tested: Backend main.py import successful
 
 Note: feedback_filter.py kept in apps/backend due to AsyncSession dependency
 
-Co-dependent with: libs/rag-core"
+Co-dependent with: libs/rag_core"
 
 # Push
 git push origin feature/monorepo-migration
@@ -1826,6 +1920,14 @@ Local middle_proj_copy (발전 버전 - 2025-11-19)
 ---
 
 ### 📚 변경 이력
+- **v2.6** (2025-11-19): Phase 3 수정 - 실제 실행 중 발견된 오류 수정 반영
+  - Step 3.1: main.py에서 `filter_results` import 제거 (존재하지 않음)
+  - Step 3.2.1 추가: 자동 변경 후 수동 수정 필요 사항 명시
+    - feedback_filter import 경로 수정 (apps/backend에 유지)
+    - precedent_search.py의 잘못된 vectordb import 수정
+  - Step 3.4: import 테스트 추가 (libs/rag_core, backend main.py)
+  - Step 3.5: 커밋 메시지에 수정 사항 추가 (libs/rag_core, 오류 수정)
+  - 실제 Phase 3 실행 결과 반영
 - **v2.5** (2025-11-19): Phase 2 수정 - Python naming convention 적용
   - 디렉토리명 변경: `rag-core` → `rag_core`, `domain-model` → `domain_model`
   - Import 수정: `CONSTITUTIONAL_PRINCIPLES` → `ConstitutionalPrinciples`
