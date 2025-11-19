@@ -1,7 +1,7 @@
 # Git 연동 마이그레이션 전체 계획
 
 > **Last Updated**: 2025-11-19
-> **Version**: 2.2 (Phase 0-1을 QUICK_START_GUIDE.md로 분리)
+> **Version**: 2.5 (Phase 2 Python naming convention 적용)
 > **팀 협의**: ✅ 완료
 >
 > ⚠️ **Phase 0-1 실행은**: [QUICK_START_GUIDE.md](./QUICK_START_GUIDE.md) 참조
@@ -323,12 +323,19 @@ Phase 1에서 이미 로컬 backend의 개선 코드를 apps/backend/로 복사�
 - ✅ 하이브리드 검색 (FAISS + BM25)
 - ✅ 개선된 의존성 (faiss-cpu, rank-bm25)
 
-### Step 2.1: libs/rag-core 디렉토리 구조 생성
+### Step 2.1: libs 디렉토리명 변경 및 구조 생성
+
+> ⚠️ **중요**: Python에서는 하이픈(-)을 모듈명에 사용할 수 없으므로 언더스코어(_)로 변경해야 합니다.
 
 ```bash
-cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2/libs/rag-core
+cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
 
-# 1. 서브 디렉토리 생성
+# 0. 디렉토리명 변경 (Python naming convention)
+git mv libs/rag-core libs/rag_core
+git mv libs/domain-model libs/domain_model
+
+# 1. libs/rag_core 서브 디렉토리 생성
+cd libs/rag_core
 mkdir -p embeddings llm retrieval utils
 
 # 2. __init__.py 파일 생성
@@ -339,21 +346,22 @@ touch retrieval/__init__.py
 touch utils/__init__.py
 
 # 3. 확인
-tree -L 2
+ls -la
+# embeddings/, llm/, retrieval/, utils/, __init__.py가 보여야 함
 ```
 
 ### Step 2.2: Embeddings 모듈 이동
 
 ```bash
-# 1. apps/backend/core/embeddings/ → libs/rag-core/embeddings/
+# 1. apps/backend/core/embeddings/ → libs/rag_core/embeddings/
 cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
 
 # 파일 복사 (이동 전 백업 개념)
-cp apps/backend/core/embeddings/embedder.py libs/rag-core/embeddings/
-cp apps/backend/core/embeddings/vectordb.py libs/rag-core/embeddings/
+cp apps/backend/core/embeddings/embedder.py libs/rag_core/embeddings/
+cp apps/backend/core/embeddings/vectordb.py libs/rag_core/embeddings/
 
 # 2. embeddings/__init__.py 작성
-cat > libs/rag-core/embeddings/__init__.py << 'EOF'
+cat > libs/rag_core/embeddings/__init__.py << 'EOF'
 """
 RAG Core Embeddings Module
 임베딩 모델 및 VectorDB 인터페이스 (DB 비의존)
@@ -377,21 +385,21 @@ __all__ = [
 EOF
 
 # 3. 확인
-ls -la libs/rag-core/embeddings/
+ls -la libs/rag_core/embeddings/
 ```
 
 ### Step 2.3: LLM 모듈 이동
 
 ```bash
 # 1. LLM 파일 복사
-cp apps/backend/core/llm/llm_client.py libs/rag-core/llm/
-cp apps/backend/core/llm/rag_chatbot.py libs/rag-core/llm/
-cp apps/backend/core/llm/constitutional_chatbot.py libs/rag-core/llm/
-cp apps/backend/core/llm/constitutional_prompts.py libs/rag-core/llm/
-cp apps/backend/core/llm/adapter_chatbot.py libs/rag-core/llm/
+cp apps/backend/core/llm/llm_client.py libs/rag_core/llm/
+cp apps/backend/core/llm/rag_chatbot.py libs/rag_core/llm/
+cp apps/backend/core/llm/constitutional_chatbot.py libs/rag_core/llm/
+cp apps/backend/core/llm/constitutional_prompts.py libs/rag_core/llm/
+cp apps/backend/core/llm/adapter_chatbot.py libs/rag_core/llm/
 
 # 2. llm/__init__.py 작성
-cat > libs/rag-core/llm/__init__.py << 'EOF'
+cat > libs/rag_core/llm/__init__.py << 'EOF'
 """
 RAG Core LLM Module
 LLM 클라이언트 및 챗봇 인터페이스
@@ -407,7 +415,7 @@ from .llm_client import (
 from .rag_chatbot import RAGChatbot, AdvancedRAGChatbot
 from .constitutional_chatbot import ConstitutionalLawChatbot
 from .adapter_chatbot import AdapterChatbot
-from .constitutional_prompts import CONSTITUTIONAL_PRINCIPLES
+from .constitutional_prompts import ConstitutionalPrinciples
 
 __all__ = [
     'LLMClient',
@@ -419,12 +427,12 @@ __all__ = [
     'AdvancedRAGChatbot',
     'ConstitutionalLawChatbot',
     'AdapterChatbot',
-    'CONSTITUTIONAL_PRINCIPLES'
+    'ConstitutionalPrinciples'
 ]
 EOF
 
 # 3. 확인
-ls -la libs/rag-core/llm/
+ls -la libs/rag_core/llm/
 ```
 
 ### Step 2.4: Retrieval 모듈 이동
@@ -436,12 +444,12 @@ ls -la libs/rag-core/llm/
 
 ```bash
 # 1. Retrieval 파일 복사 (feedback_filter.py 제외)
-cp apps/backend/core/retrieval/retriever.py libs/rag-core/retrieval/
-cp apps/backend/core/retrieval/bm25_index.py libs/rag-core/retrieval/
-cp apps/backend/core/retrieval/hybrid_retriever.py libs/rag-core/retrieval/
+cp apps/backend/core/retrieval/retriever.py libs/rag_core/retrieval/
+cp apps/backend/core/retrieval/bm25_index.py libs/rag_core/retrieval/
+cp apps/backend/core/retrieval/hybrid_retriever.py libs/rag_core/retrieval/
 
 # 2. retrieval/__init__.py 작성 (filters 제외)
-cat > libs/rag-core/retrieval/__init__.py << 'EOF'
+cat > libs/rag_core/retrieval/__init__.py << 'EOF'
 """
 RAG Core Retrieval Module
 검색 로직 (DB 비의존)
@@ -461,14 +469,14 @@ __all__ = [
 EOF
 
 # 3. 확인
-ls -la libs/rag-core/retrieval/
+ls -la libs/rag_core/retrieval/
 # retriever.py, bm25_index.py, hybrid_retriever.py, __init__.py만 있어야 함
 ```
 
-### Step 2.5: libs/rag-core 내부 import 경로 수정
+### Step 2.5: libs/rag_core 내부 import 경로 수정
 
 ```bash
-cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2/libs/rag-core
+cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2/libs/rag_core
 
 # 1. apps.backend.core → libs.rag_core 변경
 find . -name "*.py" -type f -exec sed -i.bak \
@@ -499,11 +507,11 @@ grep -r "from apps.backend" . || echo "✅ No apps.backend imports found"
 grep -r "from backend.core" . || echo "✅ No backend.core imports found"
 ```
 
-### Step 2.6: libs/rag-core/__init__.py 작성
+### Step 2.6: libs/rag_core/__init__.py 작성
 
 ```python
-# libs/rag-core/__init__.py
-cat > /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2/libs/rag-core/__init__.py << 'EOF'
+# libs/rag_core/__init__.py
+cat > /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2/libs/rag_core/__init__.py << 'EOF'
 """
 RAG Core Library
 공통 RAG 로직: 임베딩, LLM, 검색 (DB 비의존)
@@ -544,7 +552,7 @@ from .llm import (
     AdvancedRAGChatbot,
     ConstitutionalLawChatbot,
     AdapterChatbot,
-    CONSTITUTIONAL_PRINCIPLES
+    ConstitutionalPrinciples
 )
 
 # Retrieval
@@ -574,7 +582,7 @@ __all__ = [
     'AdvancedRAGChatbot',
     'ConstitutionalLawChatbot',
     'AdapterChatbot',
-    'CONSTITUTIONAL_PRINCIPLES',
+    'ConstitutionalPrinciples',
 
     # Retrieval
     'LegalDocumentRetriever',
@@ -584,7 +592,7 @@ __all__ = [
 EOF
 ```
 
-### Step 2.7: libs/rag-core 테스트
+### Step 2.7: libs/rag_core 테스트
 
 ```bash
 cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
@@ -596,7 +604,7 @@ python3 << 'EOF'
 import sys
 print("✅ Python path:", sys.path[:3])
 
-# libs/rag-core import 테스트
+# libs/rag_core import 테스트
 try:
     from libs.rag_core import (
         KoreanLegalEmbedder,
@@ -616,30 +624,36 @@ except Exception as e:
 EOF
 ```
 
-### Step 2.8: Commit (libs/rag-core 완성)
+### Step 2.8: Commit (libs/rag_core 완성)
 
 ```bash
 cd /Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2
 
 # Stage changes
-git add libs/rag-core/
+git add libs/rag_core/ libs/domain_model/
 
 # Commit
-git commit -m "feat: implement libs/rag-core library
+git commit -m "feat: implement libs/rag_core library
 
+- Rename libs/rag-core → libs/rag_core (Python naming convention)
+- Rename libs/domain-model → libs/domain_model (Python naming convention)
 - Extract RAG core logic from apps/backend/core/
 - Create DB-independent modules:
-  - embeddings/ (KoreanLegalEmbedder, VectorDB)
-  - llm/ (LLM clients, chatbots)
-  - retrieval/ (Retriever, BM25, filters)
-- Add pure function filters (filter_results, apply_quality_threshold)
+  - embeddings/ (KoreanLegalEmbedder, VectorDB, ChromaVectorDB, FAISSVectorDB)
+  - llm/ (LLM clients, chatbots, ConstitutionalPrinciples)
+  - retrieval/ (LegalDocumentRetriever, BM25Index, HybridRetriever)
+  - utils/ (placeholder for future utilities)
 - Update import paths to libs.rag_core
 - Add comprehensive __init__.py exports
+- Exclude feedback_filter.py (DB-dependent, kept in apps/backend/core/retrieval/)
 
 This library can be shared across:
 - apps/backend
 - apps/ai-service
-- apps/data-pipeline"
+- apps/data-pipeline
+
+BREAKING CHANGE: Directory naming changed from hyphen to underscore for Python compatibility
+Tested: All imports successful via PYTHONPATH"
 
 # Push
 git push origin feature/monorepo-migration
@@ -1812,6 +1826,13 @@ Local middle_proj_copy (발전 버전 - 2025-11-19)
 ---
 
 ### 📚 변경 이력
+- **v2.5** (2025-11-19): Phase 2 수정 - Python naming convention 적용
+  - 디렉토리명 변경: `rag-core` → `rag_core`, `domain-model` → `domain_model`
+  - Import 수정: `CONSTITUTIONAL_PRINCIPLES` → `ConstitutionalPrinciples`
+  - Step 2.1에 디렉토리 이름 변경 단계 추가 (git mv 사용)
+  - Step 2.3, 2.6 `ConstitutionalPrinciples` import 수정
+  - 모든 경로를 `libs/rag_core`로 수정
+  - 실제 실행 중 발견된 오류 수정 반영
 - **v2.4** (2025-11-19): Phase 2 수정 - feedback_filter.py 처리 방식 변경
   - `feedback_filter.py`를 apps/backend/core/retrieval/에 유지 (DB 의존성)
   - `filters.py` 생성 제거 (불필요)
