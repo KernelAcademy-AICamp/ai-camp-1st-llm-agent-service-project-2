@@ -51,72 +51,145 @@ _본 레포지토리는 'LLM Agent 서비스 개발'을 위한 템플릿입니�
 - **주요 라이브러리**: `requirements.txt` 참조
 - 실험용 개별 라이브러리 : 이니셜_requirements `[예 : jy_requirements]`
 
-### 4.2. 설치 및 실행
-1.  **레포지토리 복제**
-    ```bash
-    git clone [본 레포지토리 URL]
-    cd [프로젝트 폴더명]
-    ```
+### 4.2. Monorepo 구조로 설치 및 실행
 
-2.  **가상 환경 생성 및 활성화**
-    ```bash
-    # Windows
-    python -m venv venv
-    .\venv\Scripts\activate
+> ⚠️ **중요**: 프로젝트가 Monorepo 구조로 전환되었습니다. 아래 가이드를 따라주세요.
 
-    # macOS / Linux
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
+#### 1. **레포지토리 복제**
+```bash
+git clone https://github.com/KernelAcademy-AICamp/ai-camp-1st-llm-agent-service-project-2.git
+cd ai-camp-1st-llm-agent-service-project-2
+```
 
-3.  **의존성 설치**
-    ```bash
-    pip install -r requirements.txt
-    ```
+#### 2. **PYTHONPATH 설정 (필수!)**
+```bash
+# Monorepo root를 PYTHONPATH에 추가
+export PYTHONPATH=$(pwd):$PYTHONPATH
+```
 
-4.  **환경 변수 설정**
-    `.env.example` 파일을 복사하여 `.env` 파일을 생성하고, 필요한 API Key 등을 입력합니다.
-    ```bash
-    cp .env.example .env
-    # .env 파일 열어서 [YOUR_API_KEY] 등 수정
-    ```
+#### 3. **환경 변수 설정**
+```bash
+cp .env.example .env
+# .env 파일을 열어서 API Key 등 수정
+```
 
-5.  **서비스 실행**
-    ```bash
-    # 예: FastAPI 실행
-    uvicorn backend.main:app --reload
-    ```
+#### 4. **백엔드 실행**
+```bash
+cd apps/backend
+
+# Python 가상환경 생성 (권장)
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 의존성 설치
+pip install -r requirements.txt
+
+# 실행
+python main.py
+```
+
+백엔드 접속: http://localhost:8000
+
+#### 5. **프론트엔드 실행**
+```bash
+cd apps/web-frontend
+
+# 의존성 설치
+npm install
+
+# 실행
+npm start
+```
+
+프론트엔드 접속: http://localhost:3000
 
 ---
 
-## 5. 🌳 레포지토리 구조
+## 5. 🏗️ 레포지토리 구조 (Monorepo)
 
 ```
-/ 
-├── backend/        # API 서버 (FastAPI/Django 소스코드)
-├── frontend/       # 웹 UI (Streamlit/React 소스코드)
-├── core/           # RAG 파이프라인, 임베딩 등 핵심 AI 로직
-├── scripts/        # 배치 스크립트, 데이터 수집/전처리 유틸리티
-├── notebooks/      # 데이터 탐색, 모델 테스트용 Jupyter Notebook
-├── data/           # (Git-ignored) 원본/전처리 데이터
-├── docs/           # 아키텍처, ERD, WBS 등 문서 산출물
+ai-camp-1st-llm-agent-service-project-2/
+├── apps/                    # 실행 가능한 애플리케이션
+│   ├── backend/             # FastAPI 백엔드 (포트 8000)
+│   ├── web-frontend/        # React 프론트엔드 (포트 3000)
+│   ├── ai-service/          # AI 전용 서비스 (선택, 포트 8001)
+│   └── data-pipeline/       # ETL 파이프라인
 │
-├── .env.example    # 환경 변수 템플릿
-├── requirements.txt# Python 의존성
-└── README.md       # 프로젝트 소개 문서
+├── libs/                    # 공통 라이브러리
+│   ├── rag_core/            # RAG 핵심 로직 (DB 비의존)
+│   │   ├── embeddings/      # 임베딩 모델 & VectorDB
+│   │   ├── llm/             # LLM 클라이언트 & 챗봇
+│   │   ├── retrieval/       # 검색 로직 (Hybrid, BM25)
+│   │   └── utils/           # 유틸리티
+│   └── domain_model/        # 공통 Pydantic 모델
+│
+├── data/                    # 데이터 (Git 제외)
+│   ├── vectordb/            # ChromaDB, BM25 인덱스
+│   └── uploads/             # 업로드 파일
+│
+├── configs/                 # 설정 파일
+├── docs/                    # 문서 (마이그레이션 가이드 포함)
+├── experiments/             # 실험 코드
+├── notebooks/               # Jupyter notebooks
+├── scripts/                 # 유틸리티 스크립트
+│   ├── test_integration.sh  # 통합 테스트
+│   ├── build_vectordb.py    # VectorDB 빌드
+│   └── build_bm25_index.py  # BM25 인덱스 빌드
+└── tests/                   # 테스트
+
+```
+
+### 5.1. Monorepo 전환 정보
+
+**변경 사항**:
+- ✅ `backend/` → `apps/backend/`
+- ✅ `frontend/` → `apps/web-frontend/`
+- ✅ `backend/core/` → `libs/rag_core/` (공통 RAG 로직 분리)
+- ✅ 독립 실행 가능: 각 앱이 독립적으로 실행 가능
+
+**마이그레이션 문서**:
+- [빠른 시작 가이드](docs/QUICK_START_GUIDE.md) - Phase 0-1 실행 가이드
+- [마이그레이션 전략](docs/GIT_MIGRATION_STRATEGY.md) - 전체 마이그레이션 계획
+
+---
+
+## 6. 📚 주요 기능
+
+- ✅ **RAG 기반 챗봇**: 형사법 판례 기반 질의응답
+- ✅ **사건 분석**: 사건 문서 자동 분석 및 관련 판례 검색
+- ✅ **문서 생성**: AI 기반 법률 문서 자동 생성
+- ✅ **판례 검색**: 38만+ 형사법 판례 하이브리드 검색 (Semantic + BM25)
+- ✅ **Constitutional AI**: 헌법적 원칙 기반 AI 응답
+- ✅ **다중 LLM 제공자 지원**: OpenAI / Ollama / Anthropic / Custom
+
+---
+
+## 7. 🧪 테스트
+
+```bash
+# 통합 테스트
+./scripts/test_integration.sh
+
+# Backend 단위 테스트
+cd apps/backend
+pytest
+
+# Frontend 테스트
+cd apps/web-frontend
+npm test
 ```
 
 ---
 
-## 6. 룰 & 가이드라인 (Rules & Guidelines)
+## 8. 룰 & 가이드라인 (Rules & Guidelines)
 
-### 6.1. 핵심 수행 규칙
+### 8.1. 핵심 수행 규칙
 1.  **매일 오전 10시 KST** : 팀 스크럼 진행 (어제 한 일, 오늘 할 일, 장애물 공유)
 2.  **문서화**: 아키텍처, ERD 등 주요 산출물은 **[Notion 링크]`** 에 문서화하고 팀원과 공유합니다.
 3.  **환경 통일**: Python 및 주요 라이브러리 버전을 통일하여 개발 환경 차이로 인한 문제를 방지합니다. (`requirements.txt` 준수)
 4.  **보안**: API Key, DB 접속 정보 등 민감 정보는 `.env` 파일을 사용하며, 절대로 Git에 커밋하지 않습니다. (`.gitignore` 확인)
 
-### 6.2. Git 브랜치 전략
+### 8.2. Git 브랜치 전략
 본 프로젝트는 **Git Flow**를 기반으로 한 브랜치 전략을 따릅니다.
 
 -   **`master`**: 최종 릴리즈(배포) 브랜치. (7주차 발표회)
@@ -140,7 +213,7 @@ develop 브랜치에 Merge
 
 ---
 
-## 7. 🗓️ 프로젝트 로드맵 (7-Week Plan)
+## 9. 🗓️ 프로젝트 로드맵 (7-Week Plan)
 
 | 주차 | 핵심 목표 | 주요 산출물 |
 | :--- | :--- | :--- |
@@ -154,7 +227,7 @@ develop 브랜치에 Merge
 
 ---
 
-## 8. 📄 산출물 링크 (Documentation)
+## 10. 📄 산출물 링크 (Documentation)
 
 > 팀의 Notion, Fimga 등 관련 링크를 업데이트하세요.
 
@@ -163,13 +236,29 @@ develop 브랜치에 Merge
 -   **[➡️ 시스템 아키텍처 다이어그램]([링크])`**
 -   **[➡️ 데이터베이스 ERD]([링크])`**
 -   **[➡️ 팀 WBS / Scrum 보드]([링크])`**
+-   **[➡️ API 문서](http://localhost:8000/docs)** (백엔드 실행 후)
 
 ---
 
-## 9. 🏁 최종 결과물 (Final Deliverables)
+## 11. 🏁 최종 결과물 (Final Deliverables)
 
 1.  **웹 UI 기반 서비스**: `[최종 배포된 서비스 URL]`
 2.  **데이터 처리 모듈**: 데이터 수집, 전처리, 배치 프로세싱 모듈 소스코드
 3.  **임베딩 및 DB 모듈**: 임베딩 추출 및 Vector DB 저장 모듈 소스코드
 4.  **핵심 기능 모듈**: RAG 응답, 유사 논문 추천, 비교, 트렌드 분석 모듈 코드
 5.  **최종 발표 자료 및 데모 영상**
+
+---
+
+## 12. 🤝 기여 (Contributing)
+
+1. Feature 브랜치 생성: `git checkout -b feature/amazing-feature`
+2. 변경사항 커밋: `git commit -m 'feat: add amazing feature'`
+3. Push: `git push origin feature/amazing-feature`
+4. Pull Request 생성
+
+---
+
+## 13. 📝 라이선스
+
+MIT License
