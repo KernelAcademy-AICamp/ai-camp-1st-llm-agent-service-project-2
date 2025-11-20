@@ -46,6 +46,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ===== Router 등록 =====
+from routers import chat
+
+app.include_router(chat.router)
+
 # ===== Startup Event =====
 
 @app.on_event("startup")
