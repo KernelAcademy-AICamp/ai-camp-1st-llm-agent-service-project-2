@@ -8,9 +8,11 @@ Note: feedback_filter.py는 DB 의존적이므로 apps/backend/core/retrieval/�
 from .retriever import LegalDocumentRetriever
 from .bm25_index import BM25Index
 from .hybrid_retriever import HybridRetriever
+from .filters import filter_results
 
 __all__ = [
     'LegalDocumentRetriever',
     'BM25Index',
-    'HybridRetriever'
+    'HybridRetriever',
+    'filter_results'
 ]
