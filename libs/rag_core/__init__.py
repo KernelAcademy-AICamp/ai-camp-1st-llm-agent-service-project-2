@@ -45,7 +45,8 @@ from .llm import (
 from .retrieval import (
     LegalDocumentRetriever,
     BM25Index,
-    HybridRetriever
+    HybridRetriever,
+    filter_results
 )
 
 __version__ = '1.0.0'
@@ -73,5 +74,6 @@ __all__ = [
     # Retrieval
     'LegalDocumentRetriever',
     'BM25Index',
-    'HybridRetriever'
+    'HybridRetriever',
+    'filter_results'
 ]
