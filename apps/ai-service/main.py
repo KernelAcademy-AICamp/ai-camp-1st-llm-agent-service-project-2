@@ -47,9 +47,10 @@ app.add_middleware(
 )
 
 # ===== Router 등록 =====
-from routers import chat
+from routers import chat, analyze
 
 app.include_router(chat.router)
+app.include_router(analyze.router)
 
 # ===== Startup Event =====
 
