@@ -12,8 +12,13 @@ import json
 import uuid
 import shutil
 import re
+import httpx
+import os
 
 logger = logging.getLogger(__name__)
+
+# AI Service URL
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 
@@ -44,10 +49,10 @@ class CaseAnalysisResponse(BaseModel):
 
 
 def setup_case_routes(
-    case_analyzer,
     scenario_detector,
     file_parser,
-    upload_dir: Path
+    upload_dir: Path,
+    **kwargs  # case_analyzer 제거됨
 ):
     """사건 관리 라우트 설정"""
 
@@ -105,9 +110,7 @@ def setup_case_routes(
     @router.post("", response_model=CaseAnalysisResponse)
     @router.post("/upload", response_model=CaseAnalysisResponse)
     async def upload_case_files(files: List[UploadFile] = File(...)):
-        """사건 파일 업로드 및 분석"""
-        if not case_analyzer:
-            raise HTTPException(status_code=503, detail="Case analyzer not available")
+        """사건 파일 업로드 및 분석 (AI Service 프록시)"""
 
         # 업로드 파일 개수 제한
         if not files or len(files) == 0:
@@ -190,7 +193,20 @@ def setup_case_routes(
                     )
 
             logger.info(f"Analyzing {len(texts)} documents for case {case_id}")
-            analysis = await case_analyzer.analyze_documents(texts, filenames)
+
+            # AI Service 호출 (문서 분석)
+            combined_text = "\n\n".join([f"=== {fn} ===\n{txt}" for fn, txt in zip(filenames, texts)])
+
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{AI_SERVICE_URL}/v1/analyze/case",
+                    json={
+                        "text": combined_text,
+                        "include_related_cases": True
+                    }
+                )
+                response.raise_for_status()
+                analysis = response.json()
 
             scenario_info = scenario_detector.detect_scenario(analysis, filenames)
             logger.info(f"Detected scenario: {scenario_info['scenario_name']} (confidence: {scenario_info['confidence']})")

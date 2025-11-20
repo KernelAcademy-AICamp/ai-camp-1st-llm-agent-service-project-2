@@ -34,9 +34,9 @@ from libs.rag_core import (
 # apps/backend Import
 # ==========================================
 from apps.backend.services.file_parser import FileParser
-from apps.backend.services.case_analyzer import CaseAnalyzer
+# from apps.backend.services.case_analyzer import CaseAnalyzer  # Phase 1: AI Service로 이동
 from apps.backend.services.scenario_detector import ScenarioDetector
-from apps.backend.services.document_generator import DocumentGenerator
+# from apps.backend.services.document_generator import DocumentGenerator  # Phase 1: AI Service로 이동
 from apps.backend.services.scourt_scraper import SCourtScraper
 from apps.backend.services.precedent_crawler import PrecedentCrawler
 from apps.backend.services.scheduler import PrecedentScheduler
@@ -171,15 +171,16 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 file_parser = FileParser()
 scenario_detector = ScenarioDetector()
 
-case_analyzer = None
-if llm_client:
-    case_analyzer = CaseAnalyzer(llm_client=llm_client, retriever=hybrid_retriever)
-    logger.info("✅ CaseAnalyzer initialized")
-
-document_generator = None
-if llm_client:
-    document_generator = DocumentGenerator(llm_client=llm_client)
-    logger.info("✅ DocumentGenerator initialized")
+# Phase 1: CaseAnalyzer, DocumentGenerator → AI Service로 이동
+# case_analyzer = None
+# if llm_client:
+#     case_analyzer = CaseAnalyzer(llm_client=llm_client, retriever=hybrid_retriever)
+#     logger.info("✅ CaseAnalyzer initialized")
+#
+# document_generator = None
+# if llm_client:
+#     document_generator = DocumentGenerator(llm_client=llm_client)
+#     logger.info("✅ DocumentGenerator initialized")
 
 # Precedent Crawler & Scheduler 초기화
 scourt_scraper = None
@@ -255,16 +256,12 @@ async def health_check():
 # Router Registration
 # ==========================================
 
-chat_router = setup_chat_routes(
-    constitutional_chatbot=constitutional_chatbot,
-    llm_client=llm_client,
-    hybrid_retriever=hybrid_retriever,
-    openlaw_client=openlaw_client
-)
+# Phase 1: AI Service 프록시로 변경
+chat_router = setup_chat_routes()  # AI Service 프록시
 app.include_router(chat_router)
 
 cases_router = setup_case_routes(
-    case_analyzer=case_analyzer,
+    # case_analyzer=case_analyzer,  # Phase 1: AI Service로 이동
     scenario_detector=scenario_detector,
     file_parser=file_parser,
     upload_dir=UPLOAD_DIR
@@ -272,15 +269,14 @@ cases_router = setup_case_routes(
 app.include_router(cases_router)
 
 documents_router = setup_document_routes(
-    document_generator=document_generator,
+    # document_generator=document_generator,  # Phase 1: AI Service로 이동 (documents router는 유지)
+    document_generator=None,  # 임시: AI Service 미지원 시 None
     scenario_detector=scenario_detector,
     upload_dir=UPLOAD_DIR
 )
 app.include_router(documents_router)
 
-adapters_router = setup_adapter_routes(
-    constitutional_chatbot=constitutional_chatbot
-)
+adapters_router = setup_adapter_routes()  # AI Service 프록시
 app.include_router(adapters_router)
 
 auth_router = setup_auth_routes()
