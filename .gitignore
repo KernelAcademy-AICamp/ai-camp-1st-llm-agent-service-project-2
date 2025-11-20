@@ -149,3 +149,8 @@ build/
 # Node.js
 node_modules/
 
+# ===================================
+# Documentation (keep local only)
+# ===================================
+docs/
+
