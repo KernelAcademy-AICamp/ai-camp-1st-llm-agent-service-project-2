@@ -71,7 +71,7 @@ async def startup_event():
         # 3. VectorDB 로드
         logger.info("📦 Loading VectorDB...")
         vectordb = ChromaVectorDB(
-            collection_name="criminal_law_precedents",
+            collection_name="criminal_law_docs",  # ✅ 실제 데이터가 있는 컬렉션
             persist_directory=str(settings.CHROMA_DIR)
         )
         doc_count = vectordb.get_count()
@@ -80,11 +80,11 @@ async def startup_event():
 
         # 4. BM25 Index 로드
         logger.info("📦 Loading BM25 index...")
-        bm25_path = settings.BM25_DIR / "bm25_index.pkl"
-        if bm25_path.exists():
-            bm25 = BM25Index.load(str(bm25_path))
+        if settings.BM25_DIR.exists():
+            bm25 = BM25Index([])  # 빈 인스턴스 생성
+            bm25.load(str(settings.BM25_DIR))  # 디렉토리 경로 전달
             app.state.bm25 = bm25
-            logger.info(f"✅ BM25 index loaded: {len(bm25.corpus)} documents")
+            logger.info(f"✅ BM25 index loaded: {len(bm25.documents)} documents")
         else:
             logger.warning("⚠️  BM25 index not found, creating empty index")
             bm25 = BM25Index([])
