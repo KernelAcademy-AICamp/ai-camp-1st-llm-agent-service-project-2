@@ -44,7 +44,9 @@ class Settings(BaseSettings):
     ]
 
     class Config:
-        env_file = ".env"
+        # 프로젝트 루트의 .env 파일을 명시적으로 지정
+        # 배포 환경에서는 환경변수로 직접 주입되므로 .env 파일이 없어도 동작
+        env_file = str(Path(__file__).parent.parent.parent.parent / ".env")
         case_sensitive = True
         extra = "ignore"  # .env의 추가 변수 무시
 
