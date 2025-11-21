@@ -9,7 +9,6 @@ _본 레포지토리는 'LLM Agent 서비스 개발'을 위한 템플릿입니�
 | [박남욱] |  [nwpark82](https://github.com/wh5905) |
 | [정원형] |  [wh5905](https://github.com/wh5905) |
 | [박재형] |  [baaakgun4543](https://github.com/baaakgun4543) |
-| [김지윤] |  [YuliSpiel](https://github.com/YuliSpiel) |
 
 ---
 
@@ -248,16 +247,3 @@ develop 브랜치에 Merge
 5.  **최종 발표 자료 및 데모 영상**
 
 ---
-
-## 12. 🤝 기여 (Contributing)
-
-1. Feature 브랜치 생성: `git checkout -b feature/amazing-feature`
-2. 변경사항 커밋: `git commit -m 'feat: add amazing feature'`
-3. Push: `git push origin feature/amazing-feature`
-4. Pull Request 생성
-
----
-
-## 13. 📝 라이선스
-
-MIT License
