@@ -5,7 +5,7 @@ Django → AI Service HTTP 통신
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 import httpx
 import os
@@ -178,6 +178,7 @@ def generate_document(request):
         )
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def health_check(request):
     """AI Service 헬스체크 (동기 버전)"""
     try:
