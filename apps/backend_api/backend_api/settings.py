@@ -63,6 +63,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend_api.wsgi.application'
 
+# ASGI 설정 (async view 지원)
+ASGI_APPLICATION = 'backend_api.asgi.application'
+
 # Database (✅ Phase 0 PostgreSQL 계정 사용)
 DATABASES = {
     'default': {
