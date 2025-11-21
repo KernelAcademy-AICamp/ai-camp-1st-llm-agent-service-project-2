@@ -73,13 +73,26 @@ cp .env.example .env
 # .env 파일을 열어서 API Key 등 수정
 ```
 
-#### 4. **백엔드 실행**
+#### 4. **Django Backend 실행**
 ```bash
-cd apps/backend
+cd apps/backend_api
 
-# Python 가상환경 생성 (권장)
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# 의존성 설치
+pip install -r requirements.txt
+
+# 마이그레이션
+python manage.py migrate --fake-initial
+
+# 실행
+python manage.py runserver
+```
+
+Django Backend: http://localhost:8000
+Django Admin: http://localhost:8000/admin
+
+#### 5. **AI Service 실행** (선택)
+```bash
+cd apps/ai-service
 
 # 의존성 설치
 pip install -r requirements.txt
@@ -88,9 +101,9 @@ pip install -r requirements.txt
 python main.py
 ```
 
-백엔드 접속: http://localhost:8000
+AI Service: http://localhost:8001
 
-#### 5. **프론트엔드 실행**
+#### 6. **Frontend 실행**
 ```bash
 cd apps/web-frontend
 
@@ -101,7 +114,7 @@ npm install
 npm start
 ```
 
-프론트엔드 접속: http://localhost:3000
+Frontend: http://localhost:3000
 
 ---
 
@@ -109,33 +122,19 @@ npm start
 
 ```
 ai-camp-1st-llm-agent-service-project-2/
-├── apps/                    # 실행 가능한 애플리케이션
-│   ├── backend/             # FastAPI 백엔드 (포트 8000)
-│   ├── web-frontend/        # React 프론트엔드 (포트 3000)
-│   ├── ai-service/          # AI 전용 서비스 (선택, 포트 8001)
+├── apps/
+│   ├── backend_api/         # Django Backend (비즈니스 로직, 포트 8000)
+│   ├── ai-service/          # FastAPI AI Service (AI 전용, 포트 8001)
+│   ├── web-frontend/        # React Frontend (포트 3000)
 │   └── data-pipeline/       # ETL 파이프라인
 │
-├── libs/                    # 공통 라이브러리
-│   ├── rag_core/            # RAG 핵심 로직 (DB 비의존)
-│   │   ├── embeddings/      # 임베딩 모델 & VectorDB
-│   │   ├── llm/             # LLM 클라이언트 & 챗봇
-│   │   ├── retrieval/       # 검색 로직 (Hybrid, BM25)
-│   │   └── utils/           # 유틸리티
+├── libs/
+│   ├── rag_core/            # RAG 핵심 로직 (공유 라이브러리)
 │   └── domain_model/        # 공통 Pydantic 모델
 │
-├── data/                    # 데이터 (Git 제외)
-│   ├── vectordb/            # ChromaDB, BM25 인덱스
-│   └── uploads/             # 업로드 파일
-│
-├── configs/                 # 설정 파일
-├── docs/                    # 문서 (마이그레이션 가이드 포함)
-├── experiments/             # 실험 코드
-├── notebooks/               # Jupyter notebooks
-├── scripts/                 # 유틸리티 스크립트
-│   ├── test_integration.sh  # 통합 테스트
-│   ├── build_vectordb.py    # VectorDB 빌드
-│   └── build_bm25_index.py  # BM25 인덱스 빌드
-└── tests/                   # 테스트
+├── data/                    # VectorDB, 업로드 파일 (Git 제외)
+├── docs/                    # 문서 및 마이그레이션 가이드
+└── scripts/                 # 유틸리티 스크립트
 
 ```
 
