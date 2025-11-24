@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/v1/', include('api.v1.urls')),
     path('api/v1/cases/', include('cases.urls')),  # Case CRUD API
     path('api/v1/documents/', include('documents.urls')),  # Document CRUD API
+    path('api/v1/', include('organizations.urls')),  # Organization & Project CRUD API
 ]
 
 # Serve media files in development
