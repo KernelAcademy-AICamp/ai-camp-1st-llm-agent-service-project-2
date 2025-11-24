@@ -451,3 +451,61 @@ export interface UploadDocumentResponse {
   message: string;
   document: UserDocument;
 }
+
+// ============================================
+// Summary and Clause Types (Phase 3-2)
+// ============================================
+
+export type SummaryType = 'GLOBAL' | 'SECTION';
+
+export interface Summary {
+  id: string;
+  document: string;
+  llm_model: string;
+  summary_type: SummaryType;
+  content: string;
+  meta: Record<string, any>;
+  created_at: string;
+}
+
+export type ClauseType =
+  | 'PAYMENT'
+  | 'OBLIGATION'
+  | 'TERMINATION'
+  | 'LIABILITY'
+  | 'WARRANTY'
+  | 'CONFIDENTIALITY'
+  | 'DISPUTE'
+  | 'IP'
+  | 'DELIVERY'
+  | 'OTHER';
+
+export interface KeyClause {
+  id: string;
+  document: string;
+  clause_type: ClauseType;
+  title: string;
+  content: string;
+  importance_score: number;
+  llm_model: string;
+  created_at: string;
+}
+
+export interface SummaryResponse {
+  summary: Summary | null;
+}
+
+export interface ClausesResponse {
+  clauses: KeyClause[];
+  total: number;
+}
+
+export interface AnalyzeDocumentRequest {
+  document_id: string;
+}
+
+export interface AnalyzeDocumentResponse {
+  message: string;
+  summary: Summary;
+  clauses: KeyClause[];
+}

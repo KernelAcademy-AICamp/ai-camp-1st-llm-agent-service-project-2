@@ -8,12 +8,14 @@ from django.conf import settings
 import httpx
 import logging
 
-from .models import Document, DocumentChunk
+from .models import Document, DocumentChunk, Summary, KeyClause
 from .serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
     DocumentDetailSerializer,
     DocumentChunkSerializer,
+    SummarySerializer,
+    KeyClauseSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -197,6 +199,149 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'chunks': serializer.data
         })
 
+    @action(detail=True, methods=['get'], url_path='summary')
+    def summary(self, request, pk=None):
+        """
+        GET /api/v1/documents/{id}/summary/
+        Get summary for a document (most recent GLOBAL summary)
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get the most recent GLOBAL summary
+        summary = document.summaries.filter(
+            summary_type=Summary.SUMMARY_TYPE_GLOBAL
+        ).order_by('-created_at').first()
+
+        if not summary:
+            return Response(
+                {
+                    'document_id': str(document.id),
+                    'document_title': document.title,
+                    'summary': None,
+                    'message': 'No summary available. Call /analyze/ to generate one.'
+                },
+                status=status.HTTP_200_OK
+            )
+
+        serializer = SummarySerializer(summary)
+        return Response({
+            'document_id': str(document.id),
+            'document_title': document.title,
+            'summary': serializer.data
+        })
+
+    @action(detail=True, methods=['get'], url_path='clauses')
+    def clauses(self, request, pk=None):
+        """
+        GET /api/v1/documents/{id}/clauses/
+        Get all key clauses for a document
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all key clauses, ordered by importance score
+        clauses = document.key_clauses.all().order_by('-importance_score', '-created_at')
+        serializer = KeyClauseSerializer(clauses, many=True)
+
+        return Response({
+            'document_id': str(document.id),
+            'document_title': document.title,
+            'clause_count': clauses.count(),
+            'clauses': serializer.data
+        })
+
+    @action(detail=True, methods=['post'], url_path='analyze')
+    def analyze(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/analyze/
+        Trigger AI analysis for a document (summary and/or clause extraction)
+
+        Request body:
+        {
+            "analysis_type": "summary" | "clauses" | "both" (default: "both"),
+            "llm_model": "gpt-4" | "claude-3-opus" (optional, default from settings)
+        }
+
+        Response:
+        {
+            "success": true,
+            "document_id": "...",
+            "summary": {...} (if requested),
+            "clauses": [...] (if requested)
+        }
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if document is ready for analysis
+        if document.status not in [Document.STATUS_PREPROCESSED, Document.STATUS_EMBEDDED]:
+            return Response(
+                {
+                    'error': 'Document not ready for analysis',
+                    'status': document.status,
+                    'message': 'Document must be preprocessed first'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get request parameters
+        analysis_type = request.data.get('analysis_type', 'both')
+        llm_model = request.data.get('llm_model', 'gpt-4')
+
+        if analysis_type not in ['summary', 'clauses', 'both']:
+            return Response(
+                {'error': 'Invalid analysis_type. Must be: summary, clauses, or both'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        result = {
+            'success': True,
+            'document_id': str(document.id),
+            'document_title': document.title
+        }
+
+        # Generate summary if requested
+        if analysis_type in ['summary', 'both']:
+            try:
+                summary_obj = self._generate_summary(document, llm_model)
+                result['summary'] = SummarySerializer(summary_obj).data
+            except Exception as e:
+                logger.error(f"Error generating summary for document {document.id}: {e}", exc_info=True)
+                result['success'] = False
+                result['summary_error'] = str(e)
+
+        # Extract clauses if requested
+        if analysis_type in ['clauses', 'both']:
+            try:
+                clause_objs = self._extract_clauses(document, llm_model)
+                result['clauses'] = KeyClauseSerializer(clause_objs, many=True).data
+                result['clause_count'] = len(clause_objs)
+            except Exception as e:
+                logger.error(f"Error extracting clauses for document {document.id}: {e}", exc_info=True)
+                result['success'] = False
+                result['clauses_error'] = str(e)
+
+        if result['success']:
+            return Response(result, status=status.HTTP_201_CREATED)
+        else:
+            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def _trigger_preprocessing(self, document: Document):
         """
         Trigger document preprocessing via AI Service
@@ -362,3 +507,123 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document.status = Document.STATUS_FAILED
             document.error_message = str(e)
             document.save(update_fields=['status', 'error_message'])
+
+    def _generate_summary(self, document: Document, llm_model: str) -> Summary:
+        """
+        Generate summary for a document via AI Service
+
+        Calls FastAPI /v1/llm/summarize endpoint and saves the result to the database.
+        """
+        try:
+            # Prepare document text from chunks
+            chunks = document.chunks.all().order_by('chunk_index')
+            document_text = '\n\n'.join([chunk.text for chunk in chunks])
+
+            if not document_text:
+                raise ValueError("No text content found in document chunks")
+
+            # Call AI Service summarize endpoint
+            ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            response = httpx.post(
+                f'{ai_service_url}/v1/llm/summarize',
+                json={
+                    'document_id': str(document.id),
+                    'text': document_text,
+                    'llm_model': llm_model,
+                    'summary_type': 'GLOBAL'
+                },
+                timeout=60.0
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get('success'):
+                    # Save summary to database
+                    summary = Summary.objects.create(
+                        document=document,
+                        llm_model=llm_model,
+                        summary_type=Summary.SUMMARY_TYPE_GLOBAL,
+                        content=result.get('summary', ''),
+                        meta={
+                            'token_count': result.get('token_count', 0),
+                            'model_version': result.get('model_version', '')
+                        }
+                    )
+
+                    logger.info(f"Summary generated for document {document.id} using {llm_model}")
+                    return summary
+                else:
+                    raise Exception(f"AI Service error: {result.get('error', 'Unknown error')}")
+            else:
+                raise Exception(f"AI Service returned {response.status_code}: {response.text}")
+
+        except httpx.RequestError as e:
+            logger.error(f"Request error calling AI Service for summary: {e}", exc_info=True)
+            raise Exception(f"Failed to connect to AI Service: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error generating summary: {e}", exc_info=True)
+            raise
+
+    def _extract_clauses(self, document: Document, llm_model: str) -> list:
+        """
+        Extract key clauses from a document via AI Service
+
+        Calls FastAPI /v1/llm/clauses endpoint and saves the results to the database.
+        """
+        try:
+            # Prepare document text from chunks
+            chunks = document.chunks.all().order_by('chunk_index')
+            document_text = '\n\n'.join([chunk.text for chunk in chunks])
+
+            if not document_text:
+                raise ValueError("No text content found in document chunks")
+
+            # Call AI Service clause extraction endpoint
+            ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            response = httpx.post(
+                f'{ai_service_url}/v1/llm/clauses',
+                json={
+                    'document_id': str(document.id),
+                    'text': document_text,
+                    'llm_model': llm_model,
+                    'doc_type': document.doc_type
+                },
+                timeout=60.0
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get('success'):
+                    # Save clauses to database
+                    clauses_data = result.get('clauses', [])
+                    clause_objs = []
+
+                    for clause_data in clauses_data:
+                        clause = KeyClause.objects.create(
+                            document=document,
+                            clause_type=clause_data.get('clause_type', 'OTHER'),
+                            title=clause_data.get('title', ''),
+                            content=clause_data.get('content', ''),
+                            importance_score=clause_data.get('importance_score', 50),
+                            llm_model=llm_model
+                        )
+                        clause_objs.append(clause)
+
+                    logger.info(
+                        f"Extracted {len(clause_objs)} clauses for document {document.id} "
+                        f"using {llm_model}"
+                    )
+                    return clause_objs
+                else:
+                    raise Exception(f"AI Service error: {result.get('error', 'Unknown error')}")
+            else:
+                raise Exception(f"AI Service returned {response.status_code}: {response.text}")
+
+        except httpx.RequestError as e:
+            logger.error(f"Request error calling AI Service for clauses: {e}", exc_info=True)
+            raise Exception(f"Failed to connect to AI Service: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error extracting clauses: {e}", exc_info=True)
+            raise

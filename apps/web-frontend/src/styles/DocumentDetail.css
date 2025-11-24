@@ -89,6 +89,11 @@
   color: #2d3748;
 }
 
+/* Analysis Section */
+.analysis-section {
+  margin: 2rem 0;
+}
+
 /* Chunks Section */
 .chunks-section {
   margin-top: 2rem;

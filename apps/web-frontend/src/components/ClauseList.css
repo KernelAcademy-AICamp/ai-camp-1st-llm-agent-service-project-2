@@ -1,0 +1,238 @@
+.clause-list-section {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 1.5rem;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #7f8c8d;
+}
+
+.spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-message {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  padding: 12px;
+  color: #c33;
+  margin-bottom: 16px;
+}
+
+.clause-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.clause-summary p {
+  margin: 0;
+  color: #555;
+}
+
+.clause-summary strong {
+  color: #2c3e50;
+}
+
+.clauses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 16px;
+}
+
+.clause-card {
+  background-color: #fff;
+  border: 1px solid #e1e8ed;
+  border-radius: 8px;
+  padding: 16px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.clause-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.clause-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.clause-type {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3498db;
+  background-color: #e3f2fd;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
+.importance-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.importance-badge.high {
+  background-color: #fee;
+  color: #c33;
+}
+
+.importance-badge.medium {
+  background-color: #ffeaa7;
+  color: #d63031;
+}
+
+.importance-badge.low {
+  background-color: #dfe6e9;
+  color: #636e72;
+}
+
+.clause-title {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin: 8px 0 12px 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.clause-content {
+  margin-bottom: 12px;
+  color: #555;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.clause-content p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.clause-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #e1e8ed;
+  font-size: 0.85rem;
+}
+
+.clause-score {
+  color: #555;
+  font-weight: 500;
+}
+
+.clause-model {
+  color: #95a5a6;
+  font-size: 0.8rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #7f8c8d;
+}
+
+.empty-state p {
+  margin: 8px 0;
+}
+
+.empty-state .small {
+  font-size: 0.9rem;
+  color: #95a5a6;
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+.btn-primary:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #95a5a6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #7f8c8d;
+}
+
+.btn-secondary:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .clauses-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clause-summary {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
