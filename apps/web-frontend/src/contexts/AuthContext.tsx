@@ -84,15 +84,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await apiClient.signup(data);
 
-      // 토큰 저장
-      localStorage.setItem(TOKEN_KEY, response.access_token);
-
-      setAuthState({
-        user: response.user,
-        token: response.access_token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      // 회원가입 성공 후 자동 로그인
+      if (response.access_token) {
+        // 토큰이 반환된 경우
+        localStorage.setItem(TOKEN_KEY, response.access_token);
+        setAuthState({
+          user: response.user,
+          token: response.access_token,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else {
+        // 토큰이 없는 경우 자동으로 로그인 시도
+        await login({ username: data.email, password: data.password });
+      }
     } catch (error) {
       console.error('Signup failed:', error);
       throw error;

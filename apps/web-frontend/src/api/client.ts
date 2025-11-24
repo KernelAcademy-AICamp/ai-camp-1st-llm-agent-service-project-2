@@ -80,6 +80,7 @@ class APIClient {
           detail: response.statusText,
           status_code: response.status,
         }));
+        console.error('API Error Details:', error);
         throw new Error(error.detail || 'API request failed');
       }
 
@@ -95,7 +96,7 @@ class APIClient {
   // ============================================
 
   async healthCheck(): Promise<HealthResponse> {
-    return this.fetch<HealthResponse>('/health');
+    return this.fetch<HealthResponse>('/api/v1/ai/health');
   }
 
   // ============================================
@@ -124,11 +125,11 @@ class APIClient {
    * RAG Chat with Constitutional AI
    * ChromaDB 388K docs + Hybrid Search + Constitutional AI
    */
-  async chatWithRAG(request: RAGChatRequest): Promise<RAGChatResponse> {
-    return this.fetch<RAGChatResponse>('/api/chat-with-rag', {
+  async chatWithRAG(request: RAGChatRequest, token?: string): Promise<RAGChatResponse> {
+    return this.fetch<RAGChatResponse>('/api/v1/ai/chat/rag', {
       method: 'POST',
       body: JSON.stringify(request),
-    });
+    }, token);
   }
 
   // ============================================
@@ -190,23 +191,30 @@ class APIClient {
   // Case Management
   // ============================================
 
-  async getCases(): Promise<CasesResponse> {
-    return this.fetch<CasesResponse>('/api/cases');
+  async getCases(token?: string): Promise<CasesResponse> {
+    return this.fetch<CasesResponse>('/api/v1/cases/', {}, token);
   }
 
   async getCase(caseId: string): Promise<CaseAnalysis> {
-    return this.fetch<CaseAnalysis>(`/api/cases/${caseId}`);
+    return this.fetch<CaseAnalysis>(`/api/v1/cases/${caseId}`);
   }
 
-  async uploadCaseFiles(files: File[]): Promise<CaseAnalysis> {
+  async uploadCaseFiles(files: File[], token?: string): Promise<CaseAnalysis> {
     const formData = new FormData();
     files.forEach(file => {
       formData.append('files', file);
     });
 
-    const url = `${this.baseURL}/api/cases/upload`;
+    const url = `${this.baseURL}/api/v1/cases/upload/`;
+    const headers: Record<string, string> = {};
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
       method: 'POST',
+      headers,
       body: formData,
     });
 
@@ -220,10 +228,10 @@ class APIClient {
     return await response.json();
   }
 
-  async deleteCase(caseId: string): Promise<DeleteResponse> {
-    return this.fetch<DeleteResponse>(`/api/cases/${caseId}`, {
+  async deleteCase(caseId: string, token?: string): Promise<DeleteResponse> {
+    return this.fetch<DeleteResponse>(`/api/v1/cases/${caseId}/`, {
       method: 'DELETE',
-    });
+    }, token);
   }
 
   // ============================================
@@ -260,63 +268,68 @@ class APIClient {
   // ============================================
 
   async login(credentials: LoginRequest): Promise<TokenResponse> {
-    // OAuth2 expects form data, not JSON
-    const formData = new URLSearchParams();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
-
-    const url = `${this.baseURL}/api/auth/login`;
+    // Backend expects JSON with email and password fields
+    const url = `${this.baseURL}/api/v1/auth/login`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: formData,
+      body: JSON.stringify({
+        email: credentials.username, // username field is actually email
+        password: credentials.password,
+      }),
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({
         detail: response.statusText,
       }));
-      throw new Error(error.detail || 'Login failed');
+      throw new Error(error.detail || error.error || 'Login failed');
     }
 
-    return await response.json();
+    const data = await response.json();
+    // Backend returns 'access' not 'access_token'
+    return {
+      access_token: data.access,
+      refresh_token: data.refresh,
+      user: data.user,
+    };
   }
 
   async signup(data: SignupRequest): Promise<TokenResponse> {
-    return this.fetch<TokenResponse>('/api/auth/signup', {
+    return this.fetch<TokenResponse>('/api/v1/auth/signup', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async logout(token: string): Promise<SuccessResponse> {
-    return this.fetch<SuccessResponse>('/api/auth/logout', {
+    return this.fetch<SuccessResponse>('/api/v1/auth/logout', {
       method: 'POST',
     }, token);
   }
 
   async getCurrentUser(token: string): Promise<User> {
-    return this.fetch<User>('/api/auth/me', {}, token);
+    return this.fetch<User>('/api/v1/auth/me', {}, token);
   }
 
   async updateProfile(data: ProfileUpdateRequest, token: string): Promise<User> {
-    return this.fetch<User>('/api/auth/profile', {
+    return this.fetch<User>('/api/v1/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(data),
     }, token);
   }
 
   async changePassword(data: ChangePasswordRequest, token: string): Promise<SuccessResponse> {
-    return this.fetch<SuccessResponse>('/api/auth/change-password', {
+    return this.fetch<SuccessResponse>('/api/v1/auth/change-password', {
       method: 'PUT',
       body: JSON.stringify(data),
     }, token);
   }
 
   async deactivateAccount(token: string): Promise<SuccessResponse> {
-    return this.fetch<SuccessResponse>('/api/auth/account', {
+    return this.fetch<SuccessResponse>('/api/v1/auth/account', {
       method: 'DELETE',
     }, token);
   }

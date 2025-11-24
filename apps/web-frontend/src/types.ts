@@ -78,15 +78,23 @@ export interface RAGChatRequest {
 }
 
 export interface RAGSource {
-  rank: number;
+  rank?: number;
   source: string;
-  type: string;
-  title: string;
-  case_number: string;
-  date: string;
-  citation: string;
-  text_snippet: string;
+  content: string;
+  type?: string;
+  title?: string;
+  case_number?: string;
+  date?: string;
+  citation?: string;
+  text_snippet?: string;
   score: number;
+  metadata?: {
+    doc_id?: string;
+    type?: string;
+    file?: string;
+    source?: string;
+    [key: string]: any;
+  };
 }
 
 export interface RAGChatResponse {
@@ -322,14 +330,16 @@ export interface LoginRequest {
 export interface SignupRequest {
   email: string;
   password: string;
+  password_confirm: string;
   full_name: string;
-  specializations: string[];
+  specializations?: string[];
   lawyer_registration_number?: string;
 }
 
 export interface TokenResponse {
   access_token: string;
-  token_type: string;
+  refresh_token?: string;
+  token_type?: string;
   user: User;
 }
 

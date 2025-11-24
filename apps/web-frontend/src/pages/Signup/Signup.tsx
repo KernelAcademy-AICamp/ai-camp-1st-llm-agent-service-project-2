@@ -63,10 +63,11 @@ const Signup: React.FC = () => {
       return false;
     }
 
-    if (formData.specializations.length === 0) {
-      setError('최소 1개 이상의 전문 분야를 선택해주세요');
-      return false;
-    }
+    // specializations는 선택사항으로 변경
+    // if (formData.specializations.length === 0) {
+    //   setError('최소 1개 이상의 전문 분야를 선택해주세요');
+    //   return false;
+    // }
 
     return true;
   };
@@ -85,6 +86,7 @@ const Signup: React.FC = () => {
       await signup({
         email: formData.email,
         password: formData.password,
+        password_confirm: formData.confirmPassword,
         full_name: formData.full_name,
         specializations: formData.specializations,
         lawyer_registration_number: formData.lawyer_registration_number || undefined,

@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { FiFolder, FiUpload, FiPlus, FiFileText, FiTrash2, FiEye, FiAlertCircle, FiEdit, FiCpu, FiLoader } from 'react-icons/fi';
 import apiClient from '../../api/client';
 import { CaseAnalysis, CaseListItem } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 import './CaseManagement.css';
 
 const CaseManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseAnalysis | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -21,7 +23,7 @@ const CaseManagement: React.FC = () => {
 
   const loadCases = async () => {
     try {
-      const data = await apiClient.getCases();
+      const data = await apiClient.getCases(token || undefined);
       setCases(data.cases || []);
     } catch (error) {
       console.error('Error loading cases:', error);
@@ -46,7 +48,7 @@ const CaseManagement: React.FC = () => {
     setUploadError(null);
 
     try {
-      const analysis: CaseAnalysis = await apiClient.uploadCaseFiles(selectedFiles);
+      const analysis: CaseAnalysis = await apiClient.uploadCaseFiles(selectedFiles, token || undefined);
 
       // 사건 목록 새로고침
       await loadCases();
@@ -79,7 +81,7 @@ const CaseManagement: React.FC = () => {
     if (!window.confirm('정말로 이 사건을 삭제하시겠습니까?')) return;
 
     try {
-      await apiClient.deleteCase(caseId);
+      await apiClient.deleteCase(caseId, token || undefined);
 
       // 사건 목록 새로고침
       await loadCases();
