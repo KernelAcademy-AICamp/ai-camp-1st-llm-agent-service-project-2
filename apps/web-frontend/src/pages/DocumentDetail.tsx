@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
-import { UserDocumentDetail } from '../types';
+import { UserDocumentDetail, Summary, KeyClause } from '../types';
+import SummarySection from '../components/SummarySection';
+import ClauseList from '../components/ClauseList';
 import '../styles/DocumentDetail.css';
 
 const DocumentDetail: React.FC = () => {
@@ -15,8 +17,23 @@ const DocumentDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Summary state
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+
+  // Clauses state
+  const [clauses, setClauses] = useState<KeyClause[]>([]);
+  const [clausesLoading, setClausesLoading] = useState(false);
+  const [clausesError, setClausesError] = useState<string | null>(null);
+  const [extractingClauses, setExtractingClauses] = useState(false);
+
   useEffect(() => {
     loadDocument();
+    loadSummary();
+    loadClauses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId, token]);
 
   const loadDocument = async () => {
@@ -32,6 +49,74 @@ const DocumentDetail: React.FC = () => {
       setError(err.message || 'Failed to load document');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSummary = async () => {
+    if (!documentId || !token) return;
+
+    setSummaryLoading(true);
+    setSummaryError(null);
+
+    try {
+      const response = await apiClient.getDocumentSummary(documentId, token);
+      setSummary(response.summary);
+    } catch (err: any) {
+      setSummaryError(err.message || 'Failed to load summary');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const loadClauses = async () => {
+    if (!documentId || !token) return;
+
+    setClausesLoading(true);
+    setClausesError(null);
+
+    try {
+      const response = await apiClient.getDocumentClauses(documentId, token);
+      setClauses(response.clauses);
+    } catch (err: any) {
+      setClausesError(err.message || 'Failed to load clauses');
+    } finally {
+      setClausesLoading(false);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!documentId || !token) return;
+
+    setGeneratingSummary(true);
+    setSummaryError(null);
+
+    try {
+      const response = await apiClient.analyzeDocument(documentId, token);
+      setSummary(response.summary);
+      alert('요약이 성공적으로 생성되었습니다!');
+    } catch (err: any) {
+      setSummaryError(err.message || 'Failed to generate summary');
+      alert(`요약 생성 실패: ${err.message}`);
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
+  const handleExtractClauses = async () => {
+    if (!documentId || !token) return;
+
+    setExtractingClauses(true);
+    setClausesError(null);
+
+    try {
+      const response = await apiClient.analyzeDocument(documentId, token);
+      setClauses(response.clauses);
+      alert('조항이 성공적으로 추출되었습니다!');
+    } catch (err: any) {
+      setClausesError(err.message || 'Failed to extract clauses');
+      alert(`조항 추출 실패: ${err.message}`);
+    } finally {
+      setExtractingClauses(false);
     }
   };
 
@@ -152,6 +237,25 @@ const DocumentDetail: React.FC = () => {
               <strong>오류:</strong> {document.error_message}
             </div>
           )}
+        </div>
+
+        {/* AI Analysis Section */}
+        <div className="analysis-section">
+          <SummarySection
+            summary={summary}
+            loading={summaryLoading}
+            error={summaryError}
+            onGenerate={handleGenerateSummary}
+            generating={generatingSummary}
+          />
+
+          <ClauseList
+            clauses={clauses}
+            loading={clausesLoading}
+            error={clausesError}
+            onExtract={handleExtractClauses}
+            extracting={extractingClauses}
+          />
         </div>
 
         {/* Chunks */}

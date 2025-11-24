@@ -40,7 +40,12 @@ import {
   UploadDocumentResponse,
   UserDocumentType,
   UserDocumentLanguage,
-  DocumentChunk
+  DocumentChunk,
+  Summary,
+  KeyClause,
+  SummaryResponse,
+  ClausesResponse,
+  AnalyzeDocumentResponse
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -587,6 +592,46 @@ class APIClient {
     return this.fetch(
       `/api/v1/documents/${documentId}/chunks/`,
       {},
+      token
+    );
+  }
+
+  // ============================================
+  // Document Analysis (Summary & Clauses) - Phase 3-2
+  // ============================================
+
+  /**
+   * Get document summary
+   * Returns the latest GLOBAL summary for the document
+   */
+  async getDocumentSummary(documentId: string, token?: string): Promise<SummaryResponse> {
+    return this.fetch<SummaryResponse>(
+      `/api/v1/documents/${documentId}/summary/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Get document clauses
+   * Returns all extracted key clauses for the document
+   */
+  async getDocumentClauses(documentId: string, token?: string): Promise<ClausesResponse> {
+    return this.fetch<ClausesResponse>(
+      `/api/v1/documents/${documentId}/clauses/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Trigger document analysis
+   * Generates both summary and clauses for the document
+   */
+  async analyzeDocument(documentId: string, token?: string): Promise<AnalyzeDocumentResponse> {
+    return this.fetch<AnalyzeDocumentResponse>(
+      `/api/v1/documents/${documentId}/analyze/`,
+      { method: 'POST' },
       token
     );
   }
