@@ -509,3 +509,88 @@ export interface AnalyzeDocumentResponse {
   summary: Summary;
   clauses: KeyClause[];
 }
+
+// ============================================
+// Organization and Project Types (Phase 3-3)
+// ============================================
+
+export type MemberRole = 'ADMIN' | 'EDITOR' | 'VIEWER';
+
+export interface Organization {
+  id: string;
+  name: string;
+  created_by: string;
+  settings: Record<string, any>;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Membership {
+  id: string;
+  organization: string;
+  user: string;
+  user_email: string;
+  role: MemberRole;
+  role_display: string;
+  is_admin: boolean;
+  can_edit: boolean;
+  joined_at: string;
+}
+
+export interface Project {
+  id: string;
+  organization: string;
+  organization_name: string;
+  name: string;
+  description: string;
+  created_by: string;
+  document_count: number;
+  case_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrganizationDetail extends Organization {
+  members: Membership[];
+}
+
+export interface OrganizationsListResponse {
+  count: number;
+  results: Organization[];
+}
+
+export interface ProjectsListResponse {
+  count: number;
+  results: Project[];
+}
+
+export interface CreateOrganizationRequest {
+  name: string;
+  settings?: Record<string, any>;
+}
+
+export interface UpdateOrganizationRequest {
+  name?: string;
+  settings?: Record<string, any>;
+}
+
+export interface AddMemberRequest {
+  user_email: string;
+  role: MemberRole;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: MemberRole;
+}
+
+export interface CreateProjectRequest {
+  organization: string;
+  name: string;
+  description?: string;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+}
