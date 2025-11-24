@@ -4,6 +4,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
+from django.conf import settings
+import httpx
+import logging
 
 from .models import Document, DocumentChunk
 from .serializers import (
@@ -12,6 +15,8 @@ from .serializers import (
     DocumentDetailSerializer,
     DocumentChunkSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -118,6 +123,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             document = serializer.save()
 
+            # Trigger async preprocessing (optional - fire and forget)
+            try:
+                self._trigger_preprocessing(document)
+            except Exception as e:
+                logger.warning(f"Failed to trigger preprocessing for document {document.id}: {e}")
+                # Don't fail the upload if preprocessing trigger fails
+
             # Return created document
             response_serializer = DocumentSerializer(document)
             return Response(
@@ -184,3 +196,78 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'chunk_count': chunks.count(),
             'chunks': serializer.data
         })
+
+    def _trigger_preprocessing(self, document: Document):
+        """
+        Trigger document preprocessing via AI Service
+
+        This sends the uploaded file to FastAPI for text extraction and chunking.
+        The chunks are then saved to the database.
+        """
+        if not document.original_file:
+            return
+
+        try:
+            # Prepare file for upload to AI Service
+            file_path = document.original_file.path
+
+            with open(file_path, 'rb') as f:
+                files = {'file': (document.original_file.name, f, document.file_type)}
+                data = {
+                    'chunk_size': 1000,
+                    'chunk_overlap': 200
+                }
+
+                # Call FastAPI preprocessing endpoint
+                ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+                response = httpx.post(
+                    f'{ai_service_url}/preprocess/document',
+                    files=files,
+                    data=data,
+                    timeout=60.0
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+
+                    if result.get('success'):
+                        # Update document status
+                        document.status = Document.STATUS_PREPROCESSED
+                        document.save(update_fields=['status'])
+
+                        # Save chunks to database
+                        chunks = result.get('chunks', [])
+                        for chunk_data in chunks:
+                            DocumentChunk.objects.create(
+                                document=document,
+                                chunk_index=chunk_data['chunk_index'],
+                                text=chunk_data['text'],
+                                start_offset=chunk_data.get('start_offset'),
+                                end_offset=chunk_data.get('end_offset'),
+                                token_count=chunk_data.get('token_count')
+                            )
+
+                        logger.info(
+                            f"Document {document.id} preprocessed successfully: "
+                            f"{len(chunks)} chunks created"
+                        )
+                    else:
+                        # Update document status to failed
+                        document.status = Document.STATUS_FAILED
+                        document.error_message = result.get('error', 'Preprocessing failed')
+                        document.save(update_fields=['status', 'error_message'])
+                        logger.error(f"Preprocessing failed for document {document.id}: {result.get('error')}")
+                else:
+                    logger.error(
+                        f"AI Service returned error for document {document.id}: "
+                        f"{response.status_code} - {response.text}"
+                    )
+                    document.status = Document.STATUS_FAILED
+                    document.error_message = f"AI Service error: {response.status_code}"
+                    document.save(update_fields=['status', 'error_message'])
+
+        except Exception as e:
+            logger.error(f"Error triggering preprocessing for document {document.id}: {e}", exc_info=True)
+            document.status = Document.STATUS_FAILED
+            document.error_message = str(e)
+            document.save(update_fields=['status', 'error_message'])
