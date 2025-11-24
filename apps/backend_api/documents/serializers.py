@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, DocumentChunk
+from .models import Document, DocumentChunk, Summary, KeyClause
 
 
 class DocumentChunkSerializer(serializers.ModelSerializer):
@@ -186,3 +186,54 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+
+class SummarySerializer(serializers.ModelSerializer):
+    """Serializer for Summary model"""
+
+    document_title = serializers.CharField(source='document.title', read_only=True)
+
+    class Meta:
+        model = Summary
+        fields = [
+            'id',
+            'document',
+            'document_title',
+            'llm_model',
+            'summary_type',
+            'content',
+            'meta',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class KeyClauseSerializer(serializers.ModelSerializer):
+    """Serializer for KeyClause model"""
+
+    document_title = serializers.CharField(source='document.title', read_only=True)
+    clause_type_display = serializers.CharField(source='get_clause_type_display', read_only=True)
+
+    class Meta:
+        model = KeyClause
+        fields = [
+            'id',
+            'document',
+            'document_title',
+            'clause_type',
+            'clause_type_display',
+            'title',
+            'content',
+            'importance_score',
+            'llm_model',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_importance_score(self, value):
+        """Validate importance score is between 0-100"""
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('Importance score must be between 0 and 100')
+        return value
