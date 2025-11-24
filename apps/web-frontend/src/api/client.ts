@@ -33,7 +33,14 @@ import {
   SuccessResponse,
   Precedent,
   PrecedentDetail,
-  PrecedentListResponse
+  PrecedentListResponse,
+  UserDocument,
+  UserDocumentDetail,
+  UserDocumentsListResponse,
+  UploadDocumentResponse,
+  UserDocumentType,
+  UserDocumentLanguage,
+  DocumentChunk
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -489,6 +496,99 @@ class APIClient {
     should_exclude: boolean;
   }> {
     return this.fetch(`/api/feedback/stats/${encodeURIComponent(precedentId)}`);
+  }
+
+  // ============================================
+  // User Documents (문서 업로드)
+  // ============================================
+
+  async uploadDocument(
+    file: File,
+    title: string,
+    docType: UserDocumentType,
+    language: UserDocumentLanguage = 'ko',
+    token?: string
+  ): Promise<UploadDocumentResponse> {
+    const formData = new FormData();
+    formData.append('original_file', file);
+    formData.append('title', title);
+    formData.append('doc_type', docType);
+    formData.append('language', language);
+
+    const url = `${this.baseURL}/api/v1/documents/upload/`;
+    const headers: Record<string, string> = {};
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || error.error || 'Upload failed');
+    }
+
+    return await response.json();
+  }
+
+  async getUserDocuments(
+    token?: string,
+    docType?: UserDocumentType,
+    status?: string,
+    search?: string
+  ): Promise<UserDocumentsListResponse> {
+    const params = new URLSearchParams();
+
+    if (docType) {
+      params.append('doc_type', docType);
+    }
+    if (status) {
+      params.append('status', status);
+    }
+    if (search) {
+      params.append('search', search);
+    }
+
+    const queryString = params.toString();
+    const endpoint = `/api/v1/documents/${queryString ? '?' + queryString : ''}`;
+
+    return this.fetch<UserDocumentsListResponse>(endpoint, {}, token);
+  }
+
+  async getUserDocumentDetail(documentId: string, token?: string): Promise<UserDocumentDetail> {
+    return this.fetch<UserDocumentDetail>(
+      `/api/v1/documents/${documentId}/`,
+      {},
+      token
+    );
+  }
+
+  async deleteUserDocument(documentId: string, token?: string): Promise<DeleteResponse> {
+    return this.fetch<DeleteResponse>(
+      `/api/v1/documents/${documentId}/`,
+      { method: 'DELETE' },
+      token
+    );
+  }
+
+  async getUserDocumentChunks(documentId: string, token?: string): Promise<{
+    document_id: string;
+    document_title: string;
+    chunk_count: number;
+    chunks: DocumentChunk[];
+  }> {
+    return this.fetch(
+      `/api/v1/documents/${documentId}/chunks/`,
+      {},
+      token
+    );
   }
 }
 

@@ -388,3 +388,66 @@ export interface PrecedentListResponse {
   total: number;
   precedents: Precedent[];
 }
+
+// ============================================
+// User Document Upload Types
+// ============================================
+
+export type UserDocumentType = 'CASE' | 'CONTRACT' | 'STATUTE' | 'PRECEDENT' | 'OTHER';
+export type UserDocumentStatus = 'UPLOADED' | 'OCR_DONE' | 'PREPROCESSED' | 'EMBEDDED' | 'FAILED';
+export type UserDocumentLanguage = 'ko' | 'en';
+
+export interface UserDocument {
+  id: string;
+  user: string;
+  user_email?: string;
+  title: string;
+  doc_type: UserDocumentType;
+  source_type: string;
+  original_file: string | null;
+  language: UserDocumentLanguage;
+  status: UserDocumentStatus;
+  file_size: number | null;
+  file_type: string | null;
+  page_count: number | null;
+  error_message: string | null;
+  chunk_count: number;
+  is_processing_complete: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentChunk {
+  id: string;
+  document: string;
+  chunk_index: number;
+  text: string;
+  start_offset: number | null;
+  end_offset: number | null;
+  page_number: number | null;
+  embedding_id: string | null;
+  token_count: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserDocumentDetail extends UserDocument {
+  chunks: DocumentChunk[];
+}
+
+export interface UserDocumentsListResponse {
+  count: number;
+  results: UserDocument[];
+}
+
+export interface UploadDocumentRequest {
+  title: string;
+  doc_type: UserDocumentType;
+  language?: UserDocumentLanguage;
+  original_file: File;
+}
+
+export interface UploadDocumentResponse {
+  message: string;
+  document: UserDocument;
+}
