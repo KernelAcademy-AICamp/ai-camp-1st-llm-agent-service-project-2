@@ -1,0 +1,235 @@
+"""
+LLM Router
+Document summarization and clause extraction APIs
+"""
+
+from fastapi import APIRouter, Request, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/v1/llm", tags=["llm"])
+
+# ===== Request/Response Models =====
+
+class SummarizeRequest(BaseModel):
+    """문서 요약 요청"""
+    document_id: str = Field(..., description="Document ID")
+    text: str = Field(..., description="Document text to summarize")
+    llm_model: str = Field("gpt-4", description="LLM model name")
+    summary_type: str = Field("GLOBAL", description="Summary type (GLOBAL, SECTION)")
+
+class SummarizeResponse(BaseModel):
+    """문서 요약 응답"""
+    success: bool
+    document_id: str
+    summary: str
+    token_count: int
+    model_version: str
+    error: Optional[str] = None
+
+class ClausesRequest(BaseModel):
+    """조항 추출 요청"""
+    document_id: str = Field(..., description="Document ID")
+    text: str = Field(..., description="Document text to analyze")
+    llm_model: str = Field("gpt-4", description="LLM model name")
+    doc_type: Optional[str] = Field(None, description="Document type (CONTRACT, STATUTE, PRECEDENT, etc.)")
+
+class ClauseItem(BaseModel):
+    """개별 조항 정보"""
+    clause_type: str
+    title: str
+    content: str
+    importance_score: int
+
+class ClausesResponse(BaseModel):
+    """조항 추출 응답"""
+    success: bool
+    document_id: str
+    clauses: List[ClauseItem]
+    total_count: int
+    error: Optional[str] = None
+
+# ===== API Endpoints =====
+
+@router.post("/summarize", response_model=SummarizeResponse)
+async def summarize_document(
+    request: SummarizeRequest,
+    app_request: Request
+):
+    """
+    POST /v1/llm/summarize
+
+    문서 요약 생성
+
+    Django Backend에서 호출되며, 문서 텍스트를 입력받아 요약을 생성합니다.
+
+    Args:
+        request: SummarizeRequest (document_id, text, llm_model, summary_type)
+
+    Returns:
+        SummarizeResponse with summary text and metadata
+
+    Raises:
+        HTTPException 400: Invalid input
+        HTTPException 503: LLM service not available
+        HTTPException 500: Internal error
+    """
+    try:
+        # Import service (lazy import)
+        from services.summarizer import Summarizer
+
+        # Get LLM client from app state
+        llm_client = app_request.app.state.llm_client
+
+        if not llm_client:
+            raise HTTPException(
+                status_code=503,
+                detail="LLM client is not available"
+            )
+
+        # Validate input
+        if not request.text or len(request.text.strip()) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Text cannot be empty"
+            )
+
+        if request.summary_type not in ["GLOBAL", "SECTION"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid summary_type. Must be GLOBAL or SECTION"
+            )
+
+        # Initialize Summarizer
+        summarizer = Summarizer(llm_client=llm_client)
+
+        # Generate summary
+        logger.info(f"Generating {request.summary_type} summary for document {request.document_id}...")
+
+        result = await summarizer.summarize(
+            text=request.text,
+            document_id=request.document_id,
+            summary_type=request.summary_type,
+            llm_model=request.llm_model
+        )
+
+        # Return response
+        return SummarizeResponse(
+            success=True,
+            document_id=request.document_id,
+            summary=result.get('summary', ''),
+            token_count=result.get('token_count', 0),
+            model_version=result.get('model_version', request.llm_model)
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error in summarize: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error generating summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate summary: {str(e)}"
+        )
+
+
+@router.post("/clauses", response_model=ClausesResponse)
+async def extract_clauses(
+    request: ClausesRequest,
+    app_request: Request
+):
+    """
+    POST /v1/llm/clauses
+
+    핵심 조항 추출
+
+    Django Backend에서 호출되며, 문서 텍스트를 분석하여 핵심 조항들을 추출합니다.
+
+    Args:
+        request: ClausesRequest (document_id, text, llm_model, doc_type)
+
+    Returns:
+        ClausesResponse with list of extracted clauses
+
+    Raises:
+        HTTPException 400: Invalid input
+        HTTPException 503: LLM service not available
+        HTTPException 500: Internal error
+    """
+    try:
+        # Import service (lazy import)
+        from services.clause_extractor import ClauseExtractor
+
+        # Get LLM client from app state
+        llm_client = app_request.app.state.llm_client
+
+        if not llm_client:
+            raise HTTPException(
+                status_code=503,
+                detail="LLM client is not available"
+            )
+
+        # Validate input
+        if not request.text or len(request.text.strip()) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Text cannot be empty"
+            )
+
+        # Initialize ClauseExtractor
+        extractor = ClauseExtractor(llm_client=llm_client)
+
+        # Extract clauses
+        logger.info(
+            f"Extracting clauses for document {request.document_id} "
+            f"(type: {request.doc_type})..."
+        )
+
+        result = await extractor.extract_clauses(
+            text=request.text,
+            document_id=request.document_id,
+            doc_type=request.doc_type,
+            llm_model=request.llm_model
+        )
+
+        # Convert to response model
+        clause_items = [
+            ClauseItem(
+                clause_type=clause['clause_type'],
+                title=clause['title'],
+                content=clause['content'],
+                importance_score=clause['importance_score']
+            )
+            for clause in result.get('clauses', [])
+        ]
+
+        # Return response
+        return ClausesResponse(
+            success=True,
+            document_id=request.document_id,
+            clauses=clause_items,
+            total_count=result.get('total_count', len(clause_items))
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error in extract_clauses: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error extracting clauses: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to extract clauses: {str(e)}"
+        )
