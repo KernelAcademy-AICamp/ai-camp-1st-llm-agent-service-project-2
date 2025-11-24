@@ -4,8 +4,10 @@ import './LegalResearch.css';
 import { apiClient } from '../../api/client';
 import type { RAGChatResponse } from '../../types';
 import PrecedentModal from '../../components/PrecedentModal/PrecedentModal';
+import { useAuth } from '../../contexts/AuthContext';
 
 const LegalResearch: React.FC = () => {
+  const { token } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [topK, setTopK] = useState(5);
   const [ragResponse, setRagResponse] = useState<RAGChatResponse | null>(null);
@@ -82,7 +84,7 @@ const LegalResearch: React.FC = () => {
         query: searchQuery,
         top_k: topK,
         include_sources: true
-      });
+      }, token || undefined);
 
       // 타이머 정리
       clearTimeout(step2Timer);
@@ -118,6 +120,12 @@ const LegalResearch: React.FC = () => {
   };
 
   const handlePrecedentClick = async (sourceId: string) => {
+    // Skip if sourceId is empty or invalid
+    if (!sourceId || sourceId.trim() === '') {
+      console.warn('Invalid source ID, skipping API call');
+      return;
+    }
+
     setIsLoadingPrecedent(true);
     setIsModalOpen(true);
     setSelectedPrecedent(null);
@@ -363,6 +371,12 @@ const LegalResearch: React.FC = () => {
               <div className="sources-list">
                 {ragResponse.sources.map((source, index) => {
                   const currentFeedback = feedbackState[source.source];
+                  // Extract info from metadata if available
+                  const docId = source.metadata?.doc_id || `문서 #${index + 1}`;
+                  const docType = source.metadata?.type || source.type || '기타';
+                  const fileName = source.metadata?.file || '';
+                  const docSource = source.metadata?.source || source.source || '';
+
                   return (
                     <div
                       key={index}
@@ -370,29 +384,36 @@ const LegalResearch: React.FC = () => {
                     >
                       <div
                         onClick={() => handlePrecedentClick(source.source)}
-                        style={{ cursor: 'pointer', flex: 1 }}
+                        style={{ cursor: source.source ? 'pointer' : 'default', flex: 1 }}
                       >
                         <div className="source-header">
-                          <div className="source-rank">#{source.rank}</div>
+                          <div className="source-rank">#{index + 1}</div>
                           <div className="source-title-wrapper">
-                            <span className="source-type-icon">{getTypeIcon(source.type)}</span>
-                            <h4 className="source-title">{source.title || source.source}</h4>
+                            <span className="source-type-icon">{getTypeIcon(docType)}</span>
+                            <h4 className="source-title">{source.title || docId}</h4>
                           </div>
                           <div className="source-meta">
-                            <span className="source-type-label">{getTypeLabel(source.type)}</span>
+                            <span className="source-type-label">{getTypeLabel(docType)}</span>
                             <span className={`source-score ${getScoreColor(source.score)}`}>
-                              {getScoreLabel(source.score, source.rank)}
+                              {getScoreLabel(source.score, index + 1)}
                             </span>
                           </div>
                         </div>
-                        <p className="source-snippet">{source.text_snippet}</p>
+                        <p className="source-snippet">
+                          {source.text_snippet || source.content || '내용이 제공되지 않았습니다.'}
+                        </p>
                         <div className="source-footer">
-                          <span className="source-date">{source.date}</span>
+                          <span className="source-date">{source.date || ''}</span>
                           {source.case_number && (
                             <span className="source-case-number">{source.case_number}</span>
                           )}
                           {source.citation && (
                             <span className="source-citation">{source.citation}</span>
+                          )}
+                          {fileName && (
+                            <span className="source-file" title={fileName}>
+                              {fileName.length > 30 ? fileName.substring(0, 30) + '...' : fileName}
+                            </span>
                           )}
                         </div>
                       </div>
