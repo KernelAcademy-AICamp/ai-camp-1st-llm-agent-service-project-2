@@ -60,16 +60,17 @@ class Summarizer:
             # Prepare prompt based on summary type
             prompt = self._create_summary_prompt(text, summary_type)
 
-            # Call LLM
+            # Call LLM (synchronous method returns string directly)
             logger.info(f"Generating {summary_type} summary for document {document_id}...")
 
-            response = await self.llm.generate(
+            response = self.llm.generate(
                 prompt=prompt,
                 temperature=0.3,  # Low temperature for consistent summaries
                 max_tokens=1000
             )
 
-            summary_text = response.get('text', '').strip()
+            # response is a string, not a dict
+            summary_text = response.strip() if response else ""
 
             if not summary_text:
                 raise ValueError("LLM returned empty summary")

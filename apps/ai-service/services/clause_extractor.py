@@ -84,16 +84,17 @@ class ClauseExtractor:
             # Prepare prompt
             prompt = self._create_extraction_prompt(text, doc_type)
 
-            # Call LLM
+            # Call LLM (synchronous method returns string directly)
             logger.info(f"Extracting clauses for document {document_id} (type: {doc_type})...")
 
-            response = await self.llm.generate(
+            response = self.llm.generate(
                 prompt=prompt,
                 temperature=0.2,  # Very low temperature for consistent extraction
                 max_tokens=2000
             )
 
-            llm_output = response.get('text', '').strip()
+            # response is a string, not a dict
+            llm_output = response.strip() if response else ""
 
             if not llm_output:
                 raise ValueError("LLM returned empty response")
