@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Document, DocumentChunk
+from .models import Document, DocumentChunk, Summary, KeyClause
 
 
 class DocumentChunkInline(admin.TabularInline):
@@ -190,3 +190,144 @@ class DocumentChunkAdmin(admin.ModelAdmin):
         return obj.text
 
     text_preview.short_description = 'Text Preview'
+
+
+@admin.register(Summary)
+class SummaryAdmin(admin.ModelAdmin):
+    """Admin interface for Summary model"""
+
+    list_display = (
+        'document',
+        'summary_type',
+        'llm_model',
+        'content_preview',
+        'created_at',
+    )
+
+    list_filter = (
+        'summary_type',
+        'llm_model',
+        'created_at',
+    )
+
+    search_fields = (
+        'document__title',
+        'content',
+    )
+
+    readonly_fields = (
+        'id',
+        'created_at',
+        'updated_at',
+        'content_preview',
+    )
+
+    fieldsets = (
+        ('Summary Information', {
+            'fields': (
+                'id',
+                'document',
+                'summary_type',
+                'llm_model',
+            )
+        }),
+        ('Content', {
+            'fields': (
+                'content',
+                'content_preview',
+            )
+        }),
+        ('Metadata', {
+            'fields': (
+                'meta',
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'created_at',
+                'updated_at',
+            ),
+            'classes': ('collapse',)
+        }),
+    )
+
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+    def content_preview(self, obj):
+        """Display first 200 characters of summary content"""
+        if len(obj.content) > 200:
+            return f"{obj.content[:200]}..."
+        return obj.content
+
+    content_preview.short_description = 'Content Preview'
+
+
+@admin.register(KeyClause)
+class KeyClauseAdmin(admin.ModelAdmin):
+    """Admin interface for KeyClause model"""
+
+    list_display = (
+        'document',
+        'title',
+        'clause_type',
+        'importance_score',
+        'llm_model',
+        'created_at',
+    )
+
+    list_filter = (
+        'clause_type',
+        'llm_model',
+        'created_at',
+    )
+
+    search_fields = (
+        'document__title',
+        'title',
+        'content',
+    )
+
+    readonly_fields = (
+        'id',
+        'created_at',
+        'updated_at',
+        'content_preview',
+    )
+
+    fieldsets = (
+        ('Clause Information', {
+            'fields': (
+                'id',
+                'document',
+                'clause_type',
+                'title',
+                'importance_score',
+                'llm_model',
+            )
+        }),
+        ('Content', {
+            'fields': (
+                'content',
+                'content_preview',
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'created_at',
+                'updated_at',
+            ),
+            'classes': ('collapse',)
+        }),
+    )
+
+    date_hierarchy = 'created_at'
+    ordering = ('-importance_score', '-created_at')
+
+    def content_preview(self, obj):
+        """Display first 200 characters of clause content"""
+        if len(obj.content) > 200:
+            return f"{obj.content[:200]}..."
+        return obj.content
+
+    content_preview.short_description = 'Content Preview'

@@ -227,3 +227,141 @@ class DocumentChunk(models.Model):
     def is_embedded(self):
         """Check if this chunk has been embedded in vector DB"""
         return bool(self.embedding_id)
+
+
+class Summary(models.Model):
+    """
+    Summary model for storing AI-generated document summaries
+
+    Supports both global document summaries and section-level summaries
+    """
+
+    # Summary types
+    SUMMARY_TYPE_GLOBAL = 'GLOBAL'
+    SUMMARY_TYPE_SECTION = 'SECTION'
+
+    SUMMARY_TYPE_CHOICES = [
+        (SUMMARY_TYPE_GLOBAL, 'Global Summary'),
+        (SUMMARY_TYPE_SECTION, 'Section Summary'),
+    ]
+
+    # Fields
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='summaries',
+        help_text='Associated document'
+    )
+    llm_model = models.CharField(
+        max_length=100,
+        help_text='LLM model used for generation (e.g., gpt-4, claude-3-opus)'
+    )
+    summary_type = models.CharField(
+        max_length=20,
+        choices=SUMMARY_TYPE_CHOICES,
+        default=SUMMARY_TYPE_GLOBAL,
+        help_text='Type of summary'
+    )
+    content = models.TextField(
+        help_text='Summary text content'
+    )
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Additional metadata (section_title, token_count, etc.)'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'summaries'
+        ordering = ['-created_at']
+        verbose_name_plural = 'Summaries'
+        indexes = [
+            models.Index(fields=['document', '-created_at']),
+            models.Index(fields=['summary_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.document.title} - {self.get_summary_type_display()} ({self.llm_model})"
+
+
+class KeyClause(models.Model):
+    """
+    KeyClause model for storing extracted key clauses from contracts/documents
+
+    Captures important clauses with importance scoring
+    """
+
+    # Clause types (common contract clauses)
+    CLAUSE_TYPE_PAYMENT = 'PAYMENT'
+    CLAUSE_TYPE_TERMINATION = 'TERMINATION'
+    CLAUSE_TYPE_LIABILITY = 'LIABILITY'
+    CLAUSE_TYPE_CONFIDENTIALITY = 'CONFIDENTIALITY'
+    CLAUSE_TYPE_DISPUTE = 'DISPUTE'
+    CLAUSE_TYPE_WARRANTY = 'WARRANTY'
+    CLAUSE_TYPE_INDEMNITY = 'INDEMNITY'
+    CLAUSE_TYPE_FORCE_MAJEURE = 'FORCE_MAJEURE'
+    CLAUSE_TYPE_INTELLECTUAL_PROPERTY = 'INTELLECTUAL_PROPERTY'
+    CLAUSE_TYPE_OTHER = 'OTHER'
+
+    CLAUSE_TYPE_CHOICES = [
+        (CLAUSE_TYPE_PAYMENT, 'Payment Terms'),
+        (CLAUSE_TYPE_TERMINATION, 'Termination'),
+        (CLAUSE_TYPE_LIABILITY, 'Liability'),
+        (CLAUSE_TYPE_CONFIDENTIALITY, 'Confidentiality'),
+        (CLAUSE_TYPE_DISPUTE, 'Dispute Resolution'),
+        (CLAUSE_TYPE_WARRANTY, 'Warranty'),
+        (CLAUSE_TYPE_INDEMNITY, 'Indemnification'),
+        (CLAUSE_TYPE_FORCE_MAJEURE, 'Force Majeure'),
+        (CLAUSE_TYPE_INTELLECTUAL_PROPERTY, 'Intellectual Property'),
+        (CLAUSE_TYPE_OTHER, 'Other'),
+    ]
+
+    # Fields
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='key_clauses',
+        help_text='Associated document'
+    )
+    clause_type = models.CharField(
+        max_length=50,
+        choices=CLAUSE_TYPE_CHOICES,
+        default=CLAUSE_TYPE_OTHER,
+        help_text='Type of clause'
+    )
+    title = models.CharField(
+        max_length=500,
+        help_text='Clause title or heading'
+    )
+    content = models.TextField(
+        help_text='Clause text content'
+    )
+    importance_score = models.IntegerField(
+        default=50,
+        help_text='Importance score (0-100)'
+    )
+    llm_model = models.CharField(
+        max_length=100,
+        help_text='LLM model used for extraction'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'key_clauses'
+        ordering = ['-importance_score', '-created_at']
+        indexes = [
+            models.Index(fields=['document', '-importance_score']),
+            models.Index(fields=['clause_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.document.title} - {self.title} ({self.importance_score})"
