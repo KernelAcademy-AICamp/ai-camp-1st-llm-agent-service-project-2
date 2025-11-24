@@ -237,8 +237,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
                         # Save chunks to database
                         chunks = result.get('chunks', [])
+                        chunk_objects = []
                         for chunk_data in chunks:
-                            DocumentChunk.objects.create(
+                            chunk_obj = DocumentChunk.objects.create(
                                 document=document,
                                 chunk_index=chunk_data['chunk_index'],
                                 text=chunk_data['text'],
@@ -246,11 +247,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
                                 end_offset=chunk_data.get('end_offset'),
                                 token_count=chunk_data.get('token_count')
                             )
+                            chunk_objects.append(chunk_obj)
 
                         logger.info(
                             f"Document {document.id} preprocessed successfully: "
                             f"{len(chunks)} chunks created"
                         )
+
+                        # Trigger indexing after preprocessing
+                        try:
+                            self._trigger_indexing(document, chunk_objects)
+                        except Exception as e:
+                            logger.warning(f"Failed to trigger indexing for document {document.id}: {e}")
+                            # Don't fail preprocessing if indexing fails
                     else:
                         # Update document status to failed
                         document.status = Document.STATUS_FAILED
@@ -268,6 +277,88 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             logger.error(f"Error triggering preprocessing for document {document.id}: {e}", exc_info=True)
+            document.status = Document.STATUS_FAILED
+            document.error_message = str(e)
+            document.save(update_fields=['status', 'error_message'])
+
+    def _trigger_indexing(self, document: Document, chunks: list):
+        """
+        Trigger document indexing via AI Service
+
+        This sends the chunks to FastAPI for embedding generation and ChromaDB storage.
+        The embedding IDs are then saved to DocumentChunk records.
+        """
+        if not chunks:
+            return
+
+        try:
+            # Prepare chunks data
+            chunks_data = []
+            for chunk in chunks:
+                chunks_data.append({
+                    'chunk_index': chunk.chunk_index,
+                    'text': chunk.text,
+                    'start_offset': chunk.start_offset,
+                    'end_offset': chunk.end_offset,
+                    'token_count': chunk.token_count
+                })
+
+            # Prepare document metadata
+            document_metadata = {
+                'title': document.title,
+                'doc_type': document.doc_type,
+                'language': document.language,
+                'file_type': document.file_type
+            }
+
+            # Call FastAPI indexing endpoint
+            ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            response = httpx.post(
+                f'{ai_service_url}/rag/index',
+                json={
+                    'document_id': str(document.id),
+                    'chunks': chunks_data,
+                    'document_metadata': document_metadata
+                },
+                timeout=120.0  # Longer timeout for embedding generation
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get('success'):
+                    # Update embedding IDs in chunks
+                    embedding_ids = result.get('embedding_ids', [])
+
+                    for i, chunk in enumerate(chunks):
+                        if i < len(embedding_ids):
+                            chunk.embedding_id = embedding_ids[i]
+                            chunk.save(update_fields=['embedding_id'])
+
+                    # Update document status to EMBEDDED
+                    document.status = Document.STATUS_EMBEDDED
+                    document.save(update_fields=['status'])
+
+                    logger.info(
+                        f"Document {document.id} indexed successfully: "
+                        f"{result.get('indexed_count', 0)} chunks embedded"
+                    )
+                else:
+                    logger.error(f"Indexing failed for document {document.id}: {result.get('error')}")
+                    document.status = Document.STATUS_FAILED
+                    document.error_message = f"Indexing failed: {result.get('error')}"
+                    document.save(update_fields=['status', 'error_message'])
+            else:
+                logger.error(
+                    f"AI Service returned error for indexing document {document.id}: "
+                    f"{response.status_code} - {response.text}"
+                )
+                document.status = Document.STATUS_FAILED
+                document.error_message = f"Indexing error: {response.status_code}"
+                document.save(update_fields=['status', 'error_message'])
+
+        except Exception as e:
+            logger.error(f"Error triggering indexing for document {document.id}: {e}", exc_info=True)
             document.status = Document.STATUS_FAILED
             document.error_message = str(e)
             document.save(update_fields=['status', 'error_message'])
