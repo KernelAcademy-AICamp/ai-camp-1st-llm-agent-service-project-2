@@ -29,6 +29,13 @@ dependencies = [
     "chromadb>=0.4.18",
     "rank-bm25>=0.2.2",
     "torch>=2.0.0",
+    "langchain-text-splitters>=0.3.0",
+
+    # Document Processing
+    "pypdf>=3.0.0",
+    "python-docx>=1.0.0",
+    "pillow>=10.0.0",
+    "pytesseract>=0.3.10",
 
     # Utils
     "python-dotenv>=1.0.0",

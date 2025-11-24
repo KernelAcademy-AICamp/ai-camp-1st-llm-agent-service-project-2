@@ -8,6 +8,8 @@ import LegalResearch from './pages/LegalResearch/LegalResearch';
 import CaseManagement from './pages/CaseManagement/CaseManagement';
 import DocumentEditor from './pages/DocumentEditor/DocumentEditor';
 import RecentPrecedents from './pages/RecentPrecedents/RecentPrecedents';
+import Documents from './pages/Documents';
+import DocumentDetail from './pages/DocumentDetail';
 import Login from './pages/Login/Login';
 import Signup from './pages/Signup/Signup';
 import './App.css';
@@ -46,6 +48,16 @@ function App() {
           <Route path="/docs/*" element={
             <Layout>
               <DocumentEditor />
+            </Layout>
+          } />
+          <Route path="/documents" element={
+            <Layout>
+              <Documents />
+            </Layout>
+          } />
+          <Route path="/documents/:documentId" element={
+            <Layout>
+              <DocumentDetail />
             </Layout>
           } />
 
