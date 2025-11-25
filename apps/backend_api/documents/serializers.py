@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult
+from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult, CaseAnalysis
 
 
 class DocumentChunkSerializer(serializers.ModelSerializer):
@@ -17,6 +17,38 @@ class DocumentChunkSerializer(serializers.ModelSerializer):
             'page_number',
             'embedding_id',
             'token_count',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class CaseAnalysisSerializer(serializers.ModelSerializer):
+    """Serializer for CaseAnalysis model"""
+
+    document_title = serializers.CharField(source='document.title', read_only=True)
+    party_count = serializers.IntegerField(read_only=True)
+    issue_count = serializers.IntegerField(read_only=True)
+    has_precedents = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = CaseAnalysis
+        fields = [
+            'id',
+            'document',
+            'document_title',
+            'suggested_case_name',
+            'document_types',
+            'parties',
+            'party_count',
+            'key_dates',
+            'issues',
+            'issue_count',
+            'related_precedents',
+            'has_precedents',
+            'suggested_next_steps',
+            'scenario',
+            'llm_model',
             'created_at',
             'updated_at',
         ]
@@ -150,6 +182,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     chunk_count = serializers.IntegerField(read_only=True)
     is_processing_complete = serializers.BooleanField(read_only=True)
     user_email = serializers.EmailField(source='user.email', read_only=True)
+    case_analysis = CaseAnalysisSerializer(read_only=True)
 
     class Meta:
         model = Document
@@ -170,6 +203,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'chunk_count',
             'is_processing_complete',
             'chunks',
+            'case_analysis',
             'created_at',
             'updated_at',
         ]
@@ -183,6 +217,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'chunk_count',
             'is_processing_complete',
             'chunks',
+            'case_analysis',
             'created_at',
             'updated_at',
         ]

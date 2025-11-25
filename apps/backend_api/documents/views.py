@@ -2,13 +2,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q
 from django.conf import settings
 import httpx
 import logging
 
-from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult
+from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult, CaseAnalysis
 from .serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
@@ -17,6 +17,7 @@ from .serializers import (
     SummarySerializer,
     KeyClauseSerializer,
     RiskAnalysisResultSerializer,
+    CaseAnalysisSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    # parser_classes will be set per action as needed
 
     def get_queryset(self):
         """
@@ -101,7 +102,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(document)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['post'], url_path='upload')
+    @action(detail=False, methods=['post'], url_path='upload', parser_classes=[MultiPartParser, FormParser])
     def upload(self, request):
         """
         POST /api/v1/documents/upload/
@@ -437,6 +438,99 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return Response(result, status=status.HTTP_201_CREATED)
         else:
             return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], url_path='case-analysis')
+    def case_analysis(self, request, pk=None):
+        """
+        GET /api/v1/documents/{id}/case-analysis/
+        Get case analysis for a document (if it exists)
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if document has case analysis
+        if not hasattr(document, 'case_analysis'):
+            return Response(
+                {
+                    'document_id': str(document.id),
+                    'document_title': document.title,
+                    'case_analysis': None,
+                    'message': 'No case analysis available. Call /analyze-case/ to generate one.'
+                },
+                status=status.HTTP_200_OK
+            )
+
+        serializer = CaseAnalysisSerializer(document.case_analysis)
+        return Response({
+            'document_id': str(document.id),
+            'document_title': document.title,
+            'case_analysis': serializer.data
+        })
+
+    @action(detail=True, methods=['post'], url_path='analyze-case')
+    def analyze_case(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/analyze-case/
+        Trigger AI case analysis for a document
+
+        Request body:
+        {
+            "llm_model": "gpt-4" | "claude-3-opus" (optional, default from settings),
+            "scenario": "소송 준비" | "계약 검토" | "법적 자문" | "기타" (optional)
+        }
+
+        Response:
+        {
+            "success": true,
+            "document_id": "...",
+            "case_analysis": {...}
+        }
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if document is ready for analysis
+        if document.status not in [Document.STATUS_PREPROCESSED, Document.STATUS_EMBEDDED]:
+            return Response(
+                {
+                    'error': 'Document not ready for analysis',
+                    'status': document.status,
+                    'message': 'Document must be preprocessed first'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get request parameters
+        llm_model = request.data.get('llm_model', 'gpt-4')
+        scenario = request.data.get('scenario', '소송 준비')
+
+        result = {
+            'success': True,
+            'document_id': str(document.id),
+            'document_title': document.title
+        }
+
+        # Perform case analysis
+        try:
+            case_obj = self._analyze_case(document, llm_model, scenario)
+            result['case_analysis'] = CaseAnalysisSerializer(case_obj).data
+        except Exception as e:
+            logger.error(f"Error analyzing case for document {document.id}: {e}", exc_info=True)
+            result['success'] = False
+            result['error'] = str(e)
+            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(result, status=status.HTTP_201_CREATED)
 
     def _trigger_preprocessing(self, document: Document):
         """
@@ -785,4 +879,74 @@ class DocumentViewSet(viewsets.ModelViewSet):
             raise Exception(f"Failed to connect to AI Service: {str(e)}")
         except Exception as e:
             logger.error(f"Error analyzing risks: {e}", exc_info=True)
+            raise
+
+    def _analyze_case(self, document: Document, llm_model: str, scenario: str) -> CaseAnalysis:
+        """
+        Analyze case details in a document via AI Service
+
+        Calls FastAPI /v1/llm/analyze_case endpoint and saves the result to the database.
+        """
+        try:
+            # Check if case analysis already exists
+            if hasattr(document, 'case_analysis'):
+                # Delete existing analysis to create a new one
+                document.case_analysis.delete()
+
+            # Prepare document text from chunks
+            chunks = document.chunks.all().order_by('chunk_index')
+            document_text = '\n\n'.join([chunk.text for chunk in chunks])
+
+            if not document_text:
+                raise ValueError("No text content found in document chunks")
+
+            # Call AI Service case analysis endpoint
+            ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            response = httpx.post(
+                f'{ai_service_url}/v1/llm/analyze_case',
+                json={
+                    'document_id': str(document.id),
+                    'text': document_text,
+                    'llm_model': llm_model,
+                    'scenario': scenario
+                },
+                timeout=90.0  # Longer timeout for case analysis
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get('success'):
+                    # Save case analysis to database
+                    case_analysis = CaseAnalysis.objects.create(
+                        document=document,
+                        suggested_case_name=result.get('suggested_case_name', document.title),
+                        document_types=result.get('document_types', []),
+                        parties=result.get('parties', {}),
+                        key_dates=result.get('key_dates', {}),
+                        issues=result.get('issues', []),
+                        related_precedents=result.get('related_cases', []),
+                        suggested_next_steps=result.get('suggested_next_steps', []),
+                        scenario=scenario,
+                        llm_model=llm_model
+                    )
+
+                    logger.info(
+                        f"Case analysis completed for document {document.id}: "
+                        f"Parties={len(case_analysis.parties)}, "
+                        f"Issues={len(case_analysis.issues)}, "
+                        f"Scenario={scenario} "
+                        f"using {llm_model}"
+                    )
+                    return case_analysis
+                else:
+                    raise Exception(f"AI Service error: {result.get('error', 'Unknown error')}")
+            else:
+                raise Exception(f"AI Service returned {response.status_code}: {response.text}")
+
+        except httpx.RequestError as e:
+            logger.error(f"Request error calling AI Service for case analysis: {e}", exc_info=True)
+            raise Exception(f"Failed to connect to AI Service: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error analyzing case: {e}", exc_info=True)
             raise

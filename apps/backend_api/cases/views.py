@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 import httpx
 import os
 import logging
+import warnings
 
 from .models import Case, ChatHistory
 from .serializers import CaseSerializer, ChatHistorySerializer
@@ -23,6 +24,14 @@ AI_SERVICE_URL = os.getenv('AI_SERVICE_URL', 'http://localhost:8001')
 class CaseViewSet(viewsets.ModelViewSet):
     """
     Case CRUD API
+
+    ⚠️ DEPRECATED: This API is deprecated and will be removed in v2.0.
+    Please use the Document API with doc_type="CASE" instead.
+
+    Migration guide:
+    - Create documents with POST /api/v1/documents/upload/ with doc_type="CASE"
+    - Use GET /api/v1/documents/{id}/case-analysis/ to retrieve case analysis
+    - Use POST /api/v1/documents/{id}/analyze-case/ to trigger case analysis
 
     사용자는 자신의 Case만 조회/수정/삭제 가능
     """
@@ -37,6 +46,47 @@ class CaseViewSet(viewsets.ModelViewSet):
         """Case 생성 시 현재 사용자 자동 설정"""
         serializer.save(user=self.request.user)
 
+    def _add_deprecation_warning(self, response):
+        """Add deprecation warning headers to response"""
+        response['X-API-Deprecation-Warning'] = (
+            'This API is deprecated and will be removed in v2.0. '
+            'Please use the Document API with doc_type="CASE" instead.'
+        )
+        response['X-API-Deprecation-Info'] = (
+            'See /api/v1/documents/ for the new API'
+        )
+        return response
+
+    def list(self, request, *args, **kwargs):
+        """Override list to add deprecation warning"""
+        response = super().list(request, *args, **kwargs)
+        return self._add_deprecation_warning(response)
+
+    def create(self, request, *args, **kwargs):
+        """Override create to add deprecation warning"""
+        response = super().create(request, *args, **kwargs)
+        return self._add_deprecation_warning(response)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to add deprecation warning"""
+        response = super().retrieve(request, *args, **kwargs)
+        return self._add_deprecation_warning(response)
+
+    def update(self, request, *args, **kwargs):
+        """Override update to add deprecation warning"""
+        response = super().update(request, *args, **kwargs)
+        return self._add_deprecation_warning(response)
+
+    def partial_update(self, request, *args, **kwargs):
+        """Override partial_update to add deprecation warning"""
+        response = super().partial_update(request, *args, **kwargs)
+        return self._add_deprecation_warning(response)
+
+    def destroy(self, request, *args, **kwargs):
+        """Override destroy to add deprecation warning"""
+        response = super().destroy(request, *args, **kwargs)
+        return self._add_deprecation_warning(response)
+
     @action(detail=True, methods=['get'])
     def chat_histories(self, request, pk=None):
         """
@@ -47,7 +97,8 @@ class CaseViewSet(viewsets.ModelViewSet):
         case = self.get_object()
         histories = ChatHistory.objects.filter(case=case).order_by('-created_at')
         serializer = ChatHistorySerializer(histories, many=True)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        return self._add_deprecation_warning(response)
 
     @action(detail=True, methods=['patch'])
     def update_status(self, request, pk=None):
@@ -61,23 +112,26 @@ class CaseViewSet(viewsets.ModelViewSet):
         new_status = request.data.get('status')
 
         if not new_status:
-            return Response(
+            response = Response(
                 {'error': 'status 필드가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            return self._add_deprecation_warning(response)
 
         valid_statuses = [choice[0] for choice in Case.STATUS_CHOICES]
         if new_status not in valid_statuses:
-            return Response(
+            response = Response(
                 {'error': f'유효하지 않은 상태입니다. 가능한 값: {valid_statuses}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            return self._add_deprecation_warning(response)
 
         case.status = new_status
         case.save()
 
         serializer = self.get_serializer(case)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        return self._add_deprecation_warning(response)
 
     @action(detail=True, methods=['patch'])
     def update_analysis(self, request, pk=None):
@@ -91,17 +145,19 @@ class CaseViewSet(viewsets.ModelViewSet):
         analysis = request.data.get('analysis')
 
         if analysis is None:
-            return Response(
+            response = Response(
                 {'error': 'analysis 필드가 필요합니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            return self._add_deprecation_warning(response)
 
         case.analysis = analysis
         case.status = 'analyzed'  # 분석 완료로 상태 변경
         case.save()
 
         serializer = self.get_serializer(case)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        return self._add_deprecation_warning(response)
 
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload(self, request):
@@ -115,10 +171,11 @@ class CaseViewSet(viewsets.ModelViewSet):
         files = request.FILES.getlist('files')
 
         if not files:
-            return Response(
+            response = Response(
                 {'error': '업로드할 파일이 없습니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            return self._add_deprecation_warning(response)
 
         # 파일 내용 읽기
         file_contents = []
@@ -227,7 +284,8 @@ class CaseViewSet(viewsets.ModelViewSet):
                 'scenario': None
             }
 
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        response = Response(response_data, status=status.HTTP_201_CREATED)
+        return self._add_deprecation_warning(response)
 
 
 class ChatHistoryViewSet(viewsets.ReadOnlyModelViewSet):
