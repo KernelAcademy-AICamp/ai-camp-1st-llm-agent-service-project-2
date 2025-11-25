@@ -18,6 +18,36 @@ import Signup from './pages/Signup/Signup';
 import ModelComparison from './pages/ModelComparison/ModelComparison';
 import './App.css';
 
+// Analysis Landing Page Component
+const AnalysisLanding: React.FC = () => (
+  <div style={{ padding: '24px' }}>
+    <h1>분석 도구</h1>
+    <p>리스크 분석과 모델 비교 기능을 이용하실 수 있습니다.</p>
+    <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
+      <a href="/risk-dashboard" style={{
+        padding: '16px 24px',
+        backgroundColor: '#3b82f6',
+        color: 'white',
+        borderRadius: '8px',
+        textDecoration: 'none',
+        fontWeight: 500
+      }}>
+        리스크 대시보드
+      </a>
+      <a href="/analysis/model-comparison" style={{
+        padding: '16px 24px',
+        backgroundColor: '#10b981',
+        color: 'white',
+        borderRadius: '8px',
+        textDecoration: 'none',
+        fontWeight: 500
+      }}>
+        모델 비교
+      </a>
+    </div>
+  </div>
+);
+
 function App() {
   return (
     <Router>
@@ -79,11 +109,21 @@ function App() {
               <RiskAnalysisDashboard />
             </Layout>
           } />
-          <Route path="/settings/model-comparison" element={
+
+          {/* Analysis routes */}
+          <Route path="/analysis" element={
+            <Layout>
+              <AnalysisLanding />
+            </Layout>
+          } />
+          <Route path="/analysis/model-comparison" element={
             <Layout>
               <ModelComparison />
             </Layout>
           } />
+
+          {/* Legacy redirect: /settings/model-comparison -> /analysis/model-comparison */}
+          <Route path="/settings/model-comparison" element={<Navigate to="/analysis/model-comparison" replace />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
