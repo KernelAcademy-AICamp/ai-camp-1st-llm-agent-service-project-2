@@ -1,6 +1,6 @@
 .document-detail-layout {
   display: grid;
-  grid-template-columns: 200px 1fr 350px;
+  grid-template-columns: 250px 1fr 350px;
   gap: 0;
   height: calc(100vh - 64px); /* Adjust based on header height */
   background: #f8f9fa;
@@ -54,7 +54,7 @@
 /* Responsive: Tablet (768px - 1024px) */
 @media (max-width: 1024px) {
   .document-detail-layout {
-    grid-template-columns: 180px 1fr 280px;
+    grid-template-columns: 220px 1fr 280px;
   }
 }
 

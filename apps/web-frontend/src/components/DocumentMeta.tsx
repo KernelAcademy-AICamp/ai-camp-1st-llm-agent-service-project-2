@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserDocumentDetail } from '../types';
+import { UserDocumentDetail, RiskAnalysis, RiskSeverity } from '../types';
 import '../styles/DocumentMeta.css';
 
 interface DocumentMetaProps {
@@ -7,6 +7,8 @@ interface DocumentMetaProps {
   onDelete: () => void;
   deleting: boolean;
   onBack: () => void;
+  riskAnalysis: RiskAnalysis | null;
+  riskLoading: boolean;
 }
 
 const DocumentMeta: React.FC<DocumentMetaProps> = ({
@@ -14,6 +16,8 @@ const DocumentMeta: React.FC<DocumentMetaProps> = ({
   onDelete,
   deleting,
   onBack,
+  riskAnalysis,
+  riskLoading,
 }) => {
   const formatFileSize = (size: number | null): string => {
     if (!size) return '-';
@@ -53,6 +57,24 @@ const DocumentMeta: React.FC<DocumentMetaProps> = ({
       OTHER: '기타',
     };
     return typeMap[docType] || docType;
+  };
+
+  const getSeverityInfo = (severity: RiskSeverity): { label: string; className: string; color: string } => {
+    const severityMap: Record<RiskSeverity, { label: string; className: string; color: string }> = {
+      CRITICAL: { label: '심각', className: 'risk-critical', color: '#dc2626' },
+      HIGH: { label: '높음', className: 'risk-high', color: '#ea580c' },
+      MEDIUM: { label: '중간', className: 'risk-medium', color: '#ca8a04' },
+      LOW: { label: '낮음', className: 'risk-low', color: '#65a30d' },
+      INFO: { label: '정보', className: 'risk-info', color: '#0891b2' },
+    };
+    return severityMap[severity] || { label: severity, className: 'risk-default', color: '#6b7280' };
+  };
+
+  const getRiskScoreColor = (score: number): string => {
+    if (score >= 70) return '#dc2626'; // red
+    if (score >= 50) return '#f59e0b'; // yellow
+    if (score >= 30) return '#3b82f6'; // blue
+    return '#10b981'; // green
   };
 
   const statusInfo = getStatusLabel(document.status);
@@ -115,6 +137,50 @@ const DocumentMeta: React.FC<DocumentMetaProps> = ({
           <span className="meta-label">업로드</span>
           <span className="meta-value meta-date">{formatDate(document.created_at)}</span>
         </div>
+      </div>
+
+      {/* Risk Summary Section - Key design requirement */}
+      <div className="risk-summary-section">
+        <h3 className="risk-summary-title">리스크 요약</h3>
+        {riskLoading ? (
+          <div className="risk-loading">
+            <div className="risk-spinner"></div>
+            <span>분석 로딩 중...</span>
+          </div>
+        ) : riskAnalysis ? (
+          <div className="risk-summary-content">
+            <div className="risk-score-display">
+              <div
+                className="risk-score-bar"
+                style={{
+                  background: `linear-gradient(to right, ${getRiskScoreColor(riskAnalysis.overall_risk_score)} ${riskAnalysis.overall_risk_score}%, #e5e7eb ${riskAnalysis.overall_risk_score}%)`,
+                }}
+              />
+              <div className="risk-score-info">
+                <span
+                  className="risk-score-value"
+                  style={{ color: getRiskScoreColor(riskAnalysis.overall_risk_score) }}
+                >
+                  {riskAnalysis.overall_risk_score}점
+                </span>
+                <span
+                  className={`risk-severity-badge ${getSeverityInfo(riskAnalysis.severity).className}`}
+                  style={{ backgroundColor: getSeverityInfo(riskAnalysis.severity).color }}
+                >
+                  {getSeverityInfo(riskAnalysis.severity).label}
+                </span>
+              </div>
+            </div>
+            <div className="risk-item-count">
+              위험 항목: {riskAnalysis.risk_items.length}개
+            </div>
+          </div>
+        ) : (
+          <div className="risk-no-data">
+            <span>분석 없음</span>
+            <span className="risk-hint">우측 패널에서 분석 실행</span>
+          </div>
+        )}
       </div>
 
       {document.error_message && (

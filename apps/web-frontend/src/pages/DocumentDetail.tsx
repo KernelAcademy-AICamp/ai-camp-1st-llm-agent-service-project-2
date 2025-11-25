@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
-import { UserDocumentDetail, Summary, KeyClause } from '../types';
+import { UserDocumentDetail, Summary, KeyClause, RiskAnalysis } from '../types';
 import DocumentDetailLayout from '../components/DocumentDetailLayout';
 import '../styles/DocumentDetail.css';
 
@@ -29,6 +29,10 @@ const DocumentDetail: React.FC = () => {
   const [clausesLoading, setClausesLoading] = useState(false);
   const [clausesError, setClausesError] = useState<string | null>(null);
   const [extractingClauses, setExtractingClauses] = useState(false);
+
+  // Risk analysis state (for left panel summary)
+  const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis | null>(null);
+  const [riskLoading, setRiskLoading] = useState(false);
 
   const loadDocument = useCallback(async () => {
     if (!documentId || !token) return;
@@ -78,11 +82,30 @@ const DocumentDetail: React.FC = () => {
     }
   }, [documentId, token]);
 
+  const loadRiskAnalysis = useCallback(async () => {
+    if (!documentId || !token) return;
+
+    setRiskLoading(true);
+
+    try {
+      const response = await apiClient.getDocumentRiskAnalysis(documentId, token);
+      if (response.risk_analysis) {
+        setRiskAnalysis(response.risk_analysis);
+      }
+    } catch (err: any) {
+      // If no risk analysis exists yet, that's okay - silently ignore
+      console.log('No risk analysis found for document:', documentId);
+    } finally {
+      setRiskLoading(false);
+    }
+  }, [documentId, token]);
+
   useEffect(() => {
     loadDocument();
     loadSummary();
     loadClauses();
-  }, [loadDocument, loadSummary, loadClauses]);
+    loadRiskAnalysis();
+  }, [loadDocument, loadSummary, loadClauses, loadRiskAnalysis]);
 
   const handleGenerateSummary = async () => {
     if (!documentId || !token) return;
@@ -198,6 +221,8 @@ const DocumentDetail: React.FC = () => {
         clausesError={clausesError}
         onExtractClauses={handleExtractClauses}
         extractingClauses={extractingClauses}
+        riskAnalysis={riskAnalysis}
+        riskLoading={riskLoading}
       />
     </div>
   );

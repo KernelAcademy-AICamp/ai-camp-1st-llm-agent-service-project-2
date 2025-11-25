@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserDocumentDetail, Summary, KeyClause } from '../types';
+import { UserDocumentDetail, Summary, KeyClause, RiskAnalysis } from '../types';
 import DocumentMeta from './DocumentMeta';
 import DocumentViewer from './DocumentViewer';
 import AnalysisPanel from './AnalysisPanel';
@@ -24,6 +24,9 @@ interface DocumentDetailLayoutProps {
   clausesError: string | null;
   onExtractClauses: () => void;
   extractingClauses: boolean;
+  // Risk props (for left panel summary)
+  riskAnalysis: RiskAnalysis | null;
+  riskLoading: boolean;
 }
 
 const DocumentDetailLayout: React.FC<DocumentDetailLayoutProps> = ({
@@ -43,6 +46,8 @@ const DocumentDetailLayout: React.FC<DocumentDetailLayoutProps> = ({
   clausesError,
   onExtractClauses,
   extractingClauses,
+  riskAnalysis,
+  riskLoading,
 }) => {
   return (
     <div className="document-detail-layout">
@@ -53,6 +58,8 @@ const DocumentDetailLayout: React.FC<DocumentDetailLayoutProps> = ({
           onDelete={onDelete}
           deleting={deleting}
           onBack={onBack}
+          riskAnalysis={riskAnalysis}
+          riskLoading={riskLoading}
         />
       </aside>
 
