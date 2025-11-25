@@ -1069,7 +1069,8 @@ Phase 3-3 통합 테스트 (Organization → Member 관리 → Project)
 @docs/conf/PROJECT_STATUS.md
 @docs/conf/FEATURE_CHECKLIST.md
 
-현재 브랜치: feature/risk-analysis
+현재 브랜치와 이전 사항들을 확인해보고 진행해줘.
+브랜치: feature/risk-analysis
 
 Phase 3-4: 리스크 분석 시스템 구현
 
@@ -1081,6 +1082,7 @@ Phase 3-4: 리스크 분석 시스템 구현
 5. 리스크 점수 산정 로직
 6. 리스크 항목 시각화
 7. Git commit 및 push
+   - 커밋 시 week와 작성한자, 문서는 제외
 8. 완료 후 결과 보고
 
 시작하자.
@@ -1091,6 +1093,190 @@ Phase 3-4: 리스크 분석 시스템 구현
 
 **예상 결과:**
 - ✅ 리스크 분석 시스템 완성
+
+---
+
+## 🔀 Phase 3-4.5: Document-Case 통합 (중요)
+
+### Session 10.5: Document-Case 통합 작업
+
+```markdown
+새 세션 시작.
+
+@docs/conf/PROJECT_STATUS.md
+@docs/conf/FEATURE_CHECKLIST.md
+@docs/conf/DOCUMENT_CASE_INTEGRATION_PLAN.md
+
+현재 상황:
+- Session 10 완료 (Risk Analysis)
+- feature/risk-analysis → develop 머지 완료
+- Case와 Document 기능 중복 발견
+- 통합 결정: Document로 통합, Case UI 스타일 유지
+
+현재 브랜치: feature/document-case-integration
+
+**목표**: Case와 Document를 단일 Document 시스템으로 통합하여 중복 제거 및 UX 개선
+
+**참고**: DOCUMENT_CASE_INTEGRATION_PLAN.md에 상세한 UI/UX 비교, 통합 전략, 마이그레이션 방법이 문서화되어 있음
+
+다음을 해줘:
+
+### Day 1: 백엔드 모델 통합
+
+1. 현재 상태 파악
+   - develop 브랜치로 이동 및 pull
+   - feature/document-case-integration 브랜치 생성
+   - 기존 Case 데이터 확인 (DB 레코드 수)
+
+2. CaseAnalysis 모델 생성 (apps/backend_api/documents/models.py)
+   ```python
+   class CaseAnalysis(models.Model):
+       id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+       document = models.OneToOneField(Document, on_delete=CASCADE, related_name='case_analysis')
+       suggested_case_name = models.CharField(max_length=255)
+       document_types = models.JSONField(default=list)  # ["판결문", "계약서"]
+       parties = models.JSONField(default=dict)  # {"원고": "홍길동", "피고": "김철수"}
+       key_dates = models.JSONField(default=dict)  # {"사고일": "2024-01-15"}
+       issues = models.JSONField(default=list)  # ["쟁점1", "쟁점2"]
+       related_precedents = models.JSONField(default=list)  # RAG 검색 결과
+       suggested_next_steps = models.JSONField(default=list)
+       scenario = models.JSONField(default=dict, null=True, blank=True)
+       llm_model = models.CharField(max_length=100)
+       created_at = models.DateTimeField(auto_now_add=True)
+   ```
+
+3. ChatHistory 모델 수정 (apps/backend_api/cases/models.py)
+   - case FK를 document FK로 변경
+   - 기존: `case = models.ForeignKey(Case, ...)`
+   - 변경: `document = models.ForeignKey('documents.Document', null=True, ...)`
+   - case 필드는 null=True로 유지 (마이그레이션 호환성)
+
+4. Migration 생성 및 실행
+   - python manage.py makemigrations documents
+   - python manage.py makemigrations cases
+   - python manage.py migrate
+   - Migration 파일에서 데이터 마이그레이션 스크립트 작성
+     (기존 Case → Document + CaseAnalysis 변환)
+
+5. Admin 등록
+   - CaseAnalysisAdmin 추가
+   - DocumentAdmin에 CaseAnalysisInline 추가
+
+6. Git commit: "feat: add CaseAnalysis model and ChatHistory migration"
+
+### Day 2: API 통합
+
+1. Serializer 작성 (apps/backend_api/documents/serializers.py)
+   - CaseAnalysisSerializer
+   - DocumentDetailSerializer 확장 (case_analysis 포함)
+
+2. DocumentViewSet 확장 (apps/backend_api/documents/views.py)
+   - POST /api/v1/documents/{id}/analyze-case/ 추가
+     - doc_type="CASE"일 때만 허용
+     - AI Service의 /v1/analyze/case 호출
+     - CaseAnalysis 생성 및 저장
+
+   - GET /api/v1/documents/{id}/case-analysis/ 추가
+     - CaseAnalysis 조회
+
+   - upload 액션 수정
+     - doc_type="CASE"이면 자동으로 case 분석 트리거
+     - 기존 Case 업로드 로직 통합
+
+3. Case API deprecation
+   - CaseViewSet에 deprecation 경고 추가
+   - 문서화: "Use DocumentViewSet with doc_type=CASE instead"
+
+4. API 테스트
+   - POST /api/v1/documents/upload/ (doc_type="CASE")
+   - GET /api/v1/documents/{id}/case-analysis/
+   - POST /api/v1/documents/{id}/analyze-case/
+
+5. Git commit: "feat: integrate Case functionality into Document API"
+
+### Day 3: 프론트엔드 통합 (UI/UX)
+
+1. 타입 정의 (apps/web-frontend/src/types.ts)
+   - CaseAnalysis 인터페이스 추가
+   - DocumentDetail에 case_analysis 필드 추가
+
+2. API Client 함수 (apps/web-frontend/src/api/client.ts)
+   - getCaseAnalysis(documentId, token)
+   - analyzeCaseDocument(documentId, token)
+   - uploadDocument 수정 (doc_type="CASE"일 때 자동 분석)
+
+3. CaseAnalysisSection 컴포넌트 생성
+   - apps/web-frontend/src/components/CaseAnalysisSection.tsx
+   - 기존 CaseManagement 상세 뷰 스타일 재사용
+   - 당사자, 쟁점, 날짜, 관련 판례, 다음 단계 표시
+
+4. DocumentManagement 페이지 통합
+   - apps/web-frontend/src/pages/DocumentManagement.tsx (신규)
+   - CaseManagement.tsx UI 스타일 기반
+   - 2-column 레이아웃 (목록 + 상세)
+   - doc_type 필터 (전체/사건/계약서/법령/판례)
+   - 타입별 분석 결과 표시:
+     - CASE: CaseAnalysisSection
+     - CONTRACT: SummarySection + ClauseList + RiskAnalysisSection
+     - 기타: SummarySection + 청크 정보
+
+5. CSS 스타일링
+   - DocumentManagement.css (CaseManagement.css 기반)
+   - 통합 디자인 시스템
+
+6. 라우팅 수정 (App.tsx)
+   - /documents → 통합 DocumentManagement
+   - /cases → /documents?type=CASE 리다이렉트
+   - 기존 /documents/:id → DocumentDetail (확장)
+
+7. Git commit: "feat: integrate Case UI into Document Management"
+
+### Day 4: 테스트 및 정리
+
+1. E2E 테스트
+   - 사건 업로드 (doc_type="CASE")
+     - 파일 업로드 → AI 분석 즉시 실행
+     - CaseAnalysis 저장 확인
+     - UI에 당사자/쟁점/판례 표시 확인
+
+   - 계약서 업로드 (doc_type="CONTRACT")
+     - 파일 업로드 → 전처리
+     - 요약/조항/리스크 별도 생성
+     - UI에 표시 확인
+
+   - 필터링 테스트
+     - doc_type 필터로 사건만 보기
+     - 계약서만 보기
+
+2. 기존 Case 데이터 마이그레이션
+   - Django management command 실행
+   - 데이터 무결성 검증
+
+3. 구버전 정리
+   - CaseManagement 컴포넌트 삭제 또는 숨김 처리
+   - Case API 엔드포인트 deprecation 표시
+
+4. 문서 업데이트
+   - PROJECT_STATUS.md: 통합 완료 상태 반영
+   - FEATURE_CHECKLIST.md: Case 항목 제거, Document 확장
+   - README.md: API 문서 업데이트
+
+5. Git commit: "chore: clean up legacy Case system after integration"
+
+6. feature/document-case-integration → develop PR 생성 및 머지
+
+시작하자.
+```
+
+**사용자 작업:**
+- ⚠️ Session 10.5 Day 1 시작 전: feature/risk-analysis → develop PR 머지 완료 필요
+- ⚠️ Session 10.5 완료 후: feature/document-case-integration → develop PR 머지
+
+**예상 결과:**
+- ✅ Case와 Document 통합 완료
+- ✅ 단일 Document 시스템으로 모든 문서 관리
+- ✅ Case UI 스타일 유지
+- ✅ 타입별 최적화된 분석 결과 제공
 
 ---
 

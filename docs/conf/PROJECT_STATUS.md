@@ -1,9 +1,9 @@
 # 프로젝트 상태 대시보드
 
-> **최종 업데이트**: 2025-11-24 (Phase 3-3 Session 7 완료)
-> **현재 브랜치**: feature/organization
-> **다음 작업**: Phase 3-3 Session 8 (Organization Frontend UI)
-> **전체 진행도**: 80% (Phase 2: 100%, Phase 3: 67%)
+> **최종 업데이트**: 2025-11-25 (Phase 3-4 Session 10 완료)
+> **현재 브랜치**: feature/risk-analysis
+> **다음 작업**: Phase 3-5 Session 11 (LLM Comparison)
+> **전체 진행도**: 85% (Phase 2: 100%, Phase 3: 78%)
 > **프로젝트**: law-saas (법률 문서 SaaS)
 
 ---
@@ -28,8 +28,8 @@
 | **Frontend UI** | ✅ | - | - | 100% |
 | **Document Upload** | ✅ | - | - | 100% |
 | **Summary/Clauses** | ✅ | - | - | 100% |
-| **Organization** | 🚧 | Session 7 | Session 8-9 | 67% |
-| **Risk Analysis** | ⬜ | - | ⬜ | 0% |
+| **Organization** | ✅ | - | - | 100% |
+| **Risk Analysis** | ✅ | - | - | 100% |
 | **LLM Comparison** | ⬜ | - | ⬜ | 0% |
 
 ---
@@ -209,6 +209,118 @@
 **완료일**: 2025-11-24
 **Git 상태**: feature/ai-analysis-storage → develop 머지 완료
 **테스트 결과**: 10/10 통과 (28.01초)
+
+---
+
+## ✅ Phase 3-3 완료 (Organization/Project - 100% 완료)
+
+### 완료된 작업 요약 (2025-11-24 ~ 2025-11-25)
+
+1. ✅ **Session 6: Organization/Membership/Project 모델 구현** (2025-11-24 완료)
+   - Organization 모델 (name, created_by, settings)
+   - Membership 모델 (organization, user, role: ADMIN/EDITOR/VIEWER)
+   - Project 모델 (organization, name, description, created_by)
+   - Migration 생성 및 실행 (0001_initial.py)
+   - Admin 페이지 등록 (OrganizationAdmin, MembershipAdmin, ProjectAdmin)
+   - DB 테이블 생성 완료 (organizations, memberships, projects)
+   - Git commit: `8a953974` - "feat(week5): add Organization, Membership, Project models (Session 6)"
+
+2. ✅ **Session 7: Organization/Member/Project CRUD API** (2025-11-24 완료)
+   - Serializers 구현 (OrganizationSerializer, MembershipSerializer, ProjectSerializer)
+   - Permission classes 구현 (IsOrganizationAdmin, IsOrganizationMember, IsProjectEditor)
+   - OrganizationViewSet 구현 (CRUD + 멤버 관리)
+   - ProjectViewSet 구현 (CRUD + 조직별 필터링)
+   - URLs 설정 및 Main URLs 통합
+   - API 테스트 6/6 통과
+   - Git commit: `04e42b84` - "feat(week5): add Organization/Project CRUD APIs (Session 7)"
+
+3. ✅ **Session 8: Organization Frontend UI** (2025-11-25 완료)
+   - types.ts 타입 정의 (Organization, Membership, Project)
+   - API Client 함수 (조직/멤버/프로젝트 CRUD)
+   - Organizations 페이지 (목록, 생성, 상세)
+   - MemberManagement 컴포넌트 (멤버 초대, 역할 변경, 제거)
+   - Projects 페이지 (목록, 생성, 상세)
+   - CSS 스타일링 및 라우팅 설정
+   - Git commit: `c4786058` - "feat: add Organization management UI (Session 8)"
+
+4. ✅ **Session 9: Week 5 통합 테스트** (2025-11-25 완료)
+   - Organization CRUD E2E 테스트 완료
+   - Member 관리 E2E 테스트 완료
+   - Project CRUD E2E 테스트 완료
+   - 권한 체크 검증 완료
+   - feature/organization → develop PR 생성 및 머지 완료 (PR #18)
+
+**완료일**: 2025-11-25
+**Git 상태**: feature/organization → develop 머지 완료 (PR #18)
+**커밋**: `fb4d216f` (Merge PR #18)
+
+---
+
+## ✅ Phase 3-4 완료 (Risk Analysis - 100% 완료)
+
+### 완료된 작업 요약 (2025-11-25)
+
+1. ✅ **Backend 구현** (2025-11-25 완료)
+   - RiskAnalysisResult 모델 구현 (Django)
+     - overall_risk_score, severity, risk_items (JSONField)
+     - recommendations, summary, llm_model
+   - Migration 생성 및 실행 (0003_riskanalysisresult)
+   - Admin 페이지 등록 (RiskAnalysisResultAdmin)
+   - Serializer 작성 (RiskAnalysisResultSerializer)
+   - ViewSet 구현 (apps/backend_api/documents/views.py)
+     - GET /api/v1/documents/{id}/risk_analysis/ - 리스크 분석 결과 조회
+     - POST /api/v1/documents/{id}/analyze_risk/ - 리스크 분석 트리거
+   - RiskAnalyzer 서비스 구현 (apps/ai-service/services/risk_analyzer.py)
+     - 리스크 점수 산정 로직 (0-100)
+     - 6가지 리스크 카테고리 (LEGAL, FINANCIAL, COMPLIANCE, OPERATIONAL, REPUTATIONAL, OTHER)
+     - 5가지 심각도 레벨 (CRITICAL, HIGH, MEDIUM, LOW, INFO)
+   - POST /v1/llm/analyze_risk API 구현 (FastAPI)
+   - Git commit: `8b57b8de` - "feat: implement risk analysis system (Session 10)"
+
+2. ✅ **Frontend 구현** (2025-11-25 완료)
+   - types.ts: Risk Analysis 타입 정의
+     - RiskSeverity, RiskCategory, RiskItem, RiskAnalysis
+     - RiskAnalysisResponse, AnalyzeRiskResponse
+   - client.ts: API 클라이언트 함수
+     - getDocumentRiskAnalysis(documentId, token)
+     - analyzeDocumentRisk(documentId, token)
+   - RiskAnalysisSection 컴포넌트 구현
+     - 리스크 점수 시각화 (SVG 원형 프로그레스 바)
+     - 심각도 배지 (색상 코드로 구분)
+     - 카테고리별 리스크 항목 그룹핑
+     - 권장사항 섹션
+     - 분석 트리거/재분석 버튼
+     - 로딩/에러 상태 처리
+     - 확장/축소 기능
+   - RiskAnalysisSection.css 스타일링
+     - 반응형 디자인 (모바일 대응)
+     - 심각도별 색상 테마
+   - DocumentDetail 페이지 통합
+   - Git commit: `477d7965` - "feat(frontend): add Risk Analysis UI components and integration"
+
+**완료일**: 2025-11-25
+**현재 브랜치**: feature/risk-analysis
+**커밋**: `8b57b8de` (Backend), `477d7965` (Frontend)
+**다음 작업**: feature/risk-analysis → develop PR 생성 및 머지 후 Session 10.5 시작
+
+---
+
+## 🔀 Phase 3-4.5 대기중 (Document-Case 통합 - 0% 완료)
+
+### Session 10.5: Document-Case 통합 작업
+
+**목적**: Case와 Document 기능 중복 제거, 단일 Document 시스템으로 통합
+
+**작업 내용:**
+- CaseAnalysis 모델 추가 (Document OneToOne 관계)
+- Case 분석 API를 Document API로 통합
+- Case UI 스타일을 Document에 적용 (2-column 레이아웃)
+- 타입별 최적화 분석 제공 (CASE/CONTRACT/STATUTE)
+- 기존 Case 데이터 마이그레이션
+
+**예상 기간**: 4일 (Day 1-4)
+**상세 계획**: `docs/conf/DOCUMENT_CASE_INTEGRATION_PLAN.md` 참조
+**시작 조건**: feature/risk-analysis → develop 머지 완료 후
 
 ---
 
@@ -476,12 +588,59 @@ CREATE TABLE key_clauses (
 );
 ```
 
+#### organizations (Phase 3-3 Session 6 완료)
+```sql
+CREATE TABLE organizations (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    settings JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+```
+
+#### memberships (Phase 3-3 Session 6 완료)
+```sql
+CREATE TABLE memberships (
+    id UUID PRIMARY KEY,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) DEFAULT 'VIEWER',  -- ADMIN/EDITOR/VIEWER
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE,
+    UNIQUE (organization_id, user_id)
+);
+```
+
+#### projects (Phase 3-3 Session 6 완료)
+```sql
+CREATE TABLE projects (
+    id UUID PRIMARY KEY,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+```
+
+#### risk_analysis_results (Phase 3-4 Session 10 완료)
+```sql
+CREATE TABLE risk_analysis_results (
+    id UUID PRIMARY KEY,
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    overall_risk_score INTEGER CHECK (overall_risk_score >= 0 AND overall_risk_score <= 100),
+    risk_items JSONB DEFAULT '[]',
+    recommendations TEXT,
+    llm_model VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE
+);
+```
+
 ### 미구현 테이블 (설계문서 참조)
 
-- `organizations` (Week 5)
-- `memberships` (Week 5)
-- `projects` (Week 5)
-- `risk_analysis_results` (Week 6)
 - `llm_model_configs` (Week 7)
 - `llm_call_logs` (Week 7)
 
@@ -514,14 +673,30 @@ CREATE TABLE key_clauses (
 - `GET /api/v1/documents/{id}/` - 문서 상세 (Phase 3-1 완료)
 - `DELETE /api/v1/documents/{id}/` - 문서 삭제 (Phase 3-1 완료)
 
-#### ✅ 최근 추가 (Phase 3-2 Session 5-A)
+#### ✅ Phase 3-2 추가 (Session 5-A)
 - `GET /api/v1/documents/{id}/summary/` - 문서 요약 조회
 - `GET /api/v1/documents/{id}/clauses/` - 핵심 조항 조회
 - `POST /api/v1/documents/{id}/analyze/` - AI 분석 트리거
 
-#### ⬜ 미구현
-- `GET /api/organizations/` (Week 5)
-- `GET /api/projects/` (Week 5)
+#### ✅ Phase 3-3 추가 (Session 7)
+- `GET /api/v1/organizations/` - 조직 목록
+- `POST /api/v1/organizations/` - 조직 생성
+- `GET /api/v1/organizations/{id}/` - 조직 상세
+- `PUT /api/v1/organizations/{id}/` - 조직 수정
+- `DELETE /api/v1/organizations/{id}/` - 조직 삭제
+- `GET /api/v1/organizations/{id}/members/` - 멤버 목록
+- `POST /api/v1/organizations/{id}/add_member/` - 멤버 추가
+- `DELETE /api/v1/organizations/{id}/remove_member/{user_id}/` - 멤버 제거
+- `PUT /api/v1/organizations/{id}/update_member_role/{user_id}/` - 역할 변경
+- `GET /api/v1/projects/` - 프로젝트 목록
+- `POST /api/v1/projects/` - 프로젝트 생성
+- `GET /api/v1/projects/{id}/` - 프로젝트 상세
+- `PUT /api/v1/projects/{id}/` - 프로젝트 수정
+- `DELETE /api/v1/projects/{id}/` - 프로젝트 삭제
+
+#### ✅ Phase 3-4 추가 (Session 10)
+- `GET /api/v1/documents/{id}/risk-analysis/` - 리스크 분석 결과 조회
+- `POST /api/v1/documents/{id}/analyze-risk/` - 리스크 분석 트리거
 
 ### AI Service (FastAPI) (http://localhost:8001)
 
@@ -534,10 +709,10 @@ CREATE TABLE key_clauses (
 - `POST /v1/rag/index` - 벡터DB 인덱싱 (Phase 3-1 완료)
 - `POST /v1/llm/summarize` - 문서 요약 생성 (Phase 3-2 Session 5-B 완료)
 - `POST /v1/llm/clauses` - 핵심 조항 추출 (Phase 3-2 Session 5-B 완료)
+- `POST /v1/llm/analyze_risk` - 리스크 분석 (Phase 3-4 Session 10 완료)
 
 #### ⬜ 미구현
-- `POST /llm/analyze_risk` (Week 6)
-- `POST /llm/compare` (Week 7)
+- `POST /v1/llm/compare` (Week 7)
 
 ---
 
@@ -567,14 +742,15 @@ CREATE TABLE key_clauses (
 | AI Analysis | ✅ 100% |
 | Frontend UI | ✅ 100% |
 
-### Phase 3 (확장 기능) - 67% 완료
+### Phase 3 (확장 기능) - 78% 완료
 | 주차 | 기능 | 진행도 |
 |------|------|--------|
 | Week 0 | 현재 작업 마무리 | ✅ 100% |
 | Week 1-2 | Document 관리 | ✅ 100% |
 | Week 3-4 | Summary/Clauses | ✅ 100% |
-| Week 5 | Organization | 🚧 67% |
-| Week 6 | Risk Analysis | ⬜ 0% |
+| Week 5 | Organization | ✅ 100% |
+| Week 6 | Risk Analysis | ✅ 100% |
+| Week 6.5 | **Document-Case 통합** | ⬜ 0% |
 | Week 7 | LLM Comparison | ⬜ 0% |
 | Week 8 | Crawling System | ⬜ 0% |
 | Week 9 | Advanced Dashboard | ⬜ 0% |
@@ -584,87 +760,52 @@ CREATE TABLE key_clauses (
 
 ## 📝 다음 세션 TODO
 
-### 완료된 Phase 3-2 체크리스트
-1. ✅ Phase 3-1 (Document 관리) 완료
-2. ✅ Phase 3-2 (AI 분석 결과 저장) 완료
-   - ✅ Session 4: Summary/KeyClause 모델 구현
-   - ✅ Session 5-A: Django Summary/Clause API
-   - ✅ Session 5-B: FastAPI LLM APIs
-   - ✅ Session 5-C: Frontend 분석 UI
-   - ✅ Session 5-D: Week 3-4 통합 테스트 (10/10 통과)
-   - ✅ feature/ai-analysis-storage → develop 머지 완료
+### ✅ 완료된 Phase 3 체크리스트
+1. ✅ **Phase 3-1** (Document 관리) - 100% 완료
+2. ✅ **Phase 3-2** (AI 분석 결과 저장) - 100% 완료
+3. ✅ **Phase 3-3** (Organization/Project) - 100% 완료
+   - ✅ Session 6: Organization 모델
+   - ✅ Session 7: Organization API
+   - ✅ Session 8: Organization UI
+   - ✅ Session 9: Week 5 통합 테스트
+   - ✅ feature/organization → develop 머지 완료 (PR #18)
+4. ✅ **Phase 3-4** (Risk Analysis) - 100% 완료
+   - ✅ Session 10: Risk Analysis 시스템 구현
+   - 🚧 feature/risk-analysis → develop PR 대기
 
-### 완료된 Phase 3-3 Sessions
-1. ✅ **Session 6: Organization/Membership/Project 모델 구현** (2025-11-24 완료)
-   - ✅ Organization 모델 (name, created_by, settings)
-   - ✅ Membership 모델 (organization, user, role: ADMIN/EDITOR/VIEWER)
-   - ✅ Project 모델 (organization, name, description, created_by)
-   - ✅ Migration 생성 및 실행 (0001_initial.py)
-   - ✅ Admin 페이지 등록 (OrganizationAdmin, MembershipAdmin, ProjectAdmin)
-   - ✅ DB 테이블 생성 완료 (organizations, memberships, projects)
-   - ✅ Git commit: `8a953974` - "feat(week5): add Organization, Membership, Project models (Session 6)"
+5. ⬜ **Phase 3-4.5** (Document-Case 통합) - 0% 완료
+   - ⬜ Session 10.5: Case와 Document 중복 제거 및 통합
+   - 목표: 단일 Document 시스템, Case UI 유지
+   - 상세 계획: `DOCUMENT_CASE_INTEGRATION_PLAN.md`
 
-2. ✅ **Session 7: Organization/Member/Project CRUD API** (2025-11-24 완료)
-   - ✅ Serializers 구현
-     - OrganizationSerializer, OrganizationDetailSerializer
-     - MembershipSerializer, ProjectSerializer
-     - AddMemberSerializer, UpdateMemberRoleSerializer
-   - ✅ Permission classes 구현
-     - IsOrganizationAdmin, IsOrganizationMember
-     - IsProjectEditor, IsOrganizationOwnerOrAdmin
-   - ✅ OrganizationViewSet 구현
-     - CRUD: list, create, retrieve, update, destroy
-     - 멤버 관리: members, add_member, remove_member, update_member_role
-     - 자동 admin 멤버십 생성
-   - ✅ ProjectViewSet 구현
-     - CRUD: list, create, retrieve, update, destroy
-     - 조직별 필터링, 검색 기능
-   - ✅ URLs 설정 (organizations/urls.py)
-   - ✅ Main URLs 통합 (backend_api/urls.py)
-   - ✅ API 테스트 6/6 통과
-   - ✅ Git commit: `04e42b84` - "feat(week5): add Organization/Project CRUD APIs (Session 7)"
-
-### 다음 작업 (Phase 3-3: Organization/Project - Week 5)
-**목표**: 멀티테넌시 지원 (조직/프로젝트 단위 관리)
+### 다음 작업 (Phase 3-4.5: Document-Case 통합 - Week 6.5)
+**목표**: Case와 Document 중복 제거, 단일 시스템으로 통합
 
 #### 구현 예정 기능:
-1. [ ] **Session 8: Frontend UI**
-   - Organizations 페이지 (목록, 생성, 상세)
-   - MemberManagement 컴포넌트 (멤버 초대, 역할 변경, 제거)
-   - Projects 페이지 (목록, 생성, 상세)
-   - API 연동
-   - CSS 스타일링 및 라우팅
+1. [ ] **Session 10.5: Document-Case 통합** (Week 6.5 - 4일)
+   - CaseAnalysis 모델 추가
+   - Document API에 Case 기능 통합
+   - Case UI 스타일을 Document에 적용
+   - 데이터 마이그레이션
+   - 상세: `docs/conf/DOCUMENT_CASE_INTEGRATION_PLAN.md`
 
-2. [ ] **Session 9: Week 5 통합 테스트**
-   - Organization CRUD E2E 테스트 (API + UI)
-   - Member 관리 E2E 테스트
-   - Project CRUD E2E 테스트
-   - 권한 체크 검증 (403 Forbidden)
-   - UI/UX 검증
-
-#### Phase 3-4 ~ 3-8 예정 (Week 6-10):
-3. [ ] **Session 10: Risk Analysis** (Week 6)
-   - RiskAnalysisResult 모델 및 API
-   - 리스크 점수 산정 로직
-   - RiskDashboard 페이지
-
-4. [ ] **Session 11: LLM Comparison** (Week 7)
+2. [ ] **Session 11: LLM Comparison** (Week 7)
    - LLMModelConfig, LLMCallLog 모델
    - 멀티 모델 비교 API
    - ModelComparison 페이지
 
-5. [ ] **Session 13: Crawling System** (Week 8)
+2. [ ] **Session 13: Crawling System** (Week 8)
    - DataSource, CrawlJob, CrawlLog 모델
    - 판례/법령 크롤러 (FastAPI)
    - Admin 인터페이스 및 스케줄러
 
-6. [ ] **Session 14-A~C: Advanced Dashboard** (Week 9)
+3. [ ] **Session 14-A~C: Advanced Dashboard** (Week 9)
    - ProjectStats, OrganizationStats 모델
    - 통계 API (dashboard overview, project/org stats)
    - 차트 UI (DocumentTrendChart, RiskHeatmap 등)
    - 대시보드 통합 테스트
 
-7. [ ] **Session 15: Final Integration** (Week 10)
+4. [ ] **Session 15: Final Integration** (Week 10)
    - 전체 E2E 테스트 (Phase 2 + Phase 3)
    - 배포 준비 (Docker, README, API 문서)
    - develop → main PR
@@ -685,11 +826,12 @@ CREATE TABLE key_clauses (
 ## 📌 프로젝트 메타 정보
 
 **프로젝트 위치**: `/Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2`
-**현재 Git 브랜치**: `feature/organization` (Phase 3-3 진행중)
-**통합 브랜치**: `develop` (Phase 2, Phase 3-1, Phase 3-2 완료)
+**현재 Git 브랜치**: `feature/risk-analysis` (Phase 3-4 완료, PR 대기)
+**통합 브랜치**: `develop` (Phase 2, Phase 3-1, Phase 3-2, Phase 3-3 완료)
 **Main 브랜치**: `main` (프로덕션)
-**현재 작업**: Session 7 완료, Session 8 시작 예정
-**최근 커밋**: `04e42b84` - "feat(week5): add Organization/Project CRUD APIs (Session 7)"
+**현재 작업**: Session 10 완료, Session 11 시작 예정
+**최근 커밋**: `8b57b8de` - "feat: implement risk analysis system (Session 10)"
+**최근 머지**: `fb4d216f` - "Merge pull request #18 from KernelAcademy-AICamp/feature/organization"
 
 **Git 브랜치 전략**: [GIT_BRANCH_STRATEGY.md](./GIT_BRANCH_STRATEGY.md) 참조
 

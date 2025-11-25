@@ -469,3 +469,91 @@ class RiskAnalysisResult(models.Model):
     def risk_item_count(self):
         """Get number of risk items identified"""
         return len(self.risk_items) if isinstance(self.risk_items, list) else 0
+
+
+class CaseAnalysis(models.Model):
+    """
+    CaseAnalysis model for storing AI-generated case analysis results
+
+    Replaces the legacy Case.analysis JSONField with a proper model structure
+    Captures case parties, issues, key dates, related precedents, and next steps
+    """
+
+    # Fields
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.OneToOneField(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='case_analysis',
+        help_text='Associated document (must be doc_type=CASE)'
+    )
+    suggested_case_name = models.CharField(
+        max_length=255,
+        help_text='AI-suggested case name based on content'
+    )
+    document_types = models.JSONField(
+        default=list,
+        help_text='List of document types identified (e.g., ["판결문", "소장", "계약서"])'
+    )
+    parties = models.JSONField(
+        default=dict,
+        help_text='Parties involved (e.g., {"원고": "홍길동", "피고": "김철수"})'
+    )
+    key_dates = models.JSONField(
+        default=dict,
+        help_text='Important dates (e.g., {"사고일": "2024-01-15", "제소일": "2024-02-01"})'
+    )
+    issues = models.JSONField(
+        default=list,
+        help_text='Key legal issues identified'
+    )
+    related_precedents = models.JSONField(
+        default=list,
+        help_text='Related precedents from RAG search'
+    )
+    suggested_next_steps = models.JSONField(
+        default=list,
+        help_text='AI-suggested next steps for the case'
+    )
+    scenario = models.JSONField(
+        default=dict,
+        null=True,
+        blank=True,
+        help_text='Case scenario analysis with confidence scores'
+    )
+    llm_model = models.CharField(
+        max_length=100,
+        help_text='LLM model used for analysis'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'case_analyses'
+        ordering = ['-created_at']
+        verbose_name = 'Case Analysis'
+        verbose_name_plural = 'Case Analyses'
+        indexes = [
+            models.Index(fields=['document']),
+            models.Index(fields=['-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.suggested_case_name} - Analysis"
+
+    @property
+    def party_count(self):
+        """Get number of parties involved"""
+        return len(self.parties) if isinstance(self.parties, dict) else 0
+
+    @property
+    def issue_count(self):
+        """Get number of issues identified"""
+        return len(self.issues) if isinstance(self.issues, list) else 0
+
+    @property
+    def has_precedents(self):
+        """Check if related precedents were found"""
+        return bool(self.related_precedents)
