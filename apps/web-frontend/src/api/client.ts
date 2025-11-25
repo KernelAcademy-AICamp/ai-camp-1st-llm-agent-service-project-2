@@ -45,7 +45,20 @@ import {
   KeyClause,
   SummaryResponse,
   ClausesResponse,
-  AnalyzeDocumentResponse
+  AnalyzeDocumentResponse,
+  Organization,
+  OrganizationDetail,
+  OrganizationsListResponse,
+  Membership,
+  Project,
+  ProjectsListResponse,
+  CreateOrganizationRequest,
+  UpdateOrganizationRequest,
+  AddMemberRequest,
+  UpdateMemberRoleRequest,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+  MemberRole
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -632,6 +645,221 @@ class APIClient {
     return this.fetch<AnalyzeDocumentResponse>(
       `/api/v1/documents/${documentId}/analyze/`,
       { method: 'POST' },
+      token
+    );
+  }
+
+  // ============================================
+  // Organizations - Phase 3-3
+  // ============================================
+
+  /**
+   * Get all organizations for the current user
+   */
+  async getOrganizations(token?: string): Promise<OrganizationsListResponse> {
+    return this.fetch<OrganizationsListResponse>(
+      '/api/v1/organizations/',
+      {},
+      token
+    );
+  }
+
+  /**
+   * Create a new organization
+   */
+  async createOrganization(
+    data: CreateOrganizationRequest,
+    token?: string
+  ): Promise<Organization> {
+    return this.fetch<Organization>(
+      '/api/v1/organizations/',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      token
+    );
+  }
+
+  /**
+   * Get organization detail with members
+   */
+  async getOrganization(organizationId: string, token?: string): Promise<OrganizationDetail> {
+    return this.fetch<OrganizationDetail>(
+      `/api/v1/organizations/${organizationId}/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Update organization
+   */
+  async updateOrganization(
+    organizationId: string,
+    data: UpdateOrganizationRequest,
+    token?: string
+  ): Promise<Organization> {
+    return this.fetch<Organization>(
+      `/api/v1/organizations/${organizationId}/`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+      token
+    );
+  }
+
+  /**
+   * Delete organization
+   */
+  async deleteOrganization(organizationId: string, token?: string): Promise<DeleteResponse> {
+    return this.fetch<DeleteResponse>(
+      `/api/v1/organizations/${organizationId}/`,
+      { method: 'DELETE' },
+      token
+    );
+  }
+
+  // ============================================
+  // Organization Members - Phase 3-3
+  // ============================================
+
+  /**
+   * Get organization members
+   */
+  async getOrganizationMembers(organizationId: string, token?: string): Promise<{
+    count: number;
+    results: Membership[];
+  }> {
+    return this.fetch(
+      `/api/v1/organizations/${organizationId}/members/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Add member to organization
+   */
+  async addMember(
+    organizationId: string,
+    data: AddMemberRequest,
+    token?: string
+  ): Promise<Membership> {
+    return this.fetch<Membership>(
+      `/api/v1/organizations/${organizationId}/add_member/`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      token
+    );
+  }
+
+  /**
+   * Remove member from organization
+   */
+  async removeMember(
+    organizationId: string,
+    userId: string,
+    token?: string
+  ): Promise<SuccessResponse> {
+    return this.fetch<SuccessResponse>(
+      `/api/v1/organizations/${organizationId}/remove_member/${userId}/`,
+      { method: 'DELETE' },
+      token
+    );
+  }
+
+  /**
+   * Update member role
+   */
+  async updateMemberRole(
+    organizationId: string,
+    userId: string,
+    data: UpdateMemberRoleRequest,
+    token?: string
+  ): Promise<Membership> {
+    return this.fetch<Membership>(
+      `/api/v1/organizations/${organizationId}/update_member_role/${userId}/`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+      token
+    );
+  }
+
+  // ============================================
+  // Projects - Phase 3-3
+  // ============================================
+
+  /**
+   * Get all projects (optionally filtered by organization)
+   */
+  async getProjects(organizationId?: string, token?: string): Promise<ProjectsListResponse> {
+    const params = new URLSearchParams();
+    if (organizationId) {
+      params.append('organization', organizationId);
+    }
+
+    const queryString = params.toString();
+    const endpoint = `/api/v1/projects/${queryString ? '?' + queryString : ''}`;
+
+    return this.fetch<ProjectsListResponse>(endpoint, {}, token);
+  }
+
+  /**
+   * Create a new project
+   */
+  async createProject(data: CreateProjectRequest, token?: string): Promise<Project> {
+    return this.fetch<Project>(
+      '/api/v1/projects/',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+      token
+    );
+  }
+
+  /**
+   * Get project detail
+   */
+  async getProject(projectId: string, token?: string): Promise<Project> {
+    return this.fetch<Project>(
+      `/api/v1/projects/${projectId}/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Update project
+   */
+  async updateProject(
+    projectId: string,
+    data: UpdateProjectRequest,
+    token?: string
+  ): Promise<Project> {
+    return this.fetch<Project>(
+      `/api/v1/projects/${projectId}/`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+      token
+    );
+  }
+
+  /**
+   * Delete project
+   */
+  async deleteProject(projectId: string, token?: string): Promise<DeleteResponse> {
+    return this.fetch<DeleteResponse>(
+      `/api/v1/projects/${projectId}/`,
+      { method: 'DELETE' },
       token
     );
   }

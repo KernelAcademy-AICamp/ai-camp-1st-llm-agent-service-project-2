@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'cases',
     'precedents',
     'documents',
+    'organizations',
     'api',
 ]
 

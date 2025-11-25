@@ -10,6 +10,8 @@ import DocumentEditor from './pages/DocumentEditor/DocumentEditor';
 import RecentPrecedents from './pages/RecentPrecedents/RecentPrecedents';
 import Documents from './pages/Documents';
 import DocumentDetail from './pages/DocumentDetail';
+import Organizations from './pages/Organizations';
+import Projects from './pages/Projects';
 import Login from './pages/Login/Login';
 import Signup from './pages/Signup/Signup';
 import './App.css';
@@ -58,6 +60,16 @@ function App() {
           <Route path="/documents/:documentId" element={
             <Layout>
               <DocumentDetail />
+            </Layout>
+          } />
+          <Route path="/organizations" element={
+            <Layout>
+              <Organizations />
+            </Layout>
+          } />
+          <Route path="/projects" element={
+            <Layout>
+              <Projects />
             </Layout>
           } />
 
