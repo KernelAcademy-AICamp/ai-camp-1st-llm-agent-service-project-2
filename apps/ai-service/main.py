@@ -47,13 +47,14 @@ app.add_middleware(
 )
 
 # ===== Router 등록 =====
-from routers import chat, analyze, preprocess, rag, llm
+from routers import chat, analyze, preprocess, rag, llm, crawler
 
 app.include_router(chat.router)
 app.include_router(analyze.router)
 app.include_router(preprocess.router)
 app.include_router(rag.router)
 app.include_router(llm.router)
+app.include_router(crawler.router)
 
 # ===== Startup Event =====
 
@@ -139,6 +140,26 @@ async def startup_event():
             app.state.llm_client = None
             app.state.chatbot = None
 
+        # 9. Crawler Pipeline 초기화
+        logger.info("🕷️ Initializing Crawler Pipeline...")
+        from services.crawler_pipeline import CrawlerPipeline
+        from services.scheduler import CrawlJobScheduler
+
+        crawler_pipeline = CrawlerPipeline(
+            embedder=embedder,
+            vectordb=vectordb,
+            bm25_index=bm25
+        )
+        app.state.crawler_pipeline = crawler_pipeline
+        logger.info("✅ Crawler Pipeline initialized")
+
+        # 10. Crawler Scheduler 초기화
+        logger.info("📅 Initializing Crawler Scheduler...")
+        crawler_scheduler = CrawlJobScheduler(pipeline=crawler_pipeline)
+        crawler_scheduler.start()
+        app.state.crawler_scheduler = crawler_scheduler
+        logger.info("✅ Crawler Scheduler initialized")
+
         logger.info("=" * 60)
         logger.info("🚀 AI Service startup complete!")
         logger.info(f"📡 Listening on http://{settings.HOST}:{settings.PORT}")
@@ -154,6 +175,12 @@ async def shutdown_event():
     서비스 종료 시 리소스 정리
     """
     logger.info("👋 Shutting down AI Service...")
+
+    # Scheduler 종료
+    if hasattr(app.state, 'crawler_scheduler') and app.state.crawler_scheduler:
+        app.state.crawler_scheduler.stop()
+        logger.info("✅ Crawler Scheduler stopped")
+
     await close_db()
     logger.info("✅ Shutdown complete")
 
@@ -173,6 +200,8 @@ async def health_check():
         "version": settings.SERVICE_VERSION,
         "llm_available": app.state.llm_client is not None,
         "chatbot_available": app.state.chatbot is not None,
+        "pipeline_available": hasattr(app.state, 'crawler_pipeline') and app.state.crawler_pipeline is not None,
+        "scheduler_available": hasattr(app.state, 'crawler_scheduler') and app.state.crawler_scheduler is not None,
         "database": "connected"
     }
 

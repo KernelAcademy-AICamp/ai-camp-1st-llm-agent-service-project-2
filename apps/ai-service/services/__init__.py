@@ -5,10 +5,10 @@ AI Service Services
 
 from .feedback_adapter import DatabaseFeedbackProvider
 
-# Lazy import (필요시 import)
-# from .case_analyzer import CaseAnalyzer
-# from .document_generator import DocumentGenerator
-# from .scenario_detector import ScenarioDetector
+# Crawler Pipeline (Lazy import 권장)
+# from .crawler_pipeline import CrawlerPipeline
+# from .precedent_indexer import PrecedentIndexer
+# from .scheduler import CrawlJobScheduler
 
 __all__ = [
     'DatabaseFeedbackProvider',
