@@ -58,7 +58,9 @@ import {
   UpdateMemberRoleRequest,
   CreateProjectRequest,
   UpdateProjectRequest,
-  MemberRole
+  MemberRole,
+  RiskAnalysisResponse,
+  AnalyzeRiskResponse
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -644,6 +646,34 @@ class APIClient {
   async analyzeDocument(documentId: string, token?: string): Promise<AnalyzeDocumentResponse> {
     return this.fetch<AnalyzeDocumentResponse>(
       `/api/v1/documents/${documentId}/analyze/`,
+      { method: 'POST' },
+      token
+    );
+  }
+
+  // ============================================
+  // Risk Analysis - Phase 3-4
+  // ============================================
+
+  /**
+   * Get document risk analysis
+   * Returns the risk analysis result if it exists
+   */
+  async getDocumentRiskAnalysis(documentId: string, token?: string): Promise<RiskAnalysisResponse> {
+    return this.fetch<RiskAnalysisResponse>(
+      `/api/v1/documents/${documentId}/risk_analysis/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Analyze document risk
+   * Triggers risk analysis for the document
+   */
+  async analyzeDocumentRisk(documentId: string, token?: string): Promise<AnalyzeRiskResponse> {
+    return this.fetch<AnalyzeRiskResponse>(
+      `/api/v1/documents/${documentId}/analyze_risk/`,
       { method: 'POST' },
       token
     );

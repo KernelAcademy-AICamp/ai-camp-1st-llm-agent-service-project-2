@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserDocumentDetail, Summary, KeyClause } from '../types';
 import SummarySection from '../components/SummarySection';
 import ClauseList from '../components/ClauseList';
+import RiskAnalysisSection from '../components/RiskAnalysisSection';
 import '../styles/DocumentDetail.css';
 
 const DocumentDetail: React.FC = () => {
@@ -255,6 +256,12 @@ const DocumentDetail: React.FC = () => {
             error={clausesError}
             onExtract={handleExtractClauses}
             extracting={extractingClauses}
+          />
+
+          <RiskAnalysisSection
+            documentId={document.id}
+            token={token || undefined}
+            documentTitle={document.title}
           />
         </div>
 

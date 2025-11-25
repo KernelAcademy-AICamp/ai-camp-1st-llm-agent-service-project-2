@@ -594,3 +594,52 @@ export interface UpdateProjectRequest {
   name?: string;
   description?: string;
 }
+
+// ============================================
+// Risk Analysis Types (Phase 3-4)
+// ============================================
+
+export type RiskSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+export type RiskCategory = 'LEGAL' | 'FINANCIAL' | 'COMPLIANCE' | 'OPERATIONAL' | 'REPUTATIONAL' | 'OTHER';
+
+export interface RiskItem {
+  category: RiskCategory;
+  title: string;
+  description: string;
+  severity: RiskSeverity;
+  score: number;
+  clause_reference: string;
+}
+
+export interface RiskAnalysis {
+  id: string;
+  document: string;
+  document_title?: string;
+  overall_risk_score: number;
+  severity: RiskSeverity;
+  severity_display?: string;
+  risk_items: RiskItem[];
+  recommendations: string[];
+  summary: string;
+  llm_model: string;
+  meta?: Record<string, any>;
+  risk_item_count?: number;
+  is_high_risk?: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface RiskAnalysisResponse {
+  document_id: string;
+  document_title: string;
+  risk_analysis: RiskAnalysis | null;
+  message?: string;
+}
+
+export interface AnalyzeRiskResponse {
+  success: boolean;
+  document_id: string;
+  document_title: string;
+  risk_analysis?: RiskAnalysis;
+  error?: string;
+}
