@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown } from 'react-icons/fi';
+import React, { useState, useCallback } from 'react';
+import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown, FiMenu } from 'react-icons/fi';
 import './LegalResearch.css';
+import './DocumentFilter.css';
 import { apiClient } from '../../api/client';
-import type { RAGChatResponse } from '../../types';
+import type { RAGChatResponse, RAGFilterOptions } from '../../types';
 import PrecedentModal from '../../components/PrecedentModal/PrecedentModal';
 import { useAuth } from '../../contexts/AuthContext';
+import DocumentFilter from './DocumentFilter';
 
 const LegalResearch: React.FC = () => {
   const { token } = useAuth();
@@ -26,6 +28,22 @@ const LegalResearch: React.FC = () => {
 
   // Feedback states
   const [feedbackState, setFeedbackState] = useState<Record<string, 'like' | 'dislike' | null>>({});
+
+  // Filter panel state (Session 13-C)
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  const [filters, setFilters] = useState<RAGFilterOptions>({
+    statuses: ['EMBEDDED'], // Default: only show embedded documents
+  });
+
+  // Handle filter changes
+  const handleFilterChange = useCallback((newFilters: RAGFilterOptions) => {
+    setFilters(newFilters);
+  }, []);
+
+  // Toggle filter panel
+  const handleToggleFilterPanel = useCallback(() => {
+    setIsFilterCollapsed(prev => !prev);
+  }, []);
 
   const handleCopyAnswer = async () => {
     if (ragResponse?.answer) {
@@ -83,7 +101,8 @@ const LegalResearch: React.FC = () => {
       const response = await apiClient.chatWithRAG({
         query: searchQuery,
         top_k: topK,
-        include_sources: true
+        include_sources: true,
+        filters: filters, // Include filters (Session 13-C)
       }, token || undefined);
 
       // 타이머 정리
@@ -201,8 +220,9 @@ const LegalResearch: React.FC = () => {
       const response = await apiClient.chatWithRAG({
         query: exampleQuery,
         top_k: topK,
-        include_sources: true
-      });
+        include_sources: true,
+        filters: filters, // Include filters (Session 13-C)
+      }, token || undefined);
 
       // 타이머 정리
       clearTimeout(step2Timer);
@@ -220,13 +240,33 @@ const LegalResearch: React.FC = () => {
   };
 
   return (
-    <div className="legal-research">
-      <div className="research-header">
-        <h2>법률 리서치</h2>
-        <p>AI 기반 법률 검색으로 빠르고 정확한 답변을 찾아보세요</p>
-      </div>
+    <div className="legal-research legal-research--three-panel">
+      {/* Left Panel: Document Filter (Session 13-C) */}
+      <DocumentFilter
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        isCollapsed={isFilterCollapsed}
+        onToggleCollapse={handleToggleFilterPanel}
+      />
 
-      <form className="search-form" onSubmit={handleSearch}>
+      {/* Center Panel: Chat Area */}
+      <div className="legal-research__center-panel">
+        <div className="research-header">
+          <div className="research-header__content">
+            <h2>법률 리서치</h2>
+            <p>AI 기반 법률 검색으로 빠르고 정확한 답변을 찾아보세요</p>
+          </div>
+          {/* Mobile filter toggle button */}
+          <button
+            className="filter-toggle-btn filter-toggle-btn--mobile"
+            onClick={handleToggleFilterPanel}
+            title="필터 패널 열기/닫기"
+          >
+            <FiMenu />
+          </button>
+        </div>
+
+        <form className="search-form" onSubmit={handleSearch}>
         <div className="search-input-wrapper">
           <input
             type="text"
@@ -790,6 +830,76 @@ const LegalResearch: React.FC = () => {
                 <li>법률 용어를 사용해보세요</li>
                 <li>Top-K 값을 늘려보세요 (현재: {topK})</li>
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>{/* End of center panel */}
+
+      {/* Right Panel: Sources (Session 13-C) - Only shown when ragResponse exists */}
+      {ragResponse && ragResponse.sources.length > 0 && (
+        <div className="legal-research__right-panel">
+          <div className="sources-panel">
+            <div className="sources-panel__header">
+              <h3>참고 자료 ({ragResponse.sources.length}건)</h3>
+              <p className="sources-panel__description">
+                Hybrid Search로 검색된 문서
+              </p>
+            </div>
+            <div className="sources-panel__list">
+              {ragResponse.sources.map((source, index) => {
+                const currentFeedback = feedbackState[source.source];
+                const docId = source.metadata?.doc_id || `문서 #${index + 1}`;
+                const docType = source.metadata?.type || source.type || '기타';
+                const fileName = source.metadata?.file || '';
+
+                return (
+                  <div
+                    key={index}
+                    className={`sources-panel__card ${getScoreColor(source.score)}`}
+                    onClick={() => handlePrecedentClick(source.source)}
+                    style={{ cursor: source.source ? 'pointer' : 'default' }}
+                  >
+                    <div className="sources-panel__card-header">
+                      <div className="sources-panel__rank">#{index + 1}</div>
+                      <span className="sources-panel__type-icon">{getTypeIcon(docType)}</span>
+                      <span className="sources-panel__type-label">{getTypeLabel(docType)}</span>
+                    </div>
+                    <h4 className="sources-panel__title">{source.title || docId}</h4>
+                    <p className="sources-panel__snippet">
+                      {(source.text_snippet || source.content || '').slice(0, 100)}
+                      {(source.text_snippet || source.content || '').length > 100 ? '...' : ''}
+                    </p>
+                    <div className="sources-panel__footer">
+                      <span className={`sources-panel__score ${getScoreColor(source.score)}`}>
+                        {getScoreLabel(source.score, index + 1)}
+                      </span>
+                      <div className="sources-panel__feedback">
+                        <button
+                          className={`feedback-btn-small ${currentFeedback === 'like' ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFeedback(source.source, 'like');
+                          }}
+                          title="도움이 되었습니다"
+                        >
+                          <FiThumbsUp />
+                        </button>
+                        <button
+                          className={`feedback-btn-small ${currentFeedback === 'dislike' ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFeedback(source.source, 'dislike');
+                          }}
+                          title="도움이 되지 않았습니다"
+                        >
+                          <FiThumbsDown />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

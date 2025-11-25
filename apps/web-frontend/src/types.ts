@@ -71,10 +71,20 @@ export interface SourceDocument {
 // RAG Chat Types
 // ============================================
 
+export interface RAGFilterOptions {
+  doc_types?: UserDocumentType[];
+  statuses?: UserDocumentStatus[];
+  date_from?: string;  // ISO date string (YYYY-MM-DD)
+  date_to?: string;    // ISO date string (YYYY-MM-DD)
+  keyword?: string;    // title search only
+  document_ids?: string[];  // pre-filtered document IDs (from Django)
+}
+
 export interface RAGChatRequest {
   query: string;
   top_k?: number;
   include_sources?: boolean;
+  filters?: RAGFilterOptions;
 }
 
 export interface RAGSource {
