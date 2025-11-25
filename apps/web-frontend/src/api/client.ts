@@ -60,7 +60,17 @@ import {
   UpdateProjectRequest,
   MemberRole,
   RiskAnalysisResponse,
-  AnalyzeRiskResponse
+  AnalyzeRiskResponse,
+  CaseAnalysisResponse,
+  AnalyzeCaseRequest,
+  AnalyzeCaseResponse,
+  LLMModelConfig,
+  LLMModelConfigListItem,
+  CompareRequest,
+  CompareResponse,
+  LLMComparisonHistory,
+  EvaluateComparisonRequest,
+  LLMUsageStats
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -923,6 +933,125 @@ class APIClient {
         method: 'POST',
         body: data ? JSON.stringify(data) : JSON.stringify({}),
       },
+      token
+    );
+  }
+
+  // ============================================
+  // LLM Models Management - Phase 3-5
+  // ============================================
+
+  /**
+   * Get all LLM model configurations
+   */
+  async getLLMModels(
+    params?: { status?: string; provider?: string; active_only?: boolean },
+    token?: string
+  ): Promise<{ count: number; results: LLMModelConfigListItem[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.provider) queryParams.append('provider', params.provider);
+    if (params?.active_only) queryParams.append('active_only', 'true');
+
+    const queryString = queryParams.toString();
+    const endpoint = `/api/v1/llm/models/${queryString ? '?' + queryString : ''}`;
+
+    return this.fetch(endpoint, {}, token);
+  }
+
+  /**
+   * Get active LLM models only
+   */
+  async getActiveLLMModels(token?: string): Promise<LLMModelConfigListItem[]> {
+    return this.fetch<LLMModelConfigListItem[]>(
+      '/api/v1/llm/models/active/',
+      {},
+      token
+    );
+  }
+
+  /**
+   * Get default LLM model
+   */
+  async getDefaultLLMModel(token?: string): Promise<LLMModelConfig> {
+    return this.fetch<LLMModelConfig>(
+      '/api/v1/llm/models/default/',
+      {},
+      token
+    );
+  }
+
+  /**
+   * Get LLM model detail
+   */
+  async getLLMModel(modelId: string, token?: string): Promise<LLMModelConfig> {
+    return this.fetch<LLMModelConfig>(
+      `/api/v1/llm/models/${modelId}/`,
+      {},
+      token
+    );
+  }
+
+  // ============================================
+  // LLM Comparison - Phase 3-5
+  // ============================================
+
+  /**
+   * Compare multiple LLM models
+   */
+  async compareLLMModels(
+    request: CompareRequest,
+    token?: string
+  ): Promise<CompareResponse> {
+    return this.fetch<CompareResponse>(
+      '/api/v1/llm/compare/compare/',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
+      token
+    );
+  }
+
+  /**
+   * Evaluate comparison result (select preferred model)
+   */
+  async evaluateComparison(
+    request: EvaluateComparisonRequest,
+    token?: string
+  ): Promise<{ message: string; session_id: string; preferred_model_id: string }> {
+    return this.fetch(
+      '/api/v1/llm/compare/evaluate/',
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
+      token
+    );
+  }
+
+  /**
+   * Get comparison history
+   */
+  async getComparisonHistory(token?: string): Promise<LLMComparisonHistory[]> {
+    return this.fetch<LLMComparisonHistory[]>(
+      '/api/v1/llm/compare/history/',
+      {},
+      token
+    );
+  }
+
+  // ============================================
+  // LLM Usage Stats - Phase 3-5
+  // ============================================
+
+  /**
+   * Get LLM usage statistics for current user
+   */
+  async getLLMUsageStats(token?: string): Promise<LLMUsageStats> {
+    return this.fetch<LLMUsageStats>(
+      '/api/v1/llm/logs/stats/',
+      {},
       token
     );
   }

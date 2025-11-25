@@ -14,6 +14,7 @@ import Organizations from './pages/Organizations';
 import Projects from './pages/Projects';
 import Login from './pages/Login/Login';
 import Signup from './pages/Signup/Signup';
+import ModelComparison from './pages/ModelComparison/ModelComparison';
 import './App.css';
 
 function App() {
@@ -70,6 +71,11 @@ function App() {
           <Route path="/projects" element={
             <Layout>
               <Projects />
+            </Layout>
+          } />
+          <Route path="/settings/model-comparison" element={
+            <Layout>
+              <ModelComparison />
             </Layout>
           } />
 

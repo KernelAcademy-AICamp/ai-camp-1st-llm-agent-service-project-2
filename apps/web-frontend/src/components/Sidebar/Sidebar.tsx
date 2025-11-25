@@ -64,6 +64,7 @@ const Sidebar: React.FC = () => {
       icon: <FiSettings />,
       items: [
         { label: 'AI 모델', path: '/settings/model' },
+        { label: 'LLM 비교', path: '/settings/model-comparison' },
         { label: '데이터베이스', path: '/settings/database' },
         { label: '환경설정', path: '/settings/preferences' }
       ]

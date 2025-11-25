@@ -688,3 +688,136 @@ export interface AnalyzeCaseResponse {
   case_analysis?: DocumentCaseAnalysis;
   error?: string;
 }
+
+// ============================================
+// LLM Comparison Types (Phase 3-5)
+// ============================================
+
+export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'ollama';
+export type LLMModelStatus = 'active' | 'inactive' | 'deprecated';
+export type CompareTaskType = 'summarize' | 'clauses' | 'risk_analysis' | 'case_analysis' | 'chat' | 'other';
+
+export interface LLMModelConfig {
+  id: string;
+  name: string;
+  provider: LLMProvider;
+  model_id: string;
+  api_key_env_var: string;
+  base_url: string | null;
+  default_temperature: number;
+  default_max_tokens: number;
+  input_cost_per_1k: string;
+  output_cost_per_1k: string;
+  status: LLMModelStatus;
+  is_default: boolean;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LLMModelConfigListItem {
+  id: string;
+  name: string;
+  provider: LLMProvider;
+  model_id: string;
+  status: LLMModelStatus;
+  is_default: boolean;
+  input_cost_per_1k: string;
+  output_cost_per_1k: string;
+}
+
+export interface ModelComparisonResult {
+  model_id: string;
+  model_name: string;
+  provider: string;
+  status: 'success' | 'error';
+  response_text: string | null;
+  prompt_tokens: number;
+  response_tokens: number;
+  total_tokens: number;
+  latency_ms: number;
+  estimated_cost: number;
+  error_message: string | null;
+}
+
+export interface CompareRequest {
+  text: string;
+  task_type: CompareTaskType;
+  model_ids?: string[];
+  document_id?: string;
+  options?: Record<string, any>;
+}
+
+export interface CompareResponse {
+  session_id: string;
+  task_type: string;
+  input_text: string;
+  results: ModelComparisonResult[];
+  total_models: number;
+  fastest_model: string | null;
+  cheapest_model: string | null;
+  summary: Record<string, any>;
+}
+
+export interface LLMCallLog {
+  id: string;
+  user: string;
+  model_config: string;
+  model_config_name?: string;
+  task_type: string;
+  prompt_text: string;
+  prompt_tokens: number;
+  response_text: string;
+  response_tokens: number;
+  total_tokens: number;
+  latency_ms: number;
+  status: string;
+  error_message: string | null;
+  estimated_cost: string;
+  comparison_session_id: string | null;
+  document_id: string | null;
+  meta: Record<string, any>;
+  created_at: string;
+}
+
+export interface LLMComparisonHistory {
+  id: string;
+  session_id: string;
+  user: string;
+  task_type: string;
+  input_text: string;
+  results: ModelComparisonResult[];
+  total_models: number;
+  fastest_model: string;
+  cheapest_model: string;
+  preferred_model_id: string | null;
+  evaluation_notes: string | null;
+  created_at: string;
+}
+
+export interface EvaluateComparisonRequest {
+  session_id: string;
+  preferred_model_id: string;
+  evaluation_notes?: string;
+}
+
+export interface LLMUsageStats {
+  summary: {
+    total_calls: number;
+    total_tokens: number;
+    total_cost: string | null;
+    avg_latency: number | null;
+  };
+  by_task_type: Array<{
+    task_type: string;
+    count: number;
+    total_tokens: number;
+    avg_latency: number;
+  }>;
+  by_model: Array<{
+    model_config__name: string;
+    count: number;
+    total_tokens: number;
+    avg_latency: number;
+  }>;
+}
