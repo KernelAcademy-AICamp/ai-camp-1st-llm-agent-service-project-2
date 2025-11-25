@@ -12,6 +12,7 @@ import Documents from './pages/Documents';
 import DocumentDetail from './pages/DocumentDetail';
 import Organizations from './pages/Organizations';
 import Projects from './pages/Projects';
+import RiskAnalysisDashboard from './pages/RiskAnalysisDashboard';
 import Login from './pages/Login/Login';
 import Signup from './pages/Signup/Signup';
 import ModelComparison from './pages/ModelComparison/ModelComparison';
@@ -71,6 +72,11 @@ function App() {
           <Route path="/projects" element={
             <Layout>
               <Projects />
+            </Layout>
+          } />
+          <Route path="/risk-dashboard" element={
+            <Layout>
+              <RiskAnalysisDashboard />
             </Layout>
           } />
           <Route path="/settings/model-comparison" element={

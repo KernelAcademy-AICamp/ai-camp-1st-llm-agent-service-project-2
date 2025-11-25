@@ -821,3 +821,66 @@ export interface LLMUsageStats {
     avg_latency: number;
   }>;
 }
+
+// ============================================
+// Risk Analysis Dashboard Types (Phase 3-7)
+// ============================================
+
+export interface SeverityDistribution {
+  CRITICAL: number;
+  HIGH: number;
+  MEDIUM: number;
+  LOW: number;
+  INFO: number;
+}
+
+export interface CategoryDistribution {
+  LEGAL: number;
+  FINANCIAL: number;
+  COMPLIANCE: number;
+  OPERATIONAL: number;
+  REPUTATIONAL: number;
+  OTHER: number;
+}
+
+export interface RecentRiskAnalysis {
+  id: string;
+  document_id: string;
+  document_title: string;
+  overall_risk_score: number;
+  severity: RiskSeverity;
+  risk_item_count: number;
+  created_at: string;
+}
+
+export interface RiskOverview {
+  total_documents: number;
+  documents_with_risk: number;
+  documents_without_risk: number;
+  avg_risk_score: number;
+  high_risk_count: number;
+  severity_distribution: SeverityDistribution;
+  category_distribution: CategoryDistribution;
+  recent_analyses: RecentRiskAnalysis[];
+}
+
+export interface RiskDocumentListItem {
+  document: UserDocument;
+  risk_analysis: {
+    id: string;
+    overall_risk_score: number;
+    severity: RiskSeverity;
+    risk_item_count: number;
+    summary: string;
+    llm_model: string;
+    created_at: string;
+  };
+}
+
+export interface RiskDocumentsListResponse {
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  results: RiskDocumentListItem[];
+}

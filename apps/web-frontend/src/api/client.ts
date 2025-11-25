@@ -70,7 +70,10 @@ import {
   CompareResponse,
   LLMComparisonHistory,
   EvaluateComparisonRequest,
-  LLMUsageStats
+  LLMUsageStats,
+  RiskOverview,
+  RiskDocumentsListResponse,
+  RiskSeverity
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -1054,6 +1057,54 @@ class APIClient {
       {},
       token
     );
+  }
+
+  // ============================================
+  // Risk Dashboard - Phase 3-7
+  // ============================================
+
+  /**
+   * Get risk overview statistics
+   * Returns aggregated risk data for dashboard
+   */
+  async getRiskOverview(token?: string): Promise<RiskOverview> {
+    return this.fetch<RiskOverview>(
+      '/api/v1/documents/risk-overview/',
+      {},
+      token
+    );
+  }
+
+  /**
+   * Get documents with risk analysis
+   * Supports filtering, sorting, and pagination
+   */
+  async getDocumentsWithRisk(
+    params?: {
+      page?: number;
+      page_size?: number;
+      severity?: RiskSeverity;
+      min_risk_score?: number;
+      max_risk_score?: number;
+      sort_by?: 'risk_score' | 'created_at' | 'document_title';
+      sort_order?: 'asc' | 'desc';
+    },
+    token?: string
+  ): Promise<RiskDocumentsListResponse> {
+    const queryParams = new URLSearchParams();
+
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+    if (params?.severity) queryParams.append('severity', params.severity);
+    if (params?.min_risk_score !== undefined) queryParams.append('min_risk_score', params.min_risk_score.toString());
+    if (params?.max_risk_score !== undefined) queryParams.append('max_risk_score', params.max_risk_score.toString());
+    if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
+    if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
+
+    const queryString = queryParams.toString();
+    const endpoint = `/api/v1/documents/with-risk/${queryString ? '?' + queryString : ''}`;
+
+    return this.fetch<RiskDocumentsListResponse>(endpoint, {}, token);
   }
 }
 

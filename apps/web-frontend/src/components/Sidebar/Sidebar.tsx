@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FiSearch, FiFolder, FiFileText, FiSettings, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiSearch, FiFolder, FiFileText, FiSettings, FiChevronDown, FiChevronRight, FiAlertTriangle } from 'react-icons/fi';
 import './Sidebar.css';
 
 interface MenuItem {
@@ -56,6 +56,15 @@ const Sidebar: React.FC = () => {
         { label: '작성 중', path: '/docs/drafts' },
         { label: '완료 문서', path: '/docs/completed' },
         { label: 'AI 어시스트', path: '/docs/assist' }
+      ]
+    },
+    {
+      id: 'analysis',
+      title: '리스크 분석',
+      icon: <FiAlertTriangle />,
+      items: [
+        { label: '대시보드', path: '/risk-dashboard' },
+        { label: '내 문서', path: '/documents' }
       ]
     },
     {
