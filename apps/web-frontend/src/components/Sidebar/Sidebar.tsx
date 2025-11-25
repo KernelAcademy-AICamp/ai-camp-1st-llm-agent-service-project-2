@@ -1,6 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FiSearch, FiFolder, FiFileText, FiSettings, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import {
+  FiHome,
+  FiFileText,
+  FiSearch,
+  FiBarChart2,
+  FiUsers,
+  FiSettings,
+  FiChevronDown,
+  FiChevronRight,
+  FiFile,
+  FiAlertTriangle,
+  FiLayers,
+  FiBriefcase,
+  FiGrid
+} from 'react-icons/fi';
 import './Sidebar.css';
 
 interface MenuItem {
@@ -13,61 +27,75 @@ interface MenuSection {
   id: string;
   title: string;
   icon: React.ReactNode;
-  items: MenuItem[];
+  items?: MenuItem[];
+  path?: string;  // Direct link (no submenu)
 }
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [expandedSections, setExpandedSections] = useState<string[]>(['research']);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['documents', 'analysis']);
+
+  // Auto-expand section when navigating to a page within it
+  useEffect(() => {
+    const currentPath = location.pathname;
+
+    if (currentPath.startsWith('/documents') || currentPath.startsWith('/research')) {
+      if (!expandedSections.includes('documents')) {
+        setExpandedSections(prev => [...prev, 'documents']);
+      }
+    }
+    if (currentPath.startsWith('/risk-dashboard') || currentPath.startsWith('/analysis')) {
+      if (!expandedSections.includes('analysis')) {
+        setExpandedSections(prev => [...prev, 'analysis']);
+      }
+    }
+    if (currentPath.startsWith('/organizations') || currentPath.startsWith('/projects')) {
+      if (!expandedSections.includes('organization')) {
+        setExpandedSections(prev => [...prev, 'organization']);
+      }
+    }
+  }, [location.pathname]);
 
   const menuSections: MenuSection[] = [
     {
-      id: 'research',
-      title: '법률 리서치',
-      icon: <FiSearch />,
-      items: [
-        { label: 'AI 질의응답', path: '/research/ai' },
-        { label: '판례 검색', path: '/research/cases' },
-        { label: '법령 검색', path: '/research/laws' },
-        { label: '통합 검색', path: '/research/all' },
-        { label: '검색 기록', path: '/research/history' }
-      ]
+      id: 'dashboard',
+      title: '대시보드',
+      icon: <FiHome />,
+      path: '/app'
     },
     {
-      id: 'cases',
-      title: '사건 관리',
-      icon: <FiFolder />,
-      items: [
-        { label: '새 사건', path: '/cases/new' },
-        { label: '진행 중', path: '/cases/active' },
-        { label: '종료 사건', path: '/cases/closed' },
-        { label: '문서 업로드', path: '/cases/upload' },
-        { label: 'AI 분석', path: '/cases/analysis' }
-      ]
-    },
-    {
-      id: 'docs',
-      title: '문서 작성',
+      id: 'documents',
+      title: '문서',
       icon: <FiFileText />,
       items: [
-        { label: '새 문서', path: '/docs/new' },
-        { label: '템플릿', path: '/docs/templates' },
-        { label: '작성 중', path: '/docs/drafts' },
-        { label: '완료 문서', path: '/docs/completed' },
-        { label: 'AI 어시스트', path: '/docs/assist' }
+        { label: '문서 관리', path: '/documents', icon: <FiFile /> },
+        { label: '법률 리서치', path: '/research', icon: <FiSearch /> }
+      ]
+    },
+    {
+      id: 'analysis',
+      title: '분석',
+      icon: <FiBarChart2 />,
+      items: [
+        { label: '리스크 대시보드', path: '/risk-dashboard', icon: <FiAlertTriangle /> },
+        { label: '모델 비교', path: '/analysis/model-comparison', icon: <FiLayers /> }
+      ]
+    },
+    {
+      id: 'organization',
+      title: '조직',
+      icon: <FiUsers />,
+      items: [
+        { label: '조직 관리', path: '/organizations', icon: <FiBriefcase /> },
+        { label: '프로젝트', path: '/projects', icon: <FiGrid /> }
       ]
     },
     {
       id: 'settings',
       title: '설정',
       icon: <FiSettings />,
-      items: [
-        { label: 'AI 모델', path: '/settings/model' },
-        { label: 'LLM 비교', path: '/settings/model-comparison' },
-        { label: '데이터베이스', path: '/settings/database' },
-        { label: '환경설정', path: '/settings/preferences' }
-      ]
+      path: '/settings'
     }
   ];
 
@@ -81,16 +109,42 @@ const Sidebar: React.FC = () => {
     });
   };
 
+  const handleSectionClick = (section: MenuSection) => {
+    if (section.path) {
+      // Direct navigation for sections without subitems
+      navigate(section.path);
+    } else {
+      // Toggle expansion for sections with subitems
+      toggleSection(section.id);
+    }
+  };
+
   const handleItemClick = (path: string) => {
     navigate(path);
   };
 
   const isActiveItem = (path: string) => {
+    // Exact match for specific paths
+    if (path === '/documents' && location.pathname === '/documents') {
+      return true;
+    }
+    // Prefix match for other paths
+    if (path !== '/documents' && location.pathname.startsWith(path)) {
+      return true;
+    }
     return location.pathname === path;
   };
 
   const isSectionActive = (section: MenuSection) => {
-    return section.items.some(item => location.pathname.startsWith(item.path));
+    if (section.path) {
+      return location.pathname === section.path || location.pathname.startsWith(section.path + '/');
+    }
+    return section.items?.some(item => {
+      if (item.path === '/documents') {
+        return location.pathname === '/documents' || location.pathname.startsWith('/documents/');
+      }
+      return location.pathname.startsWith(item.path);
+    });
   };
 
   return (
@@ -100,17 +154,19 @@ const Sidebar: React.FC = () => {
           <div key={section.id} className="sidebar-section">
             <button
               className={`sidebar-section-header ${isSectionActive(section) ? 'active' : ''}`}
-              onClick={() => toggleSection(section.id)}
+              onClick={() => handleSectionClick(section)}
             >
               <div className="sidebar-section-title">
                 <span className="sidebar-section-icon">{section.icon}</span>
                 <span>{section.title}</span>
               </div>
-              <span className="sidebar-section-chevron">
-                {expandedSections.includes(section.id) ? <FiChevronDown /> : <FiChevronRight />}
-              </span>
+              {section.items && (
+                <span className="sidebar-section-chevron">
+                  {expandedSections.includes(section.id) ? <FiChevronDown /> : <FiChevronRight />}
+                </span>
+              )}
             </button>
-            {expandedSections.includes(section.id) && (
+            {section.items && expandedSections.includes(section.id) && (
               <div className="sidebar-section-items">
                 {section.items.map(item => (
                   <button
@@ -118,7 +174,8 @@ const Sidebar: React.FC = () => {
                     className={`sidebar-item ${isActiveItem(item.path) ? 'active' : ''}`}
                     onClick={() => handleItemClick(item.path)}
                   >
-                    {item.label}
+                    {item.icon && <span className="sidebar-item-icon">{item.icon}</span>}
+                    <span>{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -128,7 +185,7 @@ const Sidebar: React.FC = () => {
       </nav>
       <div className="sidebar-footer">
         <div className="sidebar-version">
-          v0.1.0 Beta
+          v0.2.0 Beta
         </div>
       </div>
     </aside>

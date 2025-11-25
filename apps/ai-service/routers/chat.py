@@ -20,12 +20,44 @@ router = APIRouter(prefix="/v1/chat", tags=["chat"])
 
 # ===== Request/Response Models =====
 
+class RAGFilterOptions(BaseModel):
+    """RAG 검색 필터 옵션 (Session 13-C)"""
+    doc_types: Optional[List[str]] = Field(
+        None,
+        description="문서 타입 필터 (CONTRACT, CASE, STATUTE, PRECEDENT, OTHER)"
+    )
+    statuses: Optional[List[str]] = Field(
+        None,
+        description="문서 상태 필터 (UPLOADED, PREPROCESSED, EMBEDDED)"
+    )
+    date_from: Optional[str] = Field(
+        None,
+        description="시작 날짜 (YYYY-MM-DD)"
+    )
+    date_to: Optional[str] = Field(
+        None,
+        description="종료 날짜 (YYYY-MM-DD)"
+    )
+    keyword: Optional[str] = Field(
+        None,
+        description="키워드 검색 (문서 제목만)"
+    )
+    document_ids: Optional[List[str]] = Field(
+        None,
+        description="사전 필터링된 문서 ID 목록"
+    )
+
+
 class RAGRequest(BaseModel):
     """RAG 질의응답 요청"""
     query: str = Field(..., description="사용자 질문", min_length=1)
     top_k: int = Field(5, description="검색할 문서 수", ge=1, le=20)
     include_sources: bool = Field(True, description="출처 포함 여부")
     enable_critique: bool = Field(True, description="Constitutional AI 활성화")
+    filters: Optional[RAGFilterOptions] = Field(
+        None,
+        description="검색 필터 옵션 (Session 13-C)"
+    )
 
 class Source(BaseModel):
     """출처 정보"""
@@ -42,6 +74,66 @@ class RAGResponse(BaseModel):
     model: str
     timestamp: str
     critique_log: Optional[List[Dict[str, Any]]] = None
+
+# ===== Helper Functions =====
+
+def apply_document_filters(
+    sources: List[Dict[str, Any]],
+    filters: RAGFilterOptions
+) -> List[Dict[str, Any]]:
+    """
+    Session 13-C: 문서 필터 적용
+
+    ChromaDB 메타데이터 스키마:
+    - doc_title: 문서 제목
+    - doc_doc_type: 문서 타입 (CONTRACT, CASE, STATUTE, PRECEDENT, OTHER)
+    - doc_language: 언어
+    - doc_file_type: 파일 타입
+    - document_id: 문서 ID
+
+    Note: status와 created_at은 Django DB에만 존재하므로
+          document_ids 필터로 사전 필터링된 ID 목록을 받아 처리
+
+    Args:
+        sources: RAG 검색 결과 (각 source는 metadata 딕셔너리 포함)
+        filters: 필터 옵션
+
+    Returns:
+        필터링된 sources 목록
+    """
+    if not sources:
+        return sources
+
+    filtered = sources
+
+    # 1. 문서 타입 필터 (doc_doc_type)
+    if filters.doc_types:
+        filtered = [
+            s for s in filtered
+            if s.get('metadata', {}).get('doc_doc_type') in filters.doc_types
+        ]
+        logger.debug(f"After doc_types filter: {len(filtered)} sources")
+
+    # 2. 키워드 필터 (doc_title에서 검색 - 대소문자 무시)
+    if filters.keyword:
+        keyword_lower = filters.keyword.lower()
+        filtered = [
+            s for s in filtered
+            if keyword_lower in s.get('metadata', {}).get('doc_title', '').lower()
+        ]
+        logger.debug(f"After keyword filter: {len(filtered)} sources")
+
+    # 3. 문서 ID 필터 (Django에서 status/date로 사전 필터링된 ID 목록)
+    if filters.document_ids:
+        doc_id_set = set(filters.document_ids)
+        filtered = [
+            s for s in filtered
+            if s.get('metadata', {}).get('document_id') in doc_id_set
+        ]
+        logger.debug(f"After document_ids filter: {len(filtered)} sources")
+
+    return filtered
+
 
 # ===== API Endpoints =====
 
@@ -111,6 +203,11 @@ async def rag_chat(
                 id_key='source'
             )
             logger.info(f"🔍 Filtered {len(result['sources']) - len(sources)} precedents by feedback")
+
+        # 4.5. Session 13-C: 문서 필터 적용
+        if request.filters:
+            sources = apply_document_filters(sources, request.filters)
+            logger.info(f"🔍 Applied document filters, remaining sources: {len(sources)}")
 
         # 5. top_k로 잘라내기
         sources = sources[:request.top_k]

@@ -91,6 +91,17 @@
   font-size: 14px;
   transition: all 0.2s ease;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0.7;
 }
 
 .sidebar-item:hover {

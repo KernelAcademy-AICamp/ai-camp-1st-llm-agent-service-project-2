@@ -3,7 +3,7 @@ API v1 URL Configuration
 """
 
 from django.urls import path
-from . import auth, ai_proxy
+from . import auth, ai_proxy, dashboard
 
 urlpatterns = [
     # Authentication
@@ -19,4 +19,7 @@ urlpatterns = [
     path('ai/analyze/case', ai_proxy.analyze_case, name='ai_analyze_case'),
     path('ai/generate/document', ai_proxy.generate_document, name='ai_generate_document'),
     path('ai/health', ai_proxy.health_check, name='ai_health'),
+
+    # Dashboard
+    path('dashboard/overview/', dashboard.dashboard_overview, name='dashboard_overview'),
 ]

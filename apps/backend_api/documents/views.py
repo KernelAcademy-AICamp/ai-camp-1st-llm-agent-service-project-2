@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.db.models import Q
+from django.db.models import Q, Avg, Count
 from django.conf import settings
 import httpx
 import logging
@@ -57,6 +57,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
         """
         GET /api/v1/documents/
         List all documents for the current user
+
+        Query parameters:
+        - doc_type: Filter by document type (CASE, CONTRACT, etc.)
+        - status: Filter by status (UPLOADED, PREPROCESSED, etc.)
+        - search: Search by title
+        - risk_severity: Filter by risk severity (CRITICAL, HIGH, MEDIUM, LOW, INFO)
+        - min_risk_score: Filter by minimum risk score (0-100)
+        - max_risk_score: Filter by maximum risk score (0-100)
+        - has_risk_analysis: Filter documents with/without risk analysis (true/false)
         """
         queryset = self.get_queryset()
 
@@ -76,6 +85,43 @@ class DocumentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(title__icontains=search)
             )
+
+        # Filter by risk severity
+        risk_severity = request.query_params.get('risk_severity', None)
+        if risk_severity:
+            queryset = queryset.filter(
+                risk_analyses__severity=risk_severity
+            ).distinct()
+
+        # Filter by minimum risk score
+        min_risk_score = request.query_params.get('min_risk_score', None)
+        if min_risk_score:
+            try:
+                min_score = int(min_risk_score)
+                queryset = queryset.filter(
+                    risk_analyses__overall_risk_score__gte=min_score
+                ).distinct()
+            except ValueError:
+                pass
+
+        # Filter by maximum risk score
+        max_risk_score = request.query_params.get('max_risk_score', None)
+        if max_risk_score:
+            try:
+                max_score = int(max_risk_score)
+                queryset = queryset.filter(
+                    risk_analyses__overall_risk_score__lte=max_score
+                ).distinct()
+            except ValueError:
+                pass
+
+        # Filter documents with/without risk analysis
+        has_risk_analysis = request.query_params.get('has_risk_analysis', None)
+        if has_risk_analysis is not None:
+            if has_risk_analysis.lower() == 'true':
+                queryset = queryset.filter(risk_analyses__isnull=False).distinct()
+            elif has_risk_analysis.lower() == 'false':
+                queryset = queryset.filter(risk_analyses__isnull=True)
 
         # Order by created_at (newest first)
         queryset = queryset.order_by('-created_at')
@@ -151,6 +197,230 @@ class DocumentViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    @action(detail=False, methods=['get'], url_path='risk-overview')
+    def risk_overview(self, request):
+        """
+        GET /api/v1/documents/risk-overview/
+        Get risk analysis statistics overview for the current user's documents
+
+        Response:
+        {
+            "total_documents": 50,
+            "documents_with_risk": 30,
+            "documents_without_risk": 20,
+            "avg_risk_score": 45.5,
+            "high_risk_count": 5,  // documents with score >= 70
+            "severity_distribution": {
+                "CRITICAL": 2,
+                "HIGH": 8,
+                "MEDIUM": 15,
+                "LOW": 5,
+                "INFO": 0
+            },
+            "category_distribution": {
+                "LEGAL": 10,
+                "FINANCIAL": 8,
+                "COMPLIANCE": 12,
+                "OPERATIONAL": 5,
+                "REPUTATIONAL": 3,
+                "OTHER": 2
+            },
+            "recent_analyses": [...]  // Top 5 most recent risk analyses
+        }
+        """
+        queryset = self.get_queryset()
+        total_documents = queryset.count()
+
+        # Get documents with risk analysis
+        documents_with_risk = queryset.filter(
+            risk_analyses__isnull=False
+        ).distinct()
+        documents_with_risk_count = documents_with_risk.count()
+        documents_without_risk_count = total_documents - documents_with_risk_count
+
+        # Get average risk score (from most recent analysis per document)
+        from django.db.models import Subquery, OuterRef
+
+        # Get the most recent risk analysis for each document
+        latest_risk_ids = RiskAnalysisResult.objects.filter(
+            document__user=request.user
+        ).order_by('document_id', '-created_at').distinct('document_id').values_list('id', flat=True)
+
+        latest_risks = RiskAnalysisResult.objects.filter(id__in=latest_risk_ids)
+
+        avg_risk_score = latest_risks.aggregate(
+            avg=Avg('overall_risk_score')
+        )['avg'] or 0
+
+        # Count high risk documents (score >= 70)
+        high_risk_count = latest_risks.filter(overall_risk_score__gte=70).count()
+
+        # Severity distribution
+        severity_distribution = {
+            'CRITICAL': 0,
+            'HIGH': 0,
+            'MEDIUM': 0,
+            'LOW': 0,
+            'INFO': 0
+        }
+        severity_counts = latest_risks.values('severity').annotate(count=Count('id'))
+        for item in severity_counts:
+            if item['severity'] in severity_distribution:
+                severity_distribution[item['severity']] = item['count']
+
+        # Category distribution (from risk_items JSON field)
+        category_distribution = {
+            'LEGAL': 0,
+            'FINANCIAL': 0,
+            'COMPLIANCE': 0,
+            'OPERATIONAL': 0,
+            'REPUTATIONAL': 0,
+            'OTHER': 0
+        }
+
+        # Count categories from risk items
+        for risk in latest_risks:
+            if risk.risk_items:
+                for item in risk.risk_items:
+                    category = item.get('category', 'OTHER')
+                    if category in category_distribution:
+                        category_distribution[category] += 1
+                    else:
+                        category_distribution['OTHER'] += 1
+
+        # Get recent risk analyses (top 5)
+        recent_analyses = RiskAnalysisResult.objects.filter(
+            document__user=request.user
+        ).select_related('document').order_by('-created_at')[:5]
+
+        recent_analyses_data = []
+        for analysis in recent_analyses:
+            recent_analyses_data.append({
+                'id': str(analysis.id),
+                'document_id': str(analysis.document.id),
+                'document_title': analysis.document.title,
+                'overall_risk_score': analysis.overall_risk_score,
+                'severity': analysis.severity,
+                'risk_item_count': len(analysis.risk_items) if analysis.risk_items else 0,
+                'created_at': analysis.created_at.isoformat()
+            })
+
+        return Response({
+            'total_documents': total_documents,
+            'documents_with_risk': documents_with_risk_count,
+            'documents_without_risk': documents_without_risk_count,
+            'avg_risk_score': round(avg_risk_score, 1),
+            'high_risk_count': high_risk_count,
+            'severity_distribution': severity_distribution,
+            'category_distribution': category_distribution,
+            'recent_analyses': recent_analyses_data
+        })
+
+    @action(detail=False, methods=['get'], url_path='with-risk')
+    def documents_with_risk(self, request):
+        """
+        GET /api/v1/documents/with-risk/
+        Get documents with risk analysis, including risk details
+
+        Query parameters:
+        - severity: Filter by severity (CRITICAL, HIGH, MEDIUM, LOW, INFO)
+        - min_score: Minimum risk score (0-100)
+        - max_score: Maximum risk score (0-100)
+        - sort_by: Sort by field (risk_score, created_at, title)
+        - order: Sort order (asc, desc)
+        - page: Page number (default: 1)
+        - page_size: Items per page (default: 10)
+
+        Response includes document info with latest risk analysis
+        """
+        queryset = self.get_queryset().filter(
+            risk_analyses__isnull=False
+        ).distinct()
+
+        # Apply filters
+        severity = request.query_params.get('severity', None)
+        if severity:
+            queryset = queryset.filter(risk_analyses__severity=severity)
+
+        min_score = request.query_params.get('min_score', None)
+        if min_score:
+            try:
+                queryset = queryset.filter(
+                    risk_analyses__overall_risk_score__gte=int(min_score)
+                )
+            except ValueError:
+                pass
+
+        max_score = request.query_params.get('max_score', None)
+        if max_score:
+            try:
+                queryset = queryset.filter(
+                    risk_analyses__overall_risk_score__lte=int(max_score)
+                )
+            except ValueError:
+                pass
+
+        # Get sorting parameters
+        sort_by = request.query_params.get('sort_by', 'created_at')
+        order = request.query_params.get('order', 'desc')
+
+        # Build results with risk analysis data
+        results = []
+        for doc in queryset:
+            # Get the most recent risk analysis for this document
+            latest_risk = doc.risk_analyses.order_by('-created_at').first()
+            if latest_risk:
+                results.append({
+                    'document': DocumentSerializer(doc).data,
+                    'risk_analysis': {
+                        'id': str(latest_risk.id),
+                        'overall_risk_score': latest_risk.overall_risk_score,
+                        'severity': latest_risk.severity,
+                        'risk_item_count': len(latest_risk.risk_items) if latest_risk.risk_items else 0,
+                        'summary': latest_risk.summary,
+                        'llm_model': latest_risk.llm_model,
+                        'created_at': latest_risk.created_at.isoformat()
+                    }
+                })
+
+        # Sort results
+        if sort_by == 'risk_score':
+            results.sort(
+                key=lambda x: x['risk_analysis']['overall_risk_score'],
+                reverse=(order == 'desc')
+            )
+        elif sort_by == 'title':
+            results.sort(
+                key=lambda x: x['document']['title'].lower(),
+                reverse=(order == 'desc')
+            )
+        else:  # default: created_at
+            results.sort(
+                key=lambda x: x['risk_analysis']['created_at'],
+                reverse=(order == 'desc')
+            )
+
+        # Pagination
+        try:
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 10))
+        except ValueError:
+            page = 1
+            page_size = 10
+
+        total_count = len(results)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_results = results[start_idx:end_idx]
+
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': paginated_results
+        })
 
     def destroy(self, request, pk=None):
         """
