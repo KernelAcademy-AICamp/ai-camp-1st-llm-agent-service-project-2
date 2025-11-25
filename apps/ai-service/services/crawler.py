@@ -11,6 +11,7 @@ API 문서: https://open.law.go.kr/LSO/openApi/guideList.do
 """
 import asyncio
 import logging
+import os
 import httpx
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # 국가법령정보 Open API 기본 설정
 LAW_GO_KR_API_BASE = "http://www.law.go.kr/DRF"
-DEFAULT_OC = "v5905"  # 사용자 API 키
+DEFAULT_OC = os.getenv("LAW_GO_KR_OC", "")  # 환경변수에서 API 키 로드
 
 
 class CrawlResult(BaseModel):
@@ -700,7 +701,7 @@ def get_crawler(
         source_type: 소스 타입 (COURT_API, STATUTE_API, WEB_CRAWL)
         base_url: 기본 URL
         config: 크롤러 설정
-            - oc: API 사용자 키 (기본값: v5905)
+            - oc: API 사용자 키 (환경변수 LAW_GO_KR_OC에서 로드)
             - use_mock: Mock 데이터 사용 여부 (기본값: False)
             - timeout: 요청 타임아웃 (기본값: 30초)
 
