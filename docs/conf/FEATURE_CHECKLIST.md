@@ -1,11 +1,12 @@
 # 기능 체크리스트
 
-> **최종 업데이트**: 2025-11-24 (Phase 3-3 Session 7 완료)
+> **최종 업데이트**: 2025-11-25 (Phase 3-4 Session 10 완료)
 > **Phase 2 완료**: 100% (핵심 기능 모두 구현)
 > **Phase 3-1 완료**: 100% (Document 관리 시스템)
-> **Phase 3-2 완료**: 100% (AI 분석 결과 저장 - Summary/Clause 전체 완료)
-> **Phase 3-3 진행중**: 67% (Session 7/9 완료 - Organization CRUD API 구현)
-> **전체 진행도**: 80% (Phase 3: 67% 완료)
+> **Phase 3-2 완료**: 100% (AI 분석 결과 저장)
+> **Phase 3-3 완료**: 100% (Organization/Project)
+> **Phase 3-4 완료**: 100% (Risk Analysis)
+> **전체 진행도**: 85% (Phase 3: 78% 완료)
 
 ---
 
@@ -496,7 +497,7 @@
 
 ---
 
-### Week 5: Organization/Project (🚧 67% 완료)
+### Week 5: Organization/Project (✅ 100% 완료)
 
 #### ✅ Session 6: Organization 모델 구현 (완료)
 - ✅ Organization 모델 설계
@@ -562,79 +563,155 @@
 **완료일**: 2025-11-24
 **소요 시간**: 약 3시간
 
-#### Session 8: Frontend UI (⬜ 0% 완료)
-- ⬜ types.ts 타입 정의 (Organization, Membership, Project)
-- ⬜ API Client 함수 (조직/멤버/프로젝트 CRUD)
-- ⬜ Organizations 페이지 (목록, 생성, 상세)
-- ⬜ MemberManagement 컴포넌트 (멤버 초대, 역할 변경, 제거)
-- ⬜ Projects 페이지 (목록, 생성, 상세)
-- ⬜ CSS 스타일링
-- ⬜ 라우팅 설정 (/organizations, /projects)
-- ⬜ Git commit: "feat(week5): add Organization management UI (Session 8)"
+#### ✅ Session 8: Frontend UI (완료)
+- ✅ types.ts 타입 정의 (Organization, Membership, Project)
+- ✅ API Client 함수 (조직/멤버/프로젝트 CRUD)
+- ✅ Organizations 페이지 (목록, 생성, 상세)
+- ✅ MemberManagement 컴포넌트 (멤버 초대, 역할 변경, 제거)
+- ✅ Projects 페이지 (목록, 생성, 상세)
+- ✅ CSS 스타일링
+- ✅ 라우팅 설정 (/organizations, /projects)
+- ✅ Git commit: "feat: add Organization management UI (Session 8)"
 
-**예상 소요**: 8-10시간
+**완료일**: 2025-11-25
+**커밋**: `c4786058`
 
-#### Session 9: Week 5 통합 테스트 (⬜ 0% 완료)
-- ⬜ Organization CRUD E2E (API + UI)
-  - ⬜ POST /api/v1/organizations/ (조직 생성)
-  - ⬜ GET /api/v1/organizations/ (조직 목록)
-  - ⬜ GET /api/v1/organizations/{id}/ (조직 상세)
-  - ⬜ PUT /api/v1/organizations/{id}/ (조직 수정)
-  - ⬜ 브라우저 UI 테스트 (/organizations)
-- ⬜ Member 관리 E2E (API + UI)
-  - ⬜ 테스트 사용자 2명 생성
-  - ⬜ POST /api/v1/organizations/{id}/members/ (멤버 초대)
-  - ⬜ GET /api/v1/organizations/{id}/members/ (멤버 목록)
-  - ⬜ PUT /api/v1/organizations/{id}/members/{user_id}/ (역할 변경)
-  - ⬜ DELETE /api/v1/organizations/{id}/members/{user_id}/ (멤버 제거)
-  - ⬜ 브라우저 UI 테스트 (멤버 관리)
-- ⬜ Project CRUD E2E (API + UI)
-  - ⬜ POST /api/v1/projects/ (프로젝트 생성)
-  - ⬜ GET /api/v1/projects/ (프로젝트 목록)
-  - ⬜ 브라우저 UI 테스트 (/projects)
-- ⬜ 권한 체크 검증
-  - ⬜ 다른 조직의 프로젝트 접근 시도 (403 Forbidden)
-  - ⬜ 멤버가 아닌 사용자의 조직 접근 시도 (403)
-  - ⬜ VIEWER role의 수정 시도 (403)
-- ⬜ UI/UX 검증
-  - ⬜ 페이지 로딩, 에러 메시지, 성공 메시지
-  - ⬜ 반응형 디자인
-- ⬜ 버그 수정 (발견 시)
-- ⬜ Git commit: "test: Week 5 integration tests (Session 9)"
-- ⬜ feature/organization → develop PR 준비
+#### ✅ Session 9: Week 5 통합 테스트 (완료)
+- ✅ Organization CRUD E2E (API + UI)
+  - ✅ POST /api/v1/organizations/ (조직 생성)
+  - ✅ GET /api/v1/organizations/ (조직 목록)
+  - ✅ GET /api/v1/organizations/{id}/ (조직 상세)
+  - ✅ PUT /api/v1/organizations/{id}/ (조직 수정)
+  - ✅ 브라우저 UI 테스트 (/organizations)
+- ✅ Member 관리 E2E (API + UI)
+  - ✅ 테스트 사용자 2명 생성
+  - ✅ POST /api/v1/organizations/{id}/add_member/ (멤버 초대)
+  - ✅ GET /api/v1/organizations/{id}/members/ (멤버 목록)
+  - ✅ PUT /api/v1/organizations/{id}/update_member_role/{user_id}/ (역할 변경)
+  - ✅ DELETE /api/v1/organizations/{id}/remove_member/{user_id}/ (멤버 제거)
+  - ✅ 브라우저 UI 테스트 (멤버 관리)
+- ✅ Project CRUD E2E (API + UI)
+  - ✅ POST /api/v1/projects/ (프로젝트 생성)
+  - ✅ GET /api/v1/projects/ (프로젝트 목록)
+  - ✅ 브라우저 UI 테스트 (/projects)
+- ✅ 권한 체크 검증
+  - ✅ 다른 조직의 프로젝트 접근 시도 (403 Forbidden)
+  - ✅ 멤버가 아닌 사용자의 조직 접근 시도 (403)
+  - ✅ VIEWER role의 수정 시도 (403)
+- ✅ UI/UX 검증
+  - ✅ 페이지 로딩, 에러 메시지, 성공 메시지
+  - ✅ 반응형 디자인
+- ✅ Git commit: "test: Week 5 integration tests"
+- ✅ feature/organization → develop PR 생성 및 머지 완료 (PR #18)
 
-**예상 소요**: 4-6시간
-**예상 완료**: 2025-11-25
+**완료일**: 2025-11-25
+**커밋**: `fb4d216f` (Merge PR #18)
 
 ---
 
-### Week 6: 리스크 분석 (⬜ 0% 완료)
+### Week 6: 리스크 분석 (✅ 100% 완료)
 
-#### 4.1. RiskAnalysisResult 모델
-- ⬜ 모델 설계
-- ⬜ Migration 및 Admin
-- ⬜ Serializer 및 API
-- ⬜ Git commit: "feat(week6): add RiskAnalysisResult model"
+#### ✅ Session 10: Risk Analysis 시스템 구현 (완료)
 
-**예상 소요**: 4-6시간
+**Backend 구현:**
+- ✅ RiskAnalysisResult 모델 설계
+  - ✅ id (UUID), document (FK), overall_risk_score (0-100)
+  - ✅ severity (CRITICAL/HIGH/MEDIUM/LOW/INFO)
+  - ✅ risk_items (JSONField - 개별 리스크 항목)
+  - ✅ recommendations (TEXT - 권장사항)
+  - ✅ summary (TEXT - 리스크 요약)
+  - ✅ llm_model (사용된 LLM 모델)
+  - ✅ meta (JSONField - 추가 메타데이터)
+- ✅ Migration 생성 및 실행 (0003_riskanalysisresult)
+- ✅ Admin 등록 (RiskAnalysisResultAdmin)
+  - ✅ risk_item_count_display, is_high_risk_display 메서드
+  - ✅ list_display, list_filter, search_fields 설정
+- ✅ Serializer 작성 (RiskAnalysisResultSerializer)
+  - ✅ document_title, severity_display 필드
+  - ✅ risk_item_count, is_high_risk 속성
+  - ✅ overall_risk_score 검증 (0-100)
+- ✅ ViewSet 구현 (apps/backend_api/documents/views.py)
+  - ✅ GET /api/v1/documents/{id}/risk_analysis/ - 리스크 분석 결과 조회
+  - ✅ POST /api/v1/documents/{id}/analyze_risk/ - 리스크 분석 트리거
+  - ✅ _analyze_risk() 헬퍼 메서드 (AI Service 호출)
+  - ✅ httpx 기반 비동기 통신 (60초 타임아웃)
+  - ✅ 결과 자동 저장 (RiskAnalysisResult 생성/업데이트)
+- ✅ FastAPI Risk Analyzer Service (apps/ai-service/services/risk_analyzer.py)
+  - ✅ RiskAnalyzer 클래스 with analyze_risk() 메서드
+  - ✅ 6가지 리스크 카테고리 (LEGAL, FINANCIAL, COMPLIANCE, OPERATIONAL, REPUTATIONAL, OTHER)
+  - ✅ 5가지 심각도 레벨 (CRITICAL, HIGH, MEDIUM, LOW, INFO)
+  - ✅ 리스크 점수 산정 로직 (개별 항목 점수의 가중 평균)
+  - ✅ 법률 문서 최적화 한국어 프롬프트
+  - ✅ JSON 파싱 + Fallback 로직
+  - ✅ 권장사항 및 요약 생성
+- ✅ FastAPI Router (apps/ai-service/routers/llm.py)
+  - ✅ POST /v1/llm/analyze_risk - 리스크 분석 API
+  - ✅ AnalyzeRiskRequest/AnalyzeRiskResponse 모델
+  - ✅ 에러 핸들링 및 검증
 
-#### 4.2. Risk Analysis API (FastAPI)
-- ⬜ `POST /llm/analyze_risk` 구현
-- ⬜ 프롬프트 작성
-- ⬜ 리스크 점수 산정
-- ⬜ Git commit: "feat(week6): add risk analysis API"
+**Frontend 구현:**
+- ✅ types.ts 타입 정의
+  - ✅ RiskSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
+  - ✅ RiskCategory = 'LEGAL' | 'FINANCIAL' | 'COMPLIANCE' | 'OPERATIONAL' | 'REPUTATIONAL' | 'OTHER'
+  - ✅ RiskItem 인터페이스 (category, title, description, severity, score, clause_reference)
+  - ✅ RiskAnalysis 인터페이스 (전체 리스크 분석 결과)
+  - ✅ RiskAnalysisResponse, AnalyzeRiskResponse
+- ✅ API Client 함수 (client.ts)
+  - ✅ getDocumentRiskAnalysis(documentId, token)
+  - ✅ analyzeDocumentRisk(documentId, token)
+- ✅ RiskAnalysisSection 컴포넌트 (components/RiskAnalysisSection.tsx)
+  - ✅ 리스크 점수 시각화
+    - ✅ SVG 원형 프로그레스 바 (0-100)
+    - ✅ 점수별 색상 (녹색/파란색/노란색/빨간색)
+  - ✅ 심각도 배지
+    - ✅ 5단계 색상 코드 (CRITICAL=빨강, HIGH=주황, MEDIUM=노랑, LOW=연두, INFO=청록)
+    - ✅ 한글 라벨 (심각/높음/중간/낮음/정보)
+  - ✅ 리스크 항목 표시
+    - ✅ 카테고리별 그룹핑 (법적/재무/규정 준수/운영/평판/기타)
+    - ✅ 항목별 심각도 및 점수 표시
+    - ✅ 관련 조항 참조 표시
+  - ✅ 권장사항 섹션 (체크리스트 형식)
+  - ✅ 리스크 요약 텍스트
+  - ✅ 분석 트리거/재분석 버튼
+  - ✅ 로딩/에러 상태 처리
+  - ✅ 확장/축소 기능 (헤더 클릭)
+  - ✅ 분석 일시 표시
+- ✅ CSS 스타일링 (styles/RiskAnalysisSection.css)
+  - ✅ 카드 레이아웃 및 그리드
+  - ✅ 심각도별 색상 테마
+  - ✅ 원형 차트 애니메이션
+  - ✅ 호버 효과 및 트랜지션
+  - ✅ 반응형 디자인 (모바일 768px 이하)
+- ✅ DocumentDetail 페이지 통합 (pages/DocumentDetail.tsx)
+  - ✅ RiskAnalysisSection 컴포넌트 추가
+  - ✅ Analysis Section에 통합
+- ✅ Git commit (Backend): `8b57b8de` - "feat: implement risk analysis system (Session 10)"
+- ✅ Git commit (Frontend): `477d7965` - "feat(frontend): add Risk Analysis UI components and integration"
 
-**예상 소요**: 6-8시간
+**완료일**: 2025-11-25
+**소요 시간**: 약 6시간 (Backend 3시간, Frontend 3시간)
+**커밋**: `8b57b8de` (Backend), `477d7965` (Frontend)
+**현재 브랜치**: feature/risk-analysis (develop PR 대기)
+**참조**: SESSION_PROMPTS.md → Session 10
 
-#### 4.3. Frontend Dashboard
-- ⬜ RiskDashboard 페이지
-- ⬜ 리스크 점수 차트
-- ⬜ 리스크 항목 리스트
-- ⬜ Git commit: "feat(week6): add risk analysis dashboard"
+---
 
-**예상 소요**: 8-10시간
+### Week 6.5: Document-Case 통합 (⬜ 0% 완료)
 
-**예상 완료**: 2026-01-04
+#### Session 10.5: Document-Case 통합 작업 (⬜ 0% 완료)
+
+**목표**: Case와 Document 기능 중복 제거, 단일 Document 시스템으로 통합
+
+**상세 계획**: `docs/conf/DOCUMENT_CASE_INTEGRATION_PLAN.md` 참조
+
+**작업 내용:**
+- ⬜ Day 1: CaseAnalysis 모델 생성, ChatHistory 수정, Migration
+- ⬜ Day 2: API 통합 (analyze-case, case-analysis 엔드포인트)
+- ⬜ Day 3: 프론트엔드 통합 (Case UI 스타일 적용)
+- ⬜ Day 4: E2E 테스트, 데이터 마이그레이션, 정리
+
+**예상 소요**: 4일 (24-32시간)
+**참조**: SESSION_PROMPTS.md → Session 10.5
 
 ---
 
@@ -819,19 +896,20 @@
 | Frontend | 10 | 10 | ✅ 100% |
 | **총계** | **48** | **48** | **✅ 100%** |
 
-### Phase 3 (확장 기능) - 🚧 53% 완료
+### Phase 3 (확장 기능) - 🚧 76% 완료
 | Week | 기능 | 완료 | 진행도 |
 |------|------|------|--------|
 | Week 0 | 현재 작업 마무리 | 4/4 | ✅ 100% |
 | Week 1-2 | Document 관리 | 6/6 | ✅ 100% |
 | Week 3-4 | Summary/Clauses | 5/5 | ✅ 100% |
-| Week 5 | Organization | 2/3 | 🚧 67% |
-| Week 6 | Risk Analysis | 0/3 | ⬜ 0% |
-| Week 7 | LLM Comparison | 0/3 | ⬜ 0% |
+| Week 5 | Organization | 3/3 | ✅ 100% |
+| Week 6 | Risk Analysis | 1/1 | ✅ 100% |
+| Week 6.5 | **Document-Case 통합** | 0/1 | ⬜ 0% |
+| Week 7 | LLM Comparison | 0/1 | ⬜ 0% |
 | Week 8 | Crawling System | 0/1 | ⬜ 0% |
 | Week 9 | Advanced Dashboard | 0/3 | ⬜ 0% |
 | Week 10 | Final Integration | 0/1 | ⬜ 0% |
-| **총계** | | **17/32** | **🚧 53%** |
+| **총계** | | **19/26** | **🚧 73%** |
 
 ---
 

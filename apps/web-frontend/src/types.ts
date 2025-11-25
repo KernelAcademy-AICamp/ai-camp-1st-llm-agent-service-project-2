@@ -433,6 +433,7 @@ export interface DocumentChunk {
 
 export interface UserDocumentDetail extends UserDocument {
   chunks: DocumentChunk[];
+  case_analysis?: DocumentCaseAnalysis;  // Case analysis if doc_type is 'CASE'
 }
 
 export interface UserDocumentsListResponse {
@@ -641,5 +642,49 @@ export interface AnalyzeRiskResponse {
   document_id: string;
   document_title: string;
   risk_analysis?: RiskAnalysis;
+  error?: string;
+}
+
+// ============================================
+// Document Case Analysis Types (Document-Case Integration)
+// ============================================
+
+export interface DocumentCaseAnalysis {
+  id: string;
+  document: string;
+  document_title?: string;
+  suggested_case_name: string;
+  document_types: string[];
+  parties: Record<string, any>;
+  party_count?: number;
+  key_dates: Record<string, string>;
+  issues: string[];
+  issue_count?: number;
+  related_precedents: string[];
+  has_precedents?: boolean;
+  suggested_next_steps: string[];
+  scenario?: string;
+  llm_model: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CaseAnalysisResponse {
+  document_id: string;
+  document_title: string;
+  case_analysis: DocumentCaseAnalysis | null;
+  message?: string;
+}
+
+export interface AnalyzeCaseRequest {
+  llm_model?: string;
+  scenario?: '소송 준비' | '계약 검토' | '법적 자문' | '기타';
+}
+
+export interface AnalyzeCaseResponse {
+  success: boolean;
+  document_id: string;
+  document_title: string;
+  case_analysis?: DocumentCaseAnalysis;
   error?: string;
 }

@@ -94,7 +94,16 @@ class ChatHistory(models.Model):
         null=True,
         blank=True,
         related_name='chat_histories',
-        verbose_name='관련 사건'
+        verbose_name='관련 사건 (deprecated)'
+    )
+
+    document = models.ForeignKey(
+        'documents.Document',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chat_histories',
+        verbose_name='관련 문서'
     )
 
     query = models.TextField(

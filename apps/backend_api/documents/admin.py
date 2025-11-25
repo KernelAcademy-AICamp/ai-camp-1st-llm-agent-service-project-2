@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult
+from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult, CaseAnalysis
 
 
 class DocumentChunkInline(admin.TabularInline):
@@ -11,6 +11,28 @@ class DocumentChunkInline(admin.TabularInline):
     can_delete = True
     show_change_link = True
     max_num = 10  # Only show first 10 chunks in inline
+
+
+class CaseAnalysisInline(admin.StackedInline):
+    """Inline admin for CaseAnalysis"""
+    model = CaseAnalysis
+    extra = 0
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    fields = (
+        'suggested_case_name',
+        'document_types',
+        'parties',
+        'key_dates',
+        'issues',
+        'related_precedents',
+        'suggested_next_steps',
+        'scenario',
+        'llm_model',
+        'created_at',
+        'updated_at',
+    )
+    can_delete = False
+    show_change_link = True
 
 
 @admin.register(Document)
@@ -88,7 +110,7 @@ class DocumentAdmin(admin.ModelAdmin):
         }),
     )
 
-    inlines = [DocumentChunkInline]
+    inlines = [DocumentChunkInline, CaseAnalysisInline]
 
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
@@ -416,3 +438,96 @@ class RiskAnalysisResultAdmin(admin.ModelAdmin):
         return obj.risk_item_count
 
     risk_item_count_display.short_description = 'Risk Items'
+
+
+@admin.register(CaseAnalysis)
+class CaseAnalysisAdmin(admin.ModelAdmin):
+    """Admin interface for CaseAnalysis model"""
+
+    list_display = (
+        'suggested_case_name',
+        'document',
+        'party_count_display',
+        'issue_count_display',
+        'has_precedents_display',
+        'llm_model',
+        'created_at',
+    )
+
+    list_filter = (
+        'llm_model',
+        'created_at',
+    )
+
+    search_fields = (
+        'suggested_case_name',
+        'document__title',
+        'parties',
+        'issues',
+    )
+
+    readonly_fields = (
+        'id',
+        'created_at',
+        'updated_at',
+        'party_count_display',
+        'issue_count_display',
+        'has_precedents_display',
+    )
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': (
+                'id',
+                'document',
+                'suggested_case_name',
+                'document_types',
+                'llm_model',
+            )
+        }),
+        ('Case Details', {
+            'fields': (
+                'parties',
+                'party_count_display',
+                'key_dates',
+                'issues',
+                'issue_count_display',
+            )
+        }),
+        ('Analysis Results', {
+            'fields': (
+                'related_precedents',
+                'has_precedents_display',
+                'suggested_next_steps',
+                'scenario',
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'created_at',
+                'updated_at',
+            ),
+            'classes': ('collapse',)
+        }),
+    )
+
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+    def party_count_display(self, obj):
+        """Display number of parties"""
+        return obj.party_count
+
+    party_count_display.short_description = 'Parties'
+
+    def issue_count_display(self, obj):
+        """Display number of issues"""
+        return obj.issue_count
+
+    issue_count_display.short_description = 'Issues'
+
+    def has_precedents_display(self, obj):
+        """Display whether precedents were found"""
+        return "✓" if obj.has_precedents else "✗"
+
+    has_precedents_display.short_description = 'Has Precedents'

@@ -80,6 +80,27 @@ class AnalyzeRiskResponse(BaseModel):
     meta: Dict[str, Any]
     error: Optional[str] = None
 
+class AnalyzeCaseRequest(BaseModel):
+    """사건 분석 요청"""
+    document_id: str = Field(..., description="Document ID")
+    text: str = Field(..., description="Document text to analyze")
+    llm_model: str = Field("gpt-4", description="LLM model name")
+    scenario: Optional[str] = Field(None, description="Analysis scenario (소송 준비, 계약 검토, etc.)")
+
+class AnalyzeCaseResponse(BaseModel):
+    """사건 분석 응답"""
+    success: bool
+    document_id: str
+    suggested_case_name: str
+    document_types: List[str]
+    parties: Dict[str, Any]
+    key_dates: Dict[str, str]
+    issues: List[str]
+    related_precedents: List[str]
+    suggested_next_steps: List[str]
+    scenario: Optional[str] = None
+    error: Optional[str] = None
+
 # ===== API Endpoints =====
 
 @router.post("/summarize", response_model=SummarizeResponse)
@@ -360,4 +381,100 @@ async def analyze_document_risk(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to analyze risks: {str(e)}"
+        )
+
+
+@router.post("/analyze_case", response_model=AnalyzeCaseResponse)
+async def analyze_case(
+    request: AnalyzeCaseRequest,
+    app_request: Request
+):
+    """
+    POST /v1/llm/analyze_case
+
+    문서 사건 분석
+
+    Django Backend에서 호출되며, 문서 텍스트를 분석하여 사건 정보를 추출합니다.
+
+    Args:
+        request: AnalyzeCaseRequest (document_id, text, llm_model, scenario)
+
+    Returns:
+        AnalyzeCaseResponse with case analysis results
+
+    Raises:
+        HTTPException 400: Invalid input
+        HTTPException 503: LLM service not available
+        HTTPException 500: Internal error
+    """
+    try:
+        # Import service (lazy import)
+        from services.case_analyzer import CaseAnalyzer
+
+        # Get LLM client from app state
+        llm_client = app_request.app.state.llm_client
+
+        if not llm_client:
+            raise HTTPException(
+                status_code=503,
+                detail="LLM client is not available"
+            )
+
+        # Validate input
+        if not request.text or len(request.text.strip()) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Text cannot be empty"
+            )
+
+        # Initialize CaseAnalyzer
+        analyzer = CaseAnalyzer(llm_client=llm_client)
+
+        # Analyze case
+        logger.info(
+            f"Analyzing case for document {request.document_id} "
+            f"(scenario: {request.scenario})..."
+        )
+
+        # Prepare text as single document
+        texts = [request.text]
+        filenames = [f"document_{request.document_id}"]
+
+        # Use the analyze_documents method
+        result = await analyzer.analyze_documents(
+            texts=texts,
+            filenames=filenames
+        )
+
+        # Add scenario information
+        if request.scenario:
+            result['scenario'] = request.scenario
+
+        # Return response
+        return AnalyzeCaseResponse(
+            success=True,
+            document_id=request.document_id,
+            suggested_case_name=result.get('suggested_case_name', ''),
+            document_types=result.get('document_types', []),
+            parties=result.get('parties', {}),
+            key_dates=result.get('key_dates', {}),
+            issues=result.get('issues', []),
+            related_precedents=result.get('related_cases', []),
+            suggested_next_steps=result.get('suggested_next_steps', []),
+            scenario=result.get('scenario')
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error in analyze_case: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error analyzing case: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze case: {str(e)}"
         )
