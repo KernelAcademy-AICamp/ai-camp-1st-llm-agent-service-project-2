@@ -6,6 +6,7 @@ import { UserDocumentDetail, Summary, KeyClause } from '../types';
 import SummarySection from '../components/SummarySection';
 import ClauseList from '../components/ClauseList';
 import RiskAnalysisSection from '../components/RiskAnalysisSection';
+import CaseAnalysisSection from '../components/CaseAnalysisSection';
 import '../styles/DocumentDetail.css';
 
 const DocumentDetail: React.FC = () => {
@@ -263,6 +264,15 @@ const DocumentDetail: React.FC = () => {
             token={token || undefined}
             documentTitle={document.title}
           />
+
+          {/* Show Case Analysis only for CASE type documents */}
+          {document.doc_type === 'CASE' && (
+            <CaseAnalysisSection
+              documentId={document.id}
+              token={token || undefined}
+              documentTitle={document.title}
+            />
+          )}
         </div>
 
         {/* Chunks */}

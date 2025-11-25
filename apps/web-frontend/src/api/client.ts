@@ -893,6 +893,39 @@ class APIClient {
       token
     );
   }
+
+  // ==============================
+  // Document Case Analysis Methods
+  // ==============================
+
+  /**
+   * Get case analysis for a document
+   */
+  async getCaseAnalysis(documentId: string, token?: string): Promise<CaseAnalysisResponse> {
+    return this.fetch<CaseAnalysisResponse>(
+      `/api/v1/documents/${documentId}/case-analysis/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Trigger case analysis for a document
+   */
+  async analyzeCase(
+    documentId: string,
+    data?: AnalyzeCaseRequest,
+    token?: string
+  ): Promise<AnalyzeCaseResponse> {
+    return this.fetch<AnalyzeCaseResponse>(
+      `/api/v1/documents/${documentId}/analyze-case/`,
+      {
+        method: 'POST',
+        body: data ? JSON.stringify(data) : JSON.stringify({}),
+      },
+      token
+    );
+  }
 }
 
 // Singleton instance
