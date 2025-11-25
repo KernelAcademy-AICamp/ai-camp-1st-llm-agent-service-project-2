@@ -1,6 +1,8 @@
 """
-Database Connection (Read-Only)
-Django와 동일한 PostgreSQL 공유, 읽기 전용
+Database Connection
+Django와 동일한 PostgreSQL 공유
+- 기본: 읽기 전용
+- 크롤러: 쓰기 가능
 """
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -16,7 +18,7 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://myidwon:@localhost:5432/lawlaw"
 )
 
-# Read-Only 엔진 생성
+# Read-Only 엔진 생성 (기본)
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # SQL 로그 비활성화 (프로덕션)
@@ -27,9 +29,26 @@ engine = create_async_engine(
     isolation_level="READ COMMITTED"
 )
 
-# AsyncSession factory
+# Write 가능 엔진 (크롤러용)
+write_engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_size=3,  # 크롤러용 작은 풀
+    max_overflow=5,
+    isolation_level="READ COMMITTED"
+)
+
+# AsyncSession factory (Read-Only)
 async_session = sessionmaker(
     engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+# AsyncSession factory (Write)
+write_async_session = sessionmaker(
+    write_engine,
     class_=AsyncSession,
     expire_on_commit=False
 )
@@ -39,7 +58,7 @@ Base = declarative_base()
 
 async def get_db():
     """
-    DB 세션 의존성
+    DB 세션 의존성 (Read-Only)
 
     Usage:
         @router.get("/example")
@@ -51,6 +70,26 @@ async def get_db():
             yield session
         except Exception as e:
             logger.error(f"Database session error: {e}")
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+async def get_write_db():
+    """
+    DB 세션 의존성 (Write 가능 - 크롤러용)
+
+    Usage:
+        @router.post("/crawler/...")
+        async def crawler_endpoint(db: AsyncSession = Depends(get_write_db)):
+            ...
+    """
+    async with write_async_session() as session:
+        try:
+            yield session
+        except Exception as e:
+            logger.error(f"Database write session error: {e}")
             await session.rollback()
             raise
         finally:
@@ -68,4 +107,5 @@ async def init_db():
 async def close_db():
     """DB 연결 종료"""
     await engine.dispose()
-    logger.info("👋 Database connection closed")
+    await write_engine.dispose()
+    logger.info("👋 Database connections closed")
