@@ -7,6 +7,7 @@ import SummarySection from '../components/SummarySection';
 import ClauseList from '../components/ClauseList';
 import RiskAnalysisSection from '../components/RiskAnalysisSection';
 import CaseAnalysisSection from '../components/CaseAnalysisSection';
+import ModelComparisonSection from '../components/ModelComparisonSection';
 import '../styles/DocumentDetail.css';
 
 const DocumentDetail: React.FC = () => {
@@ -273,6 +274,18 @@ const DocumentDetail: React.FC = () => {
               documentTitle={document.title}
             />
           )}
+
+          {/* LLM Model Comparison Section */}
+          <ModelComparisonSection
+            documentId={document.id}
+            documentTitle={document.title}
+            documentText={
+              document.chunks && document.chunks.length > 0
+                ? document.chunks.map(c => c.text).join('\n\n')
+                : undefined
+            }
+            token={token || undefined}
+          />
         </div>
 
         {/* Chunks */}
