@@ -52,6 +52,34 @@ class ClausesResponse(BaseModel):
     total_count: int
     error: Optional[str] = None
 
+class AnalyzeRiskRequest(BaseModel):
+    """리스크 분석 요청"""
+    document_id: str = Field(..., description="Document ID")
+    text: str = Field(..., description="Document text to analyze")
+    llm_model: str = Field("gpt-4", description="LLM model name")
+    document_type: str = Field("CONTRACT", description="Document type (CONTRACT, STATUTE, etc.)")
+
+class RiskItem(BaseModel):
+    """개별 리스크 항목"""
+    category: str
+    title: str
+    description: str
+    severity: str
+    score: int
+    clause_reference: str
+
+class AnalyzeRiskResponse(BaseModel):
+    """리스크 분석 응답"""
+    success: bool
+    document_id: str
+    overall_risk_score: int
+    severity: str
+    risk_items: List[RiskItem]
+    recommendations: List[str]
+    summary: str
+    meta: Dict[str, Any]
+    error: Optional[str] = None
+
 # ===== API Endpoints =====
 
 @router.post("/summarize", response_model=SummarizeResponse)
@@ -232,4 +260,104 @@ async def extract_clauses(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to extract clauses: {str(e)}"
+        )
+
+
+@router.post("/analyze_risk", response_model=AnalyzeRiskResponse)
+async def analyze_document_risk(
+    request: AnalyzeRiskRequest,
+    app_request: Request
+):
+    """
+    POST /v1/llm/analyze_risk
+
+    문서 리스크 분석
+
+    Django Backend에서 호출되며, 문서 텍스트를 분석하여 잠재적 리스크를 식별합니다.
+
+    Args:
+        request: AnalyzeRiskRequest (document_id, text, llm_model, document_type)
+
+    Returns:
+        AnalyzeRiskResponse with risk analysis results
+
+    Raises:
+        HTTPException 400: Invalid input
+        HTTPException 503: LLM service not available
+        HTTPException 500: Internal error
+    """
+    try:
+        # Import service (lazy import)
+        from services.risk_analyzer import RiskAnalyzer
+
+        # Get LLM client from app state
+        llm_client = app_request.app.state.llm_client
+
+        if not llm_client:
+            raise HTTPException(
+                status_code=503,
+                detail="LLM client is not available"
+            )
+
+        # Validate input
+        if not request.text or len(request.text.strip()) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Text cannot be empty"
+            )
+
+        # Initialize RiskAnalyzer
+        analyzer = RiskAnalyzer(llm_client=llm_client)
+
+        # Analyze risks
+        logger.info(
+            f"Analyzing risks for document {request.document_id} "
+            f"(type: {request.document_type})..."
+        )
+
+        result = await analyzer.analyze_risk(
+            text=request.text,
+            document_id=request.document_id,
+            document_type=request.document_type,
+            llm_model=request.llm_model
+        )
+
+        # Convert risk items to response model
+        risk_items = [
+            RiskItem(
+                category=item['category'],
+                title=item['title'],
+                description=item['description'],
+                severity=item['severity'],
+                score=item['score'],
+                clause_reference=item.get('clause_reference', '')
+            )
+            for item in result.get('risk_items', [])
+        ]
+
+        # Return response
+        return AnalyzeRiskResponse(
+            success=True,
+            document_id=request.document_id,
+            overall_risk_score=result.get('overall_risk_score', 0),
+            severity=result.get('severity', 'MEDIUM'),
+            risk_items=risk_items,
+            recommendations=result.get('recommendations', []),
+            summary=result.get('summary', ''),
+            meta=result.get('meta', {})
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error in analyze_risk: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error analyzing risks: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze risks: {str(e)}"
         )

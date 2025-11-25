@@ -8,7 +8,7 @@ from django.conf import settings
 import httpx
 import logging
 
-from .models import Document, DocumentChunk, Summary, KeyClause
+from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult
 from .serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
@@ -16,6 +16,7 @@ from .serializers import (
     DocumentChunkSerializer,
     SummarySerializer,
     KeyClauseSerializer,
+    RiskAnalysisResultSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -260,6 +261,101 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'clause_count': clauses.count(),
             'clauses': serializer.data
         })
+
+    @action(detail=True, methods=['get'], url_path='risk_analysis')
+    def risk_analysis(self, request, pk=None):
+        """
+        GET /api/v1/documents/{id}/risk_analysis/
+        Get risk analysis result for a document (most recent)
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get the most recent risk analysis
+        risk_analysis = document.risk_analyses.order_by('-created_at').first()
+
+        if not risk_analysis:
+            return Response(
+                {
+                    'document_id': str(document.id),
+                    'document_title': document.title,
+                    'risk_analysis': None,
+                    'message': 'No risk analysis available. Call /analyze_risk/ to generate one.'
+                },
+                status=status.HTTP_200_OK
+            )
+
+        serializer = RiskAnalysisResultSerializer(risk_analysis)
+        return Response({
+            'document_id': str(document.id),
+            'document_title': document.title,
+            'risk_analysis': serializer.data
+        })
+
+    @action(detail=True, methods=['post'], url_path='analyze_risk')
+    def analyze_risk(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/analyze_risk/
+        Trigger AI risk analysis for a document
+
+        Request body:
+        {
+            "llm_model": "gpt-4" | "claude-3-opus" (optional, default from settings)
+        }
+
+        Response:
+        {
+            "success": true,
+            "document_id": "...",
+            "risk_analysis": {...}
+        }
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if document is ready for analysis
+        if document.status not in [Document.STATUS_PREPROCESSED, Document.STATUS_EMBEDDED]:
+            return Response(
+                {
+                    'error': 'Document not ready for analysis',
+                    'status': document.status,
+                    'message': 'Document must be preprocessed first'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get request parameters
+        llm_model = request.data.get('llm_model', 'gpt-4')
+
+        result = {
+            'success': True,
+            'document_id': str(document.id),
+            'document_title': document.title
+        }
+
+        # Analyze risks
+        try:
+            risk_obj = self._analyze_risk(document, llm_model)
+            result['risk_analysis'] = RiskAnalysisResultSerializer(risk_obj).data
+        except Exception as e:
+            logger.error(f"Error analyzing risks for document {document.id}: {e}", exc_info=True)
+            result['success'] = False
+            result['error'] = str(e)
+
+        if result['success']:
+            return Response(result, status=status.HTTP_201_CREATED)
+        else:
+            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='analyze')
     def analyze(self, request, pk=None):
@@ -626,4 +722,67 @@ class DocumentViewSet(viewsets.ModelViewSet):
             raise Exception(f"Failed to connect to AI Service: {str(e)}")
         except Exception as e:
             logger.error(f"Error extracting clauses: {e}", exc_info=True)
+            raise
+
+    def _analyze_risk(self, document: Document, llm_model: str) -> RiskAnalysisResult:
+        """
+        Analyze risks in a document via AI Service
+
+        Calls FastAPI /v1/llm/analyze_risk endpoint and saves the result to the database.
+        """
+        try:
+            # Prepare document text from chunks
+            chunks = document.chunks.all().order_by('chunk_index')
+            document_text = '\n\n'.join([chunk.text for chunk in chunks])
+
+            if not document_text:
+                raise ValueError("No text content found in document chunks")
+
+            # Call AI Service risk analysis endpoint
+            ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            response = httpx.post(
+                f'{ai_service_url}/v1/llm/analyze_risk',
+                json={
+                    'document_id': str(document.id),
+                    'text': document_text,
+                    'llm_model': llm_model,
+                    'document_type': document.doc_type
+                },
+                timeout=90.0  # Longer timeout for risk analysis
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get('success'):
+                    # Save risk analysis to database
+                    risk_analysis = RiskAnalysisResult.objects.create(
+                        document=document,
+                        overall_risk_score=result.get('overall_risk_score', 0),
+                        severity=result.get('severity', 'MEDIUM'),
+                        risk_items=result.get('risk_items', []),
+                        recommendations=result.get('recommendations', []),
+                        summary=result.get('summary', ''),
+                        llm_model=llm_model,
+                        meta=result.get('meta', {})
+                    )
+
+                    logger.info(
+                        f"Risk analysis completed for document {document.id}: "
+                        f"Score={risk_analysis.overall_risk_score}, "
+                        f"Severity={risk_analysis.severity}, "
+                        f"Items={len(risk_analysis.risk_items)} "
+                        f"using {llm_model}"
+                    )
+                    return risk_analysis
+                else:
+                    raise Exception(f"AI Service error: {result.get('error', 'Unknown error')}")
+            else:
+                raise Exception(f"AI Service returned {response.status_code}: {response.text}")
+
+        except httpx.RequestError as e:
+            logger.error(f"Request error calling AI Service for risk analysis: {e}", exc_info=True)
+            raise Exception(f"Failed to connect to AI Service: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error analyzing risks: {e}", exc_info=True)
             raise

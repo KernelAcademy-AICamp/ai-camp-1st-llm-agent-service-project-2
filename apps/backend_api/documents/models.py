@@ -365,3 +365,107 @@ class KeyClause(models.Model):
 
     def __str__(self):
         return f"{self.document.title} - {self.title} ({self.importance_score})"
+
+
+class RiskAnalysisResult(models.Model):
+    """
+    RiskAnalysisResult model for storing AI-generated risk analysis of contracts/documents
+
+    Identifies potential risks, red flags, and assigns risk scores
+    """
+
+    # Risk severity levels
+    SEVERITY_CRITICAL = 'CRITICAL'
+    SEVERITY_HIGH = 'HIGH'
+    SEVERITY_MEDIUM = 'MEDIUM'
+    SEVERITY_LOW = 'LOW'
+    SEVERITY_INFO = 'INFO'
+
+    SEVERITY_CHOICES = [
+        (SEVERITY_CRITICAL, 'Critical'),
+        (SEVERITY_HIGH, 'High'),
+        (SEVERITY_MEDIUM, 'Medium'),
+        (SEVERITY_LOW, 'Low'),
+        (SEVERITY_INFO, 'Informational'),
+    ]
+
+    # Risk categories
+    CATEGORY_LEGAL = 'LEGAL'
+    CATEGORY_FINANCIAL = 'FINANCIAL'
+    CATEGORY_COMPLIANCE = 'COMPLIANCE'
+    CATEGORY_OPERATIONAL = 'OPERATIONAL'
+    CATEGORY_REPUTATIONAL = 'REPUTATIONAL'
+    CATEGORY_OTHER = 'OTHER'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_LEGAL, 'Legal Risk'),
+        (CATEGORY_FINANCIAL, 'Financial Risk'),
+        (CATEGORY_COMPLIANCE, 'Compliance Risk'),
+        (CATEGORY_OPERATIONAL, 'Operational Risk'),
+        (CATEGORY_REPUTATIONAL, 'Reputational Risk'),
+        (CATEGORY_OTHER, 'Other'),
+    ]
+
+    # Fields
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='risk_analyses',
+        help_text='Associated document'
+    )
+    overall_risk_score = models.IntegerField(
+        default=0,
+        help_text='Overall risk score (0-100, higher is riskier)'
+    )
+    severity = models.CharField(
+        max_length=20,
+        choices=SEVERITY_CHOICES,
+        default=SEVERITY_LOW,
+        help_text='Overall risk severity level'
+    )
+    risk_items = models.JSONField(
+        default=list,
+        help_text='List of identified risk items with details'
+    )
+    recommendations = models.JSONField(
+        default=list,
+        help_text='List of recommendations to mitigate risks'
+    )
+    summary = models.TextField(
+        help_text='Summary of risk analysis'
+    )
+    llm_model = models.CharField(
+        max_length=100,
+        help_text='LLM model used for analysis'
+    )
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Additional metadata (token_count, analysis_time, etc.)'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'risk_analysis_results'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['document', '-created_at']),
+            models.Index(fields=['severity', '-overall_risk_score']),
+        ]
+
+    def __str__(self):
+        return f"{self.document.title} - Risk Analysis ({self.severity}, Score: {self.overall_risk_score})"
+
+    @property
+    def is_high_risk(self):
+        """Check if this is a high or critical risk"""
+        return self.severity in [self.SEVERITY_CRITICAL, self.SEVERITY_HIGH]
+
+    @property
+    def risk_item_count(self):
+        """Get number of risk items identified"""
+        return len(self.risk_items) if isinstance(self.risk_items, list) else 0

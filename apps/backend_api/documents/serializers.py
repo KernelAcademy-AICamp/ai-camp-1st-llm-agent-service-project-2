@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, DocumentChunk, Summary, KeyClause
+from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult
 
 
 class DocumentChunkSerializer(serializers.ModelSerializer):
@@ -236,4 +236,40 @@ class KeyClauseSerializer(serializers.ModelSerializer):
         """Validate importance score is between 0-100"""
         if value < 0 or value > 100:
             raise serializers.ValidationError('Importance score must be between 0 and 100')
+        return value
+
+
+class RiskAnalysisResultSerializer(serializers.ModelSerializer):
+    """Serializer for RiskAnalysisResult model"""
+
+    document_title = serializers.CharField(source='document.title', read_only=True)
+    severity_display = serializers.CharField(source='get_severity_display', read_only=True)
+    risk_item_count = serializers.IntegerField(read_only=True)
+    is_high_risk = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = RiskAnalysisResult
+        fields = [
+            'id',
+            'document',
+            'document_title',
+            'overall_risk_score',
+            'severity',
+            'severity_display',
+            'risk_items',
+            'recommendations',
+            'summary',
+            'llm_model',
+            'meta',
+            'risk_item_count',
+            'is_high_risk',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_overall_risk_score(self, value):
+        """Validate risk score is between 0-100"""
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('Risk score must be between 0 and 100')
         return value

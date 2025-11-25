@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Document, DocumentChunk, Summary, KeyClause
+from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult
 
 
 class DocumentChunkInline(admin.TabularInline):
@@ -331,3 +331,88 @@ class KeyClauseAdmin(admin.ModelAdmin):
         return obj.content
 
     content_preview.short_description = 'Content Preview'
+
+
+@admin.register(RiskAnalysisResult)
+class RiskAnalysisResultAdmin(admin.ModelAdmin):
+    """Admin interface for RiskAnalysisResult model"""
+
+    list_display = (
+        'document',
+        'severity',
+        'overall_risk_score',
+        'risk_item_count_display',
+        'llm_model',
+        'created_at',
+    )
+
+    list_filter = (
+        'severity',
+        'llm_model',
+        'created_at',
+    )
+
+    search_fields = (
+        'document__title',
+        'summary',
+    )
+
+    readonly_fields = (
+        'id',
+        'created_at',
+        'updated_at',
+        'risk_item_count_display',
+        'is_high_risk',
+        'summary_preview',
+    )
+
+    fieldsets = (
+        ('Risk Analysis Information', {
+            'fields': (
+                'id',
+                'document',
+                'overall_risk_score',
+                'severity',
+                'llm_model',
+                'is_high_risk',
+            )
+        }),
+        ('Analysis Results', {
+            'fields': (
+                'summary',
+                'summary_preview',
+                'risk_items',
+                'risk_item_count_display',
+                'recommendations',
+            )
+        }),
+        ('Metadata', {
+            'fields': (
+                'meta',
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'created_at',
+                'updated_at',
+            ),
+            'classes': ('collapse',)
+        }),
+    )
+
+    date_hierarchy = 'created_at'
+    ordering = ('-overall_risk_score', '-created_at')
+
+    def summary_preview(self, obj):
+        """Display first 200 characters of summary"""
+        if len(obj.summary) > 200:
+            return f"{obj.summary[:200]}..."
+        return obj.summary
+
+    summary_preview.short_description = 'Summary Preview'
+
+    def risk_item_count_display(self, obj):
+        """Display number of risk items"""
+        return obj.risk_item_count
+
+    risk_item_count_display.short_description = 'Risk Items'
