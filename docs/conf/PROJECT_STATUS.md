@@ -823,15 +823,52 @@ CREATE TABLE risk_analysis_results (
 
 ---
 
+## ✅ Document-Case Integration 완료 (2025-11-25)
+
+### 완료된 작업 요약
+- ✅ **Day 1: 백엔드 모델 통합**
+  - CaseAnalysis 모델 생성 (documents app)
+  - ChatHistory 모델 수정 (document FK 추가)
+  - 데이터 마이그레이션 완료 (7개 Case → Document+CaseAnalysis)
+  - Admin 인터페이스 구성
+
+- ✅ **Day 2: API 통합**
+  - CaseAnalysisSerializer 구현
+  - DocumentViewSet에 case-analysis 엔드포인트 추가
+  - Case API에 deprecation 경고 추가
+  - Parser classes 이슈 해결
+
+- ✅ **Day 3: Frontend 통합**
+  - DocumentCaseAnalysis 타입 정의
+  - API Client 메소드 추가 (getCaseAnalysis, analyzeCase)
+  - CaseAnalysisSection 컴포넌트 구현
+  - DocumentDetail 페이지 통합
+
+- ✅ **Day 4: AI Service 및 테스트**
+  - AI Service /v1/llm/analyze_case 엔드포인트 구현
+  - E2E 테스트 완료 (Case 업로드, 분석, 조회)
+  - 모든 기능 정상 동작 확인
+
+### 통합 결과
+- Case와 Document 시스템 중복 제거
+- Document 시스템으로 통합 (doc_type='CASE')
+- Case의 우수한 UI/UX 보존
+- 기존 데이터 무손실 마이그레이션
+
+### Git 상태
+- ✅ feature/document-case-integration 브랜치 작업 완료
+
+---
+
 ## 📌 프로젝트 메타 정보
 
 **프로젝트 위치**: `/Users/myidwon/dev/ai-camp-1st-llm-agent-service-project-2`
-**현재 Git 브랜치**: `feature/risk-analysis` (Phase 3-4 완료, PR 대기)
-**통합 브랜치**: `develop` (Phase 2, Phase 3-1, Phase 3-2, Phase 3-3 완료)
+**현재 Git 브랜치**: `feature/document-case-integration` (Document-Case 통합 완료)
+**통합 브랜치**: `develop` (Phase 2, Phase 3-1, Phase 3-2, Phase 3-3, Phase 3-4 완료)
 **Main 브랜치**: `main` (프로덕션)
-**현재 작업**: Session 10 완료, Session 11 시작 예정
-**최근 커밋**: `8b57b8de` - "feat: implement risk analysis system (Session 10)"
-**최근 머지**: `fb4d216f` - "Merge pull request #18 from KernelAcademy-AICamp/feature/organization"
+**현재 작업**: Document-Case Integration 완료
+**최근 커밋**: `87474f02` - "feat: integrate Case Analysis UI into Document system (Day 3)"
+**최근 머지**: `8b57b8de` - "feat: implement risk analysis system (Session 10)"
 
 **Git 브랜치 전략**: [GIT_BRANCH_STRATEGY.md](./GIT_BRANCH_STRATEGY.md) 참조
 
