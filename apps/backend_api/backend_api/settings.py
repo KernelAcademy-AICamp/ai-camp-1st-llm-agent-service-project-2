@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'precedents',
     'documents',
     'organizations',
+    'llm',
     'api',
 ]
 

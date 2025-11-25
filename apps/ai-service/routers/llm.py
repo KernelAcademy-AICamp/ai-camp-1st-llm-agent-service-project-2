@@ -3,14 +3,21 @@ LLM Router
 Document summarization and clause extraction APIs
 """
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Header
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import logging
+import os
+import time
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/llm", tags=["llm"])
+
+# Thread pool for concurrent LLM calls
+_executor = ThreadPoolExecutor(max_workers=10)
 
 # ===== Request/Response Models =====
 
@@ -478,3 +485,294 @@ async def analyze_case(
             status_code=500,
             detail=f"Failed to analyze case: {str(e)}"
         )
+
+
+# ===== LLM Comparison Models =====
+
+class CompareModelConfig(BaseModel):
+    """비교할 모델 설정"""
+    id: str = Field(..., description="Model config ID")
+    name: str = Field(..., description="Model display name")
+    provider: str = Field(..., description="Provider (openai, anthropic, google, ollama)")
+    model_id: str = Field(..., description="Actual model ID (e.g., gpt-4-turbo)")
+    api_key_env_var: Optional[str] = Field(None, description="Environment variable for API key")
+    base_url: Optional[str] = Field(None, description="Custom API endpoint URL")
+    temperature: float = Field(0.1, description="Temperature setting")
+    max_tokens: int = Field(2000, description="Max tokens limit")
+    input_cost_per_1k: float = Field(0.0, description="Cost per 1K input tokens")
+    output_cost_per_1k: float = Field(0.0, description="Cost per 1K output tokens")
+
+
+class CompareRequest(BaseModel):
+    """모델 비교 요청"""
+    text: str = Field(..., description="Text to process")
+    task_type: str = Field(..., description="Task type (summarize, clauses, risk_analysis, etc.)")
+    models: List[CompareModelConfig] = Field(..., description="List of models to compare")
+    session_id: str = Field(..., description="Comparison session ID")
+    options: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional options")
+
+
+class ModelResult(BaseModel):
+    """개별 모델 결과"""
+    model_id: str
+    model_name: str
+    provider: str
+    status: str  # success, error
+    response_text: Optional[str] = None
+    prompt_tokens: int = 0
+    response_tokens: int = 0
+    total_tokens: int = 0
+    latency_ms: int = 0
+    estimated_cost: float = 0.0
+    error_message: Optional[str] = None
+
+
+class CompareResponse(BaseModel):
+    """모델 비교 응답"""
+    session_id: str
+    results: List[ModelResult]
+    fastest_model: Optional[str] = None
+    cheapest_model: Optional[str] = None
+    summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ===== Helper Functions =====
+
+def _estimate_tokens(text: str) -> int:
+    """
+    간단한 토큰 추정 (실제로는 tiktoken 등을 사용하는 것이 좋음)
+    한글은 대략 글자당 1.5~2 토큰, 영문은 단어당 1~1.5 토큰
+    """
+    # 간단한 추정: 문자열 길이 / 4 (대략적인 평균)
+    return max(1, len(text) // 4)
+
+
+def _call_llm_sync(
+    model_config: CompareModelConfig,
+    text: str,
+    task_type: str,
+    options: Dict[str, Any]
+) -> ModelResult:
+    """
+    동기적으로 LLM 호출 (ThreadPool에서 실행됨)
+    """
+    start_time = time.time()
+
+    try:
+        # Import LLM client factory
+        from libs.rag_core import create_llm_client
+
+        # Get API key from environment
+        api_key = ""
+        if model_config.api_key_env_var:
+            api_key = os.getenv(model_config.api_key_env_var, "")
+
+        if not api_key and model_config.provider != "ollama":
+            return ModelResult(
+                model_id=model_config.id,
+                model_name=model_config.name,
+                provider=model_config.provider,
+                status="error",
+                error_message=f"API key not found: {model_config.api_key_env_var}",
+                latency_ms=int((time.time() - start_time) * 1000)
+            )
+
+        # Create LLM client
+        client = create_llm_client(
+            provider=model_config.provider,
+            api_key=api_key,
+            model=model_config.model_id,
+            base_url=model_config.base_url if model_config.base_url else None,
+            temperature=model_config.temperature,
+            max_tokens=model_config.max_tokens
+        )
+
+        # Build prompt based on task type
+        prompt = _build_prompt(text, task_type, options)
+
+        # Call LLM
+        response = client.generate(prompt)
+
+        # Calculate metrics
+        latency_ms = int((time.time() - start_time) * 1000)
+        prompt_tokens = _estimate_tokens(prompt)
+        response_tokens = _estimate_tokens(response) if response else 0
+        total_tokens = prompt_tokens + response_tokens
+
+        # Calculate cost
+        estimated_cost = (
+            (prompt_tokens / 1000) * model_config.input_cost_per_1k +
+            (response_tokens / 1000) * model_config.output_cost_per_1k
+        )
+
+        return ModelResult(
+            model_id=model_config.id,
+            model_name=model_config.name,
+            provider=model_config.provider,
+            status="success",
+            response_text=response,
+            prompt_tokens=prompt_tokens,
+            response_tokens=response_tokens,
+            total_tokens=total_tokens,
+            latency_ms=latency_ms,
+            estimated_cost=round(estimated_cost, 6)
+        )
+
+    except Exception as e:
+        latency_ms = int((time.time() - start_time) * 1000)
+        logger.error(f"LLM call error for {model_config.name}: {e}")
+        return ModelResult(
+            model_id=model_config.id,
+            model_name=model_config.name,
+            provider=model_config.provider,
+            status="error",
+            error_message=str(e),
+            latency_ms=latency_ms
+        )
+
+
+def _build_prompt(text: str, task_type: str, options: Dict[str, Any]) -> str:
+    """
+    태스크 유형에 따른 프롬프트 생성
+    """
+    if task_type == "summarize":
+        return f"""다음 문서를 요약해주세요. 핵심 내용을 간결하게 정리하되, 중요한 법적 사항은 빠뜨리지 마세요.
+
+문서:
+{text}
+
+요약:"""
+
+    elif task_type == "clauses":
+        return f"""다음 문서에서 핵심 조항들을 추출해주세요. 각 조항의 유형, 제목, 내용, 중요도를 JSON 형식으로 정리해주세요.
+
+문서:
+{text}
+
+조항 목록:"""
+
+    elif task_type == "risk_analysis":
+        return f"""다음 문서의 법적 리스크를 분석해주세요.
+잠재적 위험 요소, 심각도, 권장 조치를 포함해 분석해주세요.
+
+문서:
+{text}
+
+리스크 분석:"""
+
+    elif task_type == "case_analysis":
+        return f"""다음 문서를 법적 사건 관점에서 분석해주세요.
+당사자, 쟁점, 관련 법규, 예상 결과 등을 정리해주세요.
+
+문서:
+{text}
+
+사건 분석:"""
+
+    elif task_type == "chat":
+        user_query = options.get("user_query", "")
+        return f"""다음 문서를 참고하여 질문에 답변해주세요.
+
+문서:
+{text}
+
+질문: {user_query}
+
+답변:"""
+
+    else:  # default/other
+        return f"""다음 문서를 분석해주세요:
+
+{text}
+
+분석 결과:"""
+
+
+# ===== Compare API Endpoint =====
+
+@router.post("/compare", response_model=CompareResponse)
+async def compare_models(
+    request: CompareRequest,
+    app_request: Request,
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID")
+):
+    """
+    POST /v1/llm/compare
+
+    여러 LLM 모델의 응답을 비교합니다.
+    각 모델에 동일한 프롬프트를 전송하고 결과, 토큰 사용량, 지연 시간을 비교합니다.
+
+    Args:
+        request: CompareRequest (text, task_type, models, session_id, options)
+        x_user_id: User ID from header (for logging)
+
+    Returns:
+        CompareResponse with results from each model
+    """
+    logger.info(f"Compare request: session={request.session_id}, task={request.task_type}, models={len(request.models)}")
+
+    if not request.models:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one model is required for comparison"
+        )
+
+    if not request.text or len(request.text.strip()) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Text cannot be empty"
+        )
+
+    # Run LLM calls concurrently using ThreadPoolExecutor
+    loop = asyncio.get_event_loop()
+
+    # Create tasks for each model
+    tasks = [
+        loop.run_in_executor(
+            _executor,
+            _call_llm_sync,
+            model,
+            request.text,
+            request.task_type,
+            request.options or {}
+        )
+        for model in request.models
+    ]
+
+    # Wait for all tasks to complete
+    results: List[ModelResult] = await asyncio.gather(*tasks)
+
+    # Calculate summary statistics
+    successful_results = [r for r in results if r.status == "success"]
+
+    fastest_model = None
+    cheapest_model = None
+
+    if successful_results:
+        # Find fastest model
+        fastest = min(successful_results, key=lambda r: r.latency_ms)
+        fastest_model = fastest.model_name
+
+        # Find cheapest model
+        cheapest = min(successful_results, key=lambda r: r.estimated_cost)
+        cheapest_model = cheapest.model_name
+
+    # Build summary
+    summary = {
+        "total_models": len(results),
+        "successful": len(successful_results),
+        "failed": len(results) - len(successful_results),
+        "avg_latency_ms": sum(r.latency_ms for r in successful_results) // len(successful_results) if successful_results else 0,
+        "total_tokens": sum(r.total_tokens for r in successful_results),
+        "total_cost": round(sum(r.estimated_cost for r in successful_results), 6)
+    }
+
+    logger.info(f"Compare complete: session={request.session_id}, success={len(successful_results)}/{len(results)}")
+
+    return CompareResponse(
+        session_id=request.session_id,
+        results=results,
+        fastest_model=fastest_model,
+        cheapest_model=cheapest_model,
+        summary=summary
+    )
