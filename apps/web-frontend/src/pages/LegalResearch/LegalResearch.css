@@ -13,10 +13,10 @@
 .legal-research--three-panel {
   display: flex;
   max-width: none;
-  width: 100%;
-  height: calc(100vh - 64px); /* Adjust for navbar height */
+  width: calc(100% + 48px); /* Compensate for layout-main padding (24px * 2) */
+  height: calc(100vh - 64px); /* Full height minus navbar */
   padding: 0;
-  margin: 0;
+  margin: -24px; /* Break out of layout-main padding */
   overflow: hidden;
 }
 
@@ -524,7 +524,8 @@
 /* Placeholder */
 .research-placeholder {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
   min-height: 400px;
 }
