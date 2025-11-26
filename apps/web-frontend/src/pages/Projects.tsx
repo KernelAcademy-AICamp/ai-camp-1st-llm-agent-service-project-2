@@ -153,7 +153,7 @@ const Projects: React.FC = () => {
   if (loading) {
     return (
       <div className="projects-container">
-        <div className="loading">Loading projects...</div>
+        <div className="loading">프로젝트 목록을 불러오는 중...</div>
       </div>
     );
   }
@@ -161,19 +161,19 @@ const Projects: React.FC = () => {
   return (
     <div className="projects-container">
       <div className="projects-header">
-        <h1>Projects</h1>
+        <h1>프로젝트 관리</h1>
         <button
           className="btn-primary"
           onClick={openCreateModal}
           disabled={organizations.length === 0}
         >
-          Create Project
+          프로젝트 생성
         </button>
       </div>
 
       {organizations.length === 0 && (
         <div className="warning-message">
-          You need to create an organization first before creating projects.
+          프로젝트를 생성하려면 먼저 조직을 만들어야 합니다.
         </div>
       )}
 
@@ -185,13 +185,13 @@ const Projects: React.FC = () => {
       )}
 
       <div className="projects-filters">
-        <label htmlFor="orgFilter">Filter by Organization:</label>
+        <label htmlFor="orgFilter">조직별 필터:</label>
         <select
           id="orgFilter"
           value={selectedOrgFilter}
           onChange={(e) => setSelectedOrgFilter(e.target.value)}
         >
-          <option value="">All Organizations</option>
+          <option value="">모든 조직</option>
           {organizations.map(org => (
             <option key={org.id} value={org.id}>
               {org.name}
@@ -203,7 +203,7 @@ const Projects: React.FC = () => {
       <div className="projects-grid">
         {projects.length === 0 ? (
           <div className="empty-state">
-            <p>No projects found. Create one to get started!</p>
+            <p>프로젝트가 없습니다. 새 프로젝트를 생성해 주세요!</p>
           </div>
         ) : (
           projects.map(project => (
@@ -214,35 +214,35 @@ const Projects: React.FC = () => {
               </div>
               <div className="project-card-body">
                 <p className="project-description">
-                  {project.description || 'No description'}
+                  {project.description || '설명 없음'}
                 </p>
                 <div className="project-stats">
                   <div className="stat">
-                    <span className="stat-label">Documents</span>
+                    <span className="stat-label">문서</span>
                     <span className="stat-value">{project.document_count}</span>
                   </div>
                   <div className="stat">
-                    <span className="stat-label">Cases</span>
+                    <span className="stat-label">케이스</span>
                     <span className="stat-value">{project.case_count}</span>
                   </div>
                 </div>
               </div>
               <div className="project-card-footer">
                 <span className="project-date">
-                  Created {new Date(project.created_at).toLocaleDateString()}
+                  생성일: {new Date(project.created_at).toLocaleDateString()}
                 </span>
                 <div className="project-actions">
                   <button
                     className="btn-secondary-small"
                     onClick={() => openEditModal(project)}
                   >
-                    Edit
+                    수정
                   </button>
                   <button
                     className="btn-danger-small"
                     onClick={() => handleDeleteProject(project.id, project.name)}
                   >
-                    Delete
+                    삭제
                   </button>
                 </div>
               </div>
@@ -255,7 +255,7 @@ const Projects: React.FC = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Create Project</h2>
+              <h2>프로젝트 생성</h2>
               <button
                 className="close-btn"
                 onClick={() => {
@@ -269,13 +269,13 @@ const Projects: React.FC = () => {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label htmlFor="projectOrg">Organization *</label>
+                <label htmlFor="projectOrg">조직 *</label>
                 <select
                   id="projectOrg"
                   value={formData.organization}
                   onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
                 >
-                  <option value="">Select an organization</option>
+                  <option value="">조직을 선택하세요</option>
                   {organizations.map(org => (
                     <option key={org.id} value={org.id}>
                       {org.name}
@@ -284,22 +284,22 @@ const Projects: React.FC = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label htmlFor="projectName">Project Name *</label>
+                <label htmlFor="projectName">프로젝트 이름 *</label>
                 <input
                   id="projectName"
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter project name"
+                  placeholder="프로젝트 이름을 입력하세요"
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="projectDesc">Description</label>
+                <label htmlFor="projectDesc">설명</label>
                 <textarea
                   id="projectDesc"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter project description (optional)"
+                  placeholder="프로젝트 설명을 입력하세요 (선택)"
                   rows={4}
                 />
               </div>
@@ -314,14 +314,14 @@ const Projects: React.FC = () => {
                 }}
                 disabled={creating}
               >
-                Cancel
+                취소
               </button>
               <button
                 className="btn-primary"
                 onClick={handleCreateProject}
                 disabled={creating || !formData.name.trim() || !formData.organization}
               >
-                {creating ? 'Creating...' : 'Create'}
+                {creating ? '생성 중...' : '생성'}
               </button>
             </div>
           </div>
@@ -332,7 +332,7 @@ const Projects: React.FC = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Edit Project</h2>
+              <h2>프로젝트 수정</h2>
               <button
                 className="close-btn"
                 onClick={() => {
@@ -347,7 +347,7 @@ const Projects: React.FC = () => {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label>Organization</label>
+                <label>조직</label>
                 <input
                   type="text"
                   value={selectedProject.organization_name}
@@ -356,22 +356,22 @@ const Projects: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="editProjectName">Project Name *</label>
+                <label htmlFor="editProjectName">프로젝트 이름 *</label>
                 <input
                   id="editProjectName"
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter project name"
+                  placeholder="프로젝트 이름을 입력하세요"
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="editProjectDesc">Description</label>
+                <label htmlFor="editProjectDesc">설명</label>
                 <textarea
                   id="editProjectDesc"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter project description (optional)"
+                  placeholder="프로젝트 설명을 입력하세요 (선택)"
                   rows={4}
                 />
               </div>
@@ -387,14 +387,14 @@ const Projects: React.FC = () => {
                 }}
                 disabled={updating}
               >
-                Cancel
+                취소
               </button>
               <button
                 className="btn-primary"
                 onClick={handleUpdateProject}
                 disabled={updating || !formData.name.trim()}
               >
-                {updating ? 'Updating...' : 'Update'}
+                {updating ? '수정 중...' : '수정'}
               </button>
             </div>
           </div>

@@ -62,6 +62,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         - doc_type: Filter by document type (CASE, CONTRACT, etc.)
         - status: Filter by status (UPLOADED, PREPROCESSED, etc.)
         - search: Search by title
+        - date_from: Filter by created_at >= date (YYYY-MM-DD format)
+        - date_to: Filter by created_at <= date (YYYY-MM-DD format)
         - risk_severity: Filter by risk severity (CRITICAL, HIGH, MEDIUM, LOW, INFO)
         - min_risk_score: Filter by minimum risk score (0-100)
         - max_risk_score: Filter by maximum risk score (0-100)
@@ -78,6 +80,25 @@ class DocumentViewSet(viewsets.ModelViewSet):
         doc_status = request.query_params.get('status', None)
         if doc_status:
             queryset = queryset.filter(status=doc_status)
+
+        # Filter by date range (created_at)
+        date_from = request.query_params.get('date_from', None)
+        if date_from:
+            try:
+                from datetime import datetime
+                parsed_date = datetime.strptime(date_from, '%Y-%m-%d')
+                queryset = queryset.filter(created_at__date__gte=parsed_date.date())
+            except ValueError:
+                pass  # Invalid date format, ignore filter
+
+        date_to = request.query_params.get('date_to', None)
+        if date_to:
+            try:
+                from datetime import datetime
+                parsed_date = datetime.strptime(date_to, '%Y-%m-%d')
+                queryset = queryset.filter(created_at__date__lte=parsed_date.date())
+            except ValueError:
+                pass  # Invalid date format, ignore filter
 
         # Search by title
         search = request.query_params.get('search', None)

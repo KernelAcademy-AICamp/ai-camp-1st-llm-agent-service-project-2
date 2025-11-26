@@ -575,7 +575,9 @@ class APIClient {
     token?: string,
     docType?: UserDocumentType,
     status?: string,
-    search?: string
+    search?: string,
+    dateFrom?: string,
+    dateTo?: string
   ): Promise<UserDocumentsListResponse> {
     const params = new URLSearchParams();
 
@@ -587,6 +589,12 @@ class APIClient {
     }
     if (search) {
       params.append('search', search);
+    }
+    if (dateFrom) {
+      params.append('date_from', dateFrom);
+    }
+    if (dateTo) {
+      params.append('date_to', dateTo);
     }
 
     const queryString = params.toString();

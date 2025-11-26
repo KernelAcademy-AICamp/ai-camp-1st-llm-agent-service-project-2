@@ -134,7 +134,7 @@ const Organizations: React.FC = () => {
   if (loading) {
     return (
       <div className="organizations-container">
-        <div className="loading">Loading organizations...</div>
+        <div className="loading">조직 목록을 불러오는 중...</div>
       </div>
     );
   }
@@ -142,12 +142,12 @@ const Organizations: React.FC = () => {
   return (
     <div className="organizations-container">
       <div className="organizations-header">
-        <h1>Organizations</h1>
+        <h1>조직 관리</h1>
         <button
           className="btn-primary"
           onClick={() => setShowCreateModal(true)}
         >
-          Create Organization
+          조직 생성
         </button>
       </div>
 
@@ -160,10 +160,10 @@ const Organizations: React.FC = () => {
 
       <div className="organizations-content">
         <div className="organizations-list">
-          <h2>Your Organizations ({organizations.length})</h2>
+          <h2>내 조직 ({organizations.length})</h2>
           {organizations.length === 0 ? (
             <div className="empty-state">
-              <p>No organizations yet. Create one to get started!</p>
+              <p>조직이 없습니다. 새 조직을 생성해 주세요!</p>
             </div>
           ) : (
             <div className="org-cards">
@@ -175,11 +175,11 @@ const Organizations: React.FC = () => {
                 >
                   <div className="org-card-header">
                     <h3>{org.name}</h3>
-                    <span className="member-count">{org.member_count} members</span>
+                    <span className="member-count">{org.member_count}명</span>
                   </div>
                   <div className="org-card-footer">
                     <span className="org-date">
-                      Created {new Date(org.created_at).toLocaleDateString()}
+                      생성일: {new Date(org.created_at).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
@@ -197,24 +197,24 @@ const Organizations: React.FC = () => {
                   className="btn-secondary"
                   onClick={openEditModal}
                 >
-                  Edit
+                  수정
                 </button>
                 <button
                   className="btn-danger"
                   onClick={() => handleDeleteOrganization(selectedOrg.id)}
                 >
-                  Delete
+                  삭제
                 </button>
               </div>
             </div>
 
             <div className="detail-info">
               <div className="info-item">
-                <label>Members:</label>
-                <span>{selectedOrg.member_count}</span>
+                <label>멤버:</label>
+                <span>{selectedOrg.member_count}명</span>
               </div>
               <div className="info-item">
-                <label>Created:</label>
+                <label>생성일:</label>
                 <span>{new Date(selectedOrg.created_at).toLocaleString()}</span>
               </div>
             </div>
@@ -231,7 +231,7 @@ const Organizations: React.FC = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Create Organization</h2>
+              <h2>조직 생성</h2>
               <button
                 className="close-btn"
                 onClick={() => {
@@ -245,13 +245,13 @@ const Organizations: React.FC = () => {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label htmlFor="orgName">Organization Name *</label>
+                <label htmlFor="orgName">조직 이름 *</label>
                 <input
                   id="orgName"
                   type="text"
                   value={newOrgName}
                   onChange={(e) => setNewOrgName(e.target.value)}
-                  placeholder="Enter organization name"
+                  placeholder="조직 이름을 입력하세요"
                   autoFocus
                 />
               </div>
@@ -266,14 +266,14 @@ const Organizations: React.FC = () => {
                 }}
                 disabled={creating}
               >
-                Cancel
+                취소
               </button>
               <button
                 className="btn-primary"
                 onClick={handleCreateOrganization}
                 disabled={creating || !newOrgName.trim()}
               >
-                {creating ? 'Creating...' : 'Create'}
+                {creating ? '생성 중...' : '생성'}
               </button>
             </div>
           </div>
@@ -284,7 +284,7 @@ const Organizations: React.FC = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Edit Organization</h2>
+              <h2>조직 수정</h2>
               <button
                 className="close-btn"
                 onClick={() => {
@@ -298,13 +298,13 @@ const Organizations: React.FC = () => {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label htmlFor="editOrgName">Organization Name *</label>
+                <label htmlFor="editOrgName">조직 이름 *</label>
                 <input
                   id="editOrgName"
                   type="text"
                   value={editOrgName}
                   onChange={(e) => setEditOrgName(e.target.value)}
-                  placeholder="Enter organization name"
+                  placeholder="조직 이름을 입력하세요"
                   autoFocus
                 />
               </div>
@@ -319,14 +319,14 @@ const Organizations: React.FC = () => {
                 }}
                 disabled={updating}
               >
-                Cancel
+                취소
               </button>
               <button
                 className="btn-primary"
                 onClick={handleUpdateOrganization}
                 disabled={updating || !editOrgName.trim()}
               >
-                {updating ? 'Updating...' : 'Update'}
+                {updating ? '수정 중...' : '수정'}
               </button>
             </div>
           </div>
