@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   FiHome,
   FiFileText,
@@ -9,11 +10,14 @@ import {
   FiSettings,
   FiChevronDown,
   FiChevronRight,
+  FiChevronLeft,
   FiFile,
   FiAlertTriangle,
   FiLayers,
   FiBriefcase,
-  FiGrid
+  FiGrid,
+  FiLogOut,
+  FiMenu
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -31,9 +35,15 @@ interface MenuSection {
   path?: string;  // Direct link (no submenu)
 }
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout, isAuthenticated } = useAuth();
   const [expandedSections, setExpandedSections] = useState<string[]>(['documents', 'analysis']);
 
   // Auto-expand section when navigating to a page within it
@@ -147,26 +157,46 @@ const Sidebar: React.FC = () => {
     });
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* Header with Logo and Toggle */}
+      <div className="sidebar-header">
+        {!collapsed && (
+          <div className="sidebar-logo" onClick={() => navigate('/')}>
+            <span className="sidebar-logo-icon">⚖️</span>
+            <span className="sidebar-logo-text">LawLawKR</span>
+          </div>
+        )}
+        <button className="sidebar-toggle" onClick={onToggle}>
+          {collapsed ? <FiMenu /> : <FiChevronLeft />}
+        </button>
+      </div>
+
+      {/* Navigation */}
       <nav className="sidebar-nav">
         {menuSections.map(section => (
           <div key={section.id} className="sidebar-section">
             <button
               className={`sidebar-section-header ${isSectionActive(section) ? 'active' : ''}`}
               onClick={() => handleSectionClick(section)}
+              title={collapsed ? section.title : undefined}
             >
               <div className="sidebar-section-title">
                 <span className="sidebar-section-icon">{section.icon}</span>
-                <span>{section.title}</span>
+                {!collapsed && <span>{section.title}</span>}
               </div>
-              {section.items && (
+              {!collapsed && section.items && (
                 <span className="sidebar-section-chevron">
                   {expandedSections.includes(section.id) ? <FiChevronDown /> : <FiChevronRight />}
                 </span>
               )}
             </button>
-            {section.items && expandedSections.includes(section.id) && (
+            {!collapsed && section.items && expandedSections.includes(section.id) && (
               <div className="sidebar-section-items">
                 {section.items.map(item => (
                   <button
@@ -183,10 +213,59 @@ const Sidebar: React.FC = () => {
           </div>
         ))}
       </nav>
+
+      {/* Footer with User Info */}
       <div className="sidebar-footer">
-        <div className="sidebar-version">
-          v0.2.0 Beta
-        </div>
+        {isAuthenticated && user ? (
+          <div className="sidebar-user">
+            {!collapsed ? (
+              <>
+                <div className="sidebar-user-info">
+                  <span className="sidebar-user-name">{user.full_name}</span>
+                  <span className="sidebar-user-email">{user.email}</span>
+                </div>
+                <button className="sidebar-logout-btn" onClick={handleLogout}>
+                  <FiLogOut />
+                  <span>로그아웃</span>
+                </button>
+              </>
+            ) : (
+              <button
+                className="sidebar-logout-btn sidebar-logout-collapsed"
+                onClick={handleLogout}
+                title="로그아웃"
+              >
+                <FiLogOut />
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="sidebar-auth">
+            {!collapsed ? (
+              <>
+                <button className="sidebar-auth-btn" onClick={() => navigate('/login')}>
+                  로그인
+                </button>
+                <button className="sidebar-auth-btn sidebar-auth-signup" onClick={() => navigate('/signup')}>
+                  회원가입
+                </button>
+              </>
+            ) : (
+              <button
+                className="sidebar-auth-btn"
+                onClick={() => navigate('/login')}
+                title="로그인"
+              >
+                <FiUsers />
+              </button>
+            )}
+          </div>
+        )}
+        {!collapsed && (
+          <div className="sidebar-version">
+            v0.2.0 Beta
+          </div>
+        )}
       </div>
     </aside>
   );
