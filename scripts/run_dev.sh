@@ -22,8 +22,8 @@ fi
 # AI Service 실행 (백그라운드)
 echo ""
 echo "[1/3] Starting AI Service (port 8001)..."
-cd apps/ai-service
-python main.py > ../../logs/ai-service.log 2>&1 &
+cd apps/ai_service
+python main.py > ../../logs/ai_service.log 2>&1 &
 AI_SERVICE_PID=$!
 echo "✅ AI Service started (PID: $AI_SERVICE_PID)"
 
