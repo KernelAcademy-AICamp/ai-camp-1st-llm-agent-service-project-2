@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import DocumentFilter from './DocumentFilter';
 
 const LegalResearch: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [topK, setTopK] = useState(5);
   const [ragResponse, setRagResponse] = useState<RAGChatResponse | null>(null);
@@ -29,10 +29,15 @@ const LegalResearch: React.FC = () => {
   // Feedback states
   const [feedbackState, setFeedbackState] = useState<Record<string, 'like' | 'dislike' | null>>({});
 
+  // Check if user is admin (관리자 전용 기능)
+  const isAdmin = user?.is_staff === true;
+
   // Filter panel state (Session 13-C)
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
-  const [filters, setFilters] = useState<RAGFilterOptions>({
-    statuses: ['EMBEDDED'], // Default: only show embedded documents
+  const [filters, setFilters] = useState<RAGFilterOptions>(() => {
+    // Admin users: default to EMBEDDED status filter
+    // Regular users: no default filter (EMBEDDED is always searched in backend)
+    return isAdmin ? { statuses: ['EMBEDDED'] } : {};
   });
 
   // Handle filter changes
@@ -247,6 +252,7 @@ const LegalResearch: React.FC = () => {
         onFilterChange={handleFilterChange}
         isCollapsed={isFilterCollapsed}
         onToggleCollapse={handleToggleFilterPanel}
+        isAdmin={isAdmin}
       />
 
       {/* Center Panel: Chat Area */}

@@ -20,7 +20,7 @@ const SummarySection: React.FC<SummarySectionProps> = ({
   return (
     <div className="summary-section">
       <div className="section-header">
-        <h2>📝 문서 요약</h2>
+        <h2>문서 요약</h2>
         {!summary && !loading && (
           <button
             className="btn-primary"
@@ -41,7 +41,7 @@ const SummarySection: React.FC<SummarySectionProps> = ({
 
       {error && (
         <div className="error-message">
-          <p>⚠️ {error}</p>
+          <p>{error}</p>
         </div>
       )}
 

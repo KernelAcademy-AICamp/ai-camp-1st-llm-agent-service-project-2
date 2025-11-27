@@ -119,6 +119,9 @@ temp/
 # Monorepo 추가 설정
 # ==========================================
 
+# Media files (uploaded documents)
+apps/backend_api/media/
+
 # Data directories
 data/vectordb/
 data/uploads/

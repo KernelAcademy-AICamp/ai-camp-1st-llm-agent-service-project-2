@@ -24,52 +24,43 @@
 /* Tabs */
 .panel-tabs {
   display: flex;
-  padding: 0;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  overflow-x: auto;
-}
-
-.panel-tabs::-webkit-scrollbar {
-  height: 4px;
-}
-
-.panel-tabs::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 2px;
+  gap: 0;
+  padding: 0 2rem;
+  background: var(--color-surface, #ffffff);
+  border-bottom: 1px solid #e5e7eb;
+  overflow: visible;
 }
 
 .tab-button {
-  flex: 1;
-  padding: 0.625rem 0.5rem;
+  padding: 1rem 1.5rem;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: #718096;
+  color: #6b7280;
   white-space: nowrap;
-  transition: all 0.2s;
-  min-width: 60px;
+  transition: all 0.15s;
+  margin-bottom: -1px;
 }
 
 .tab-button:hover {
-  color: #4a5568;
-  background: #f7fafc;
+  color: #3b82f6;
+  background: #f8f9fa;
 }
 
 .tab-button.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
-  background: #f7fafc;
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
 }
 
 /* Panel Content */
 .panel-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0;
+  padding: 1.5rem 2rem;
+  background: var(--color-background, #f8f9fa);
 }
 
 /* Override child component styles for panel context */

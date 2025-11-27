@@ -4,11 +4,11 @@
  * RAG 검색 필터 패널 컴포넌트
  * - 문서 타입 필터 (계약서, 사건, 법령, 기타)
  * - 업로드 날짜 범위 필터
- * - 문서 상태 필터 (업로드됨, 전처리됨, 임베딩됨)
  * - 키워드 검색 (문서 제목만 검색)
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { FiFilter, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi';
 import {
   RAGFilterOptions,
   UserDocumentType,
@@ -21,6 +21,7 @@ interface DocumentFilterProps {
   onFilterChange: (filters: RAGFilterOptions) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  isAdmin?: boolean;  // Admin-only features flag
 }
 
 // Document type options
@@ -32,7 +33,7 @@ const DOC_TYPE_OPTIONS: { value: UserDocumentType; label: string }[] = [
   { value: 'OTHER', label: '기타' },
 ];
 
-// Document status options
+// Document status options (Admin only)
 const STATUS_OPTIONS: { value: UserDocumentStatus; label: string }[] = [
   { value: 'UPLOADED', label: '업로드됨' },
   { value: 'PREPROCESSED', label: '전처리됨' },
@@ -44,6 +45,7 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
   onFilterChange,
   isCollapsed = false,
   onToggleCollapse,
+  isAdmin = false,
 }) => {
   // Local state for keyword input (debounced)
   const [keywordInput, setKeywordInput] = useState(filters.keyword || '');
@@ -87,7 +89,7 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
     [filters, onFilterChange]
   );
 
-  // Handle status checkbox change
+  // Handle status checkbox change (Admin only)
   const handleStatusChange = useCallback(
     (status: UserDocumentStatus, checked: boolean) => {
       const currentStatuses = filters.statuses || [];
@@ -121,19 +123,41 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
   // Clear all filters
   const handleClearAll = useCallback(() => {
     setKeywordInput('');
-    onFilterChange({
-      statuses: ['EMBEDDED'], // Keep default status
-    });
-  }, [onFilterChange]);
+    onFilterChange(
+      isAdmin
+        ? { statuses: ['EMBEDDED'] } // Admin: keep default status
+        : {} // Regular user: clear all filters
+    );
+  }, [onFilterChange, isAdmin]);
 
-  // Check if any filters are active (excluding default status)
+  // Check if any filters are active
   const hasActiveFilters =
     (filters.doc_types && filters.doc_types.length > 0) ||
-    (filters.statuses &&
+    (isAdmin && filters.statuses &&
       !(filters.statuses.length === 1 && filters.statuses[0] === 'EMBEDDED')) ||
     filters.date_from ||
     filters.date_to ||
     filters.keyword;
+
+  // Count active filters for badge display
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filters.doc_types && filters.doc_types.length > 0) {
+      count += filters.doc_types.length;
+    }
+    if (isAdmin && filters.statuses) {
+      // Don't count default EMBEDDED status
+      const nonDefaultStatuses = filters.statuses.filter(s => s !== 'EMBEDDED');
+      count += nonDefaultStatuses.length;
+      // If only EMBEDDED is selected and there are other statuses available, count it
+      if (filters.statuses.length > 1 || (filters.statuses.length === 1 && filters.statuses[0] !== 'EMBEDDED')) {
+        count = filters.statuses.length;
+      }
+    }
+    if (filters.keyword) count += 1;
+    if (filters.date_from || filters.date_to) count += 1;
+    return count;
+  }, [filters, isAdmin]);
 
   if (isCollapsed) {
     return (
@@ -143,10 +167,11 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
           onClick={onToggleCollapse}
           title="필터 패널 열기"
         >
-          <span className="document-filter__toggle-icon">☰</span>
+          <FiFilter className="document-filter__toggle-icon" />
           <span className="document-filter__toggle-label">필터</span>
-          {hasActiveFilters && (
-            <span className="document-filter__badge">!</span>
+          <FiChevronRight className="document-filter__toggle-arrow" />
+          {activeFilterCount > 0 && (
+            <span className="document-filter__badge">{activeFilterCount}</span>
           )}
         </button>
       </div>
@@ -174,7 +199,7 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
               onClick={onToggleCollapse}
               title="필터 패널 접기"
             >
-              ◀
+              <FiChevronLeft />
             </button>
           )}
         </div>
@@ -214,26 +239,30 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
         </div>
       </div>
 
-      {/* Document Status Filter */}
-      <div className="document-filter__section">
-        <label className="document-filter__label">문서 상태</label>
-        <div className="document-filter__checkbox-group">
-          {STATUS_OPTIONS.map((option) => (
-            <label key={option.value} className="document-filter__checkbox">
-              <input
-                type="checkbox"
-                checked={filters.statuses?.includes(option.value) || false}
-                onChange={(e) =>
-                  handleStatusChange(option.value, e.target.checked)
-                }
-              />
-              <span className="document-filter__checkbox-label">
-                {option.label}
-              </span>
-            </label>
-          ))}
+      {/* Document Status Filter (Admin Only) */}
+      {isAdmin && (
+        <div className="document-filter__section">
+          <label className="document-filter__label">
+            문서 상태 <span className="document-filter__admin-badge">(관리자 전용)</span>
+          </label>
+          <div className="document-filter__checkbox-group">
+            {STATUS_OPTIONS.map((option) => (
+              <label key={option.value} className="document-filter__checkbox">
+                <input
+                  type="checkbox"
+                  checked={filters.statuses?.includes(option.value) || false}
+                  onChange={(e) =>
+                    handleStatusChange(option.value, e.target.checked)
+                  }
+                />
+                <span className="document-filter__checkbox-label">
+                  {option.label}
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Date Range Filter */}
       <div className="document-filter__section">
@@ -280,7 +309,7 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
                 </span>
               );
             })}
-            {filters.statuses
+            {isAdmin && filters.statuses
               ?.filter((s) => s !== 'EMBEDDED' || (filters.statuses?.length || 0) > 1)
               .map((status) => {
                 const option = STATUS_OPTIONS.find((o) => o.value === status);
