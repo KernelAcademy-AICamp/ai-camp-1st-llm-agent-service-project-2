@@ -116,10 +116,9 @@ const DocumentDetail: React.FC = () => {
     try {
       const response = await apiClient.analyzeDocument(documentId, token);
       setSummary(response.summary);
-      alert('요약이 성공적으로 생성되었습니다!');
+      // 성공 시 팝업 없이 바로 결과 표시
     } catch (err: any) {
       setSummaryError(err.message || 'Failed to generate summary');
-      alert(`요약 생성 실패: ${err.message}`);
     } finally {
       setGeneratingSummary(false);
     }
@@ -134,10 +133,9 @@ const DocumentDetail: React.FC = () => {
     try {
       const response = await apiClient.analyzeDocument(documentId, token);
       setClauses(response.clauses);
-      alert('조항이 성공적으로 추출되었습니다!');
+      // 성공 시 팝업 없이 바로 결과 표시
     } catch (err: any) {
       setClausesError(err.message || 'Failed to extract clauses');
-      alert(`조항 추출 실패: ${err.message}`);
     } finally {
       setExtractingClauses(false);
     }
@@ -154,10 +152,11 @@ const DocumentDetail: React.FC = () => {
 
     try {
       await apiClient.deleteUserDocument(documentId, token);
-      alert('문서가 삭제되었습니다.');
+      // 삭제 후 바로 목록 페이지로 이동
       navigate('/documents');
     } catch (err: any) {
-      alert(`삭제 실패: ${err.message}`);
+      // 에러 시에만 알림 표시
+      console.error('삭제 실패:', err.message);
     } finally {
       setDeleting(false);
     }
@@ -203,7 +202,7 @@ const DocumentDetail: React.FC = () => {
   }
 
   return (
-    <div className="document-detail-page three-panel">
+    <div className="document-detail-page">
       <DocumentDetailLayout
         document={document}
         token={token || undefined}

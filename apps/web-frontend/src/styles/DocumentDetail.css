@@ -1,16 +1,7 @@
-/* Base page styling */
+/* Base page styling - research/cases와 통일 */
 .document-detail-page {
+  background: var(--color-background, #f8f9fa);
   min-height: calc(100vh - 64px);
-  background: #f8f9fa;
-}
-
-/* Three-panel layout mode */
-.document-detail-page.three-panel {
-  padding: 0;
-  max-width: none;
-  margin: 0;
-  height: calc(100vh - 64px);
-  overflow: hidden;
 }
 
 /* Loading state */

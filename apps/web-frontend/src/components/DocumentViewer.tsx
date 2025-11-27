@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -11,16 +11,16 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 interface DocumentViewerProps {
   document: UserDocumentDetail;
   fileUrl?: string;
+  viewMode?: 'original' | 'text';
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl }) => {
+const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, viewMode = 'text' }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
 
-  const isPdf = document.file_type?.toLowerCase() === 'pdf';
+  const isPdf = document.file_type?.toLowerCase().includes('pdf') || false;
   const hasChunks = document.chunks && document.chunks.length > 0;
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
@@ -41,24 +41,41 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl }) =>
   const zoomOut = () => setScale((prev) => Math.max(prev - 0.25, 0.5));
   const resetZoom = () => setScale(1.0);
 
-  const toggleChunkExpand = (chunkId: string) => {
-    setExpandedChunks((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(chunkId)) {
-        newSet.delete(chunkId);
-      } else {
-        newSet.add(chunkId);
+  // 청크들을 페이지별로 그룹화하고 연속된 텍스트로 결합
+  const groupedContent = useMemo(() => {
+    if (!hasChunks) return [];
+
+    const chunks = document.chunks;
+    const pageGroups: { pageNumber: number | null; text: string }[] = [];
+    let currentPage: number | null = null;
+    let currentText = '';
+
+    chunks.forEach((chunk: DocumentChunk, index: number) => {
+      const chunkPage = chunk.page_number || null;
+
+      if (chunkPage !== currentPage && currentText) {
+        pageGroups.push({ pageNumber: currentPage, text: currentText.trim() });
+        currentText = '';
       }
-      return newSet;
+
+      currentPage = chunkPage;
+      currentText += chunk.text + '\n\n';
+
+      // 마지막 청크 처리
+      if (index === chunks.length - 1 && currentText) {
+        pageGroups.push({ pageNumber: currentPage, text: currentText.trim() });
+      }
     });
-  };
+
+    return pageGroups;
+  }, [document.chunks, hasChunks]);
 
   const renderPdfViewer = () => {
     if (!fileUrl) {
       return (
         <div className="viewer-message">
           <p>PDF 파일 URL이 없습니다.</p>
-          <p className="viewer-hint">문서 청크를 확인해주세요.</p>
+          <p className="viewer-hint">문서 내용을 확인해주세요.</p>
         </div>
       );
     }
@@ -118,62 +135,40 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl }) =>
     );
   };
 
-  const renderChunkViewer = () => {
+  const renderTextViewer = () => {
     if (!hasChunks) {
       return (
         <div className="viewer-message">
-          <p>문서 청크가 없습니다.</p>
-          <p className="viewer-hint">문서 전처리가 완료되면 청크가 표시됩니다.</p>
+          <p>문서 내용이 없습니다.</p>
+          <p className="viewer-hint">문서 처리가 완료되면 내용이 표시됩니다.</p>
         </div>
       );
     }
 
-    return (
-      <div className="chunks-viewer">
-        <div className="chunks-header">
-          <h3>문서 내용</h3>
-          <span className="chunk-count">{document.chunks.length}개 청크</span>
-        </div>
-        <div className="chunks-list">
-          {document.chunks.map((chunk: DocumentChunk) => {
-            const isExpanded = expandedChunks.has(chunk.id);
-            const previewText = chunk.text.substring(0, 200);
-            const hasMore = chunk.text.length > 200;
+    // 페이지 구분이 있는 경우와 없는 경우 처리
+    const hasPageNumbers = groupedContent.some(g => g.pageNumber !== null);
 
-            return (
-              <div
-                key={chunk.id}
-                className={`chunk-item ${isExpanded ? 'expanded' : ''}`}
-              >
-                <div className="chunk-header-row">
-                  <div className="chunk-info">
-                    <span className="chunk-index">#{chunk.chunk_index}</span>
-                    {chunk.page_number && (
-                      <span className="chunk-page">p.{chunk.page_number}</span>
-                    )}
-                    {chunk.token_count && (
-                      <span className="chunk-tokens">{chunk.token_count} tokens</span>
-                    )}
-                    {chunk.embedding_id && (
-                      <span className="chunk-embedded-badge">임베딩됨</span>
-                    )}
+    return (
+      <div className="text-viewer">
+        <div className="text-content">
+          {hasPageNumbers ? (
+            // 페이지 구분이 있는 경우
+            groupedContent.map((group, index) => (
+              <div key={index} className="text-page-section">
+                {group.pageNumber && (
+                  <div className="page-divider">
+                    <span>페이지 {group.pageNumber}</span>
                   </div>
-                </div>
-                <div className="chunk-text">
-                  {isExpanded ? chunk.text : previewText}
-                  {!isExpanded && hasMore && '...'}
-                </div>
-                {hasMore && (
-                  <button
-                    className="btn-expand"
-                    onClick={() => toggleChunkExpand(chunk.id)}
-                  >
-                    {isExpanded ? '접기' : '더 보기'}
-                  </button>
                 )}
+                <div className="text-body">{group.text}</div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            // 페이지 구분 없이 연속 텍스트
+            <div className="text-body">
+              {groupedContent.map(g => g.text).join('\n\n')}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -181,7 +176,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl }) =>
 
   return (
     <div className="document-viewer">
-      {isPdf && fileUrl ? renderPdfViewer() : renderChunkViewer()}
+      {viewMode === 'original' && isPdf && fileUrl ? renderPdfViewer() : renderTextViewer()}
     </div>
   );
 };
