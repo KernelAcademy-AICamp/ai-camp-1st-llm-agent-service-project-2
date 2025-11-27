@@ -2,7 +2,7 @@
 RAG Core Library
 공통 RAG 로직: 임베딩, LLM, 검색 (DB 비의존)
 
-이 라이브러리는 apps/backend, apps/ai-service, apps/data-pipeline에서
+이 라이브러리는 apps/backend, apps/ai_service, apps/data-pipeline에서
 공통으로 사용하는 RAG 핵심 로직을 포함합니다.
 
 Note:

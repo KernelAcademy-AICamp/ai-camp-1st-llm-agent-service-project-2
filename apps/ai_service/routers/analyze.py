@@ -1,4 +1,4 @@
-# apps/ai-service/routers/analyze.py
+# apps/ai_service/routers/analyze.py
 """
 Analyze Router
 사건 분석 및 문서 생성 API

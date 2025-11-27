@@ -31,11 +31,13 @@ import logging
 from sqlalchemy import select
 from tqdm import tqdm
 
-# Backend imports
-from apps.backend.core.embeddings.embedder import KoreanLegalEmbedder
-from apps.backend.core.embeddings.vectordb import ChromaVectorDB
-from apps.backend.database import async_session
-from apps.backend.models.precedent import Precedent
+# RAG Core imports
+from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
+from libs.rag_core.embeddings.vectordb import ChromaVectorDB
+
+# AI Service imports
+from apps.ai_service.models.database import async_session
+from apps.ai_service.models.precedent import Precedent
 
 # Data loader for AI-Hub data
 from scripts.criminal_law_data_loader import CriminalLawDataLoader

@@ -23,8 +23,8 @@ mkdir -p logs
 # AI Service 실행
 echo ""
 echo "[1/3] Starting AI Service (port 8001)..."
-cd apps/ai-service
-python main.py > ../../logs/ai-service.log 2>&1 &
+cd apps/ai_service
+python main.py > ../../logs/ai_service.log 2>&1 &
 AI_PID=$!
 echo "✅ AI Service started (PID: $AI_PID)"
 
@@ -49,7 +49,7 @@ echo "Django Backend:  http://localhost:8000"
 echo "Django Admin:    http://localhost:8000/admin"
 echo ""
 echo "Logs:"
-echo "- AI Service:    logs/ai-service.log"
+echo "- AI Service:    logs/ai_service.log"
 echo "- Django:        logs/django.log"
 echo ""
 echo "Press Ctrl+C to stop all services"
