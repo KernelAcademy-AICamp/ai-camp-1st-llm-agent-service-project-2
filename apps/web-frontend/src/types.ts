@@ -330,6 +330,7 @@ export interface User {
   specializations: string[];
   lawyer_registration_number?: string;
   is_active: boolean;
+  is_staff: boolean;  // Admin user flag
 }
 
 export interface LoginRequest {
