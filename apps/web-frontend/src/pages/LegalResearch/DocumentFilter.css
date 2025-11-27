@@ -18,8 +18,10 @@
 }
 
 .document-filter--collapsed {
-  width: 48px;
-  min-width: 48px;
+  width: 56px;
+  min-width: 56px;
+  background: var(--color-surface, #ffffff);
+  border-right: 1px solid var(--color-border, #e5e5e5);
 }
 
 /* Header */
@@ -62,66 +64,112 @@
 }
 
 .document-filter__collapse-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-text-secondary, #6b7280);
   background: transparent;
   border: 1px solid var(--color-border, #e5e5e5);
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .document-filter__collapse-btn:hover {
-  background: var(--color-background, #f8f9fa);
-  color: var(--color-text-primary, #1f2937);
+  background: var(--color-primary-light, #eff6ff);
+  border-color: var(--color-primary, #3b82f6);
+  color: var(--color-primary, #3b82f6);
+}
+
+.document-filter__collapse-btn:hover svg {
+  transform: translateX(-2px);
+}
+
+.document-filter__collapse-btn svg {
+  transition: transform 0.2s ease;
 }
 
 /* Collapsed Toggle Button */
 .document-filter__toggle {
   width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: 16px;
+  padding: 16px 8px;
   gap: 8px;
   background: transparent;
   border: none;
   cursor: pointer;
   position: relative;
+  transition: all 0.2s ease;
 }
 
 .document-filter__toggle:hover {
-  background: var(--color-background, #f8f9fa);
+  background: linear-gradient(135deg, var(--color-primary-light, #eff6ff) 0%, var(--color-background, #f8f9fa) 100%);
+}
+
+.document-filter__toggle:hover .document-filter__toggle-icon {
+  color: var(--color-primary, #3b82f6);
+  transform: scale(1.1);
+}
+
+.document-filter__toggle:hover .document-filter__toggle-arrow {
+  opacity: 1;
+  transform: translateX(2px);
 }
 
 .document-filter__toggle-icon {
-  font-size: 18px;
+  font-size: 20px;
   color: var(--color-text-secondary, #6b7280);
+  transition: all 0.2s ease;
 }
 
 .document-filter__toggle-label {
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--color-text-secondary, #6b7280);
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
+  letter-spacing: 0.5px;
+}
+
+.document-filter__toggle-arrow {
+  font-size: 14px;
+  color: var(--color-text-muted, #9ca3af);
+  opacity: 0.5;
+  transition: all 0.2s ease;
+  margin-top: 4px;
 }
 
 .document-filter__badge {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 8px;
-  height: 8px;
+  top: 12px;
+  right: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   background: var(--color-primary, #3b82f6);
-  border-radius: 50%;
+  color: white;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 /* Filter Sections */
@@ -351,8 +399,8 @@
   }
 
   .document-filter--collapsed {
-    width: 48px;
-    min-width: 48px;
+    width: 56px;
+    min-width: 56px;
     transform: translateX(0);
   }
 
@@ -365,41 +413,16 @@
   }
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  .document-filter {
-    background: var(--color-surface-dark, #1e1e1e);
-    border-color: var(--color-border-dark, #333);
-  }
+/* Dark Mode Support - Disabled for consistency with rest of app */
+/* The app currently uses light theme only. When dark mode is implemented
+   site-wide, these styles should be re-enabled and coordinated with
+   global CSS variables. */
 
-  .document-filter__header {
-    background: var(--color-background-dark, #252525);
-    border-color: var(--color-border-dark, #333);
-  }
-
-  .document-filter__title {
-    color: var(--color-text-primary-dark, #e5e5e5);
-  }
-
-  .document-filter__input,
-  .document-filter__date-input {
-    background: var(--color-background-dark, #252525);
-    border-color: var(--color-border-dark, #333);
-    color: var(--color-text-primary-dark, #e5e5e5);
-  }
-
-  .document-filter__checkbox-label {
-    color: var(--color-text-primary-dark, #e5e5e5);
-  }
-
-  .document-filter__tag {
-    background: var(--color-background-dark, #252525);
-    border-color: var(--color-border-dark, #333);
-    color: var(--color-text-primary-dark, #e5e5e5);
-  }
-
-  .document-filter__summary {
-    background: var(--color-background-dark, #252525);
-    border-color: var(--color-border-dark, #333);
-  }
+/* Admin Badge Styling */
+.document-filter__admin-badge {
+  font-size: 0.75rem;
+  color: var(--color-warning, #ff9800);
+  font-weight: 500;
+  margin-left: 6px;
+  opacity: 0.9;
 }
