@@ -50,7 +50,7 @@ const ClauseList: React.FC<ClauseListProps> = ({
   return (
     <div className="clause-list-section">
       <div className="section-header">
-        <h2>📋 핵심 조항</h2>
+        <h2>핵심 조항</h2>
         {clauses.length === 0 && !loading && (
           <button
             className="btn-primary"
@@ -71,7 +71,7 @@ const ClauseList: React.FC<ClauseListProps> = ({
 
       {error && (
         <div className="error-message">
-          <p>⚠️ {error}</p>
+          <p>{error}</p>
         </div>
       )}
 

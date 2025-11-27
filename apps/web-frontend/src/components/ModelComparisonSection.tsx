@@ -44,7 +44,6 @@ const ModelComparisonSection: React.FC<ModelComparisonSectionProps> = ({
   token,
 }) => {
   // State
-  const [isExpanded, setIsExpanded] = useState(false);
   const [models, setModels] = useState<LLMModelConfigListItem[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [taskType, setTaskType] = useState<CompareTaskType>('summarize');
@@ -54,12 +53,12 @@ const ModelComparisonSection: React.FC<ModelComparisonSectionProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [comparisonResult, setComparisonResult] = useState<CompareResponse | null>(null);
 
-  // Load available models when section is expanded
+  // Load available models on mount
   useEffect(() => {
-    if (isExpanded && models.length === 0) {
+    if (models.length === 0) {
       loadModels();
     }
-  }, [isExpanded]);
+  }, []);
 
   const loadModels = async () => {
     setIsLoadingModels(true);
@@ -176,21 +175,11 @@ const ModelComparisonSection: React.FC<ModelComparisonSectionProps> = ({
 
   return (
     <div className="model-comparison-section">
-      <div
-        className="mcs-header"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <h3>
-          <span className="mcs-icon">🔄</span>
-          LLM 모델 비교
-        </h3>
-        <span className={`mcs-toggle ${isExpanded ? 'expanded' : ''}`}>
-          {isExpanded ? '▼' : '▶'}
-        </span>
+      <div className="mcs-header">
+        <h3>LLM 모델 비교</h3>
       </div>
 
-      {isExpanded && (
-        <div className="mcs-content">
+      <div className="mcs-content">
           {error && (
             <div className="mcs-error">
               <span>⚠️ {error}</span>
@@ -397,8 +386,7 @@ const ModelComparisonSection: React.FC<ModelComparisonSectionProps> = ({
               )}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 };

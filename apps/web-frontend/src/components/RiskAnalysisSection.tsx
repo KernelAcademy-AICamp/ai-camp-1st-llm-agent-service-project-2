@@ -35,7 +35,6 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(true);
 
   // Fetch existing risk analysis on mount
   useEffect(() => {
@@ -186,7 +185,7 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
     return (
       <div className="risk-analysis-section">
         <div className="risk-analysis-header">
-          <h3>📊 리스크 분석</h3>
+          <h3>리스크 분석</h3>
         </div>
         <div className="no-analysis">
           <p>아직 리스크 분석이 수행되지 않았습니다.</p>
@@ -222,94 +221,88 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
   return (
     <div className="risk-analysis-section">
       <div className="risk-analysis-header">
-        <h3 onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
-          {expanded ? '▼' : '▶'} 📊 리스크 분석
-        </h3>
+        <h3>리스크 분석</h3>
         <span className="analysis-date">
           분석일: {new Date(riskAnalysis.created_at).toLocaleDateString('ko-KR')}
         </span>
       </div>
 
-      {expanded && (
-        <>
-          {/* Overall Risk Score */}
-          <div className="risk-overview">
-            <div className="risk-score-container">
-              {renderRiskScore(riskAnalysis.overall_risk_score)}
-              <div className="risk-severity">
-                <span
-                  className="severity-badge"
-                  style={{ backgroundColor: getSeverityColor(riskAnalysis.severity) }}
-                >
-                  {getSeverityLabel(riskAnalysis.severity)}
-                </span>
-              </div>
-            </div>
-            <div className="risk-summary">
-              <h4>리스크 요약</h4>
-              <p>{riskAnalysis.summary}</p>
-            </div>
-          </div>
-
-          {/* Risk Items by Category */}
-          <div className="risk-items-container">
-            <h4>리스크 항목 ({riskAnalysis.risk_items.length}개)</h4>
-            {Object.entries(groupedRisks).map(([category, items]) => (
-              <div key={category} className="risk-category-section">
-                <h5 className="risk-category-title">
-                  {getCategoryLabel(category as RiskCategory)} ({items.length})
-                </h5>
-                <div className="risk-items">
-                  {items.map((item, index) => (
-                    <div key={index} className="risk-item">
-                      <div className="risk-item-header">
-                        <span className="risk-item-title">{item.title}</span>
-                        <span
-                          className="risk-item-severity"
-                          style={{ color: getSeverityColor(item.severity) }}
-                        >
-                          {getSeverityLabel(item.severity)} ({item.score}점)
-                        </span>
-                      </div>
-                      <p className="risk-item-description">{item.description}</p>
-                      {item.clause_reference && (
-                        <p className="risk-item-reference">
-                          📍 관련 조항: {item.clause_reference}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Recommendations */}
-          {riskAnalysis.recommendations && riskAnalysis.recommendations.length > 0 && (
-            <div className="risk-recommendations">
-              <h4>권장 사항</h4>
-              <ul>
-                {riskAnalysis.recommendations.map((rec, index) => (
-                  <li key={index}>{rec}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Refresh Analysis Button */}
-          <div className="risk-actions">
-            <button
-              onClick={handleAnalyzeRisk}
-              className="refresh-analysis-button"
-              disabled={analyzing}
+      {/* Overall Risk Score */}
+      <div className="risk-overview">
+        <div className="risk-score-container">
+          {renderRiskScore(riskAnalysis.overall_risk_score)}
+          <div className="risk-severity">
+            <span
+              className="severity-badge"
+              style={{ backgroundColor: getSeverityColor(riskAnalysis.severity) }}
             >
-              🔄 리스크 재분석
-            </button>
+              {getSeverityLabel(riskAnalysis.severity)}
+            </span>
           </div>
+        </div>
+        <div className="risk-summary">
+          <h4>리스크 요약</h4>
+          <p>{riskAnalysis.summary}</p>
+        </div>
+      </div>
 
-          {error && <div className="error-message">{error}</div>}
-        </>
+      {/* Risk Items by Category */}
+      <div className="risk-items-container">
+        <h4>리스크 항목 ({riskAnalysis.risk_items.length}개)</h4>
+        {Object.entries(groupedRisks).map(([category, items]) => (
+          <div key={category} className="risk-category-section">
+            <h5 className="risk-category-title">
+              {getCategoryLabel(category as RiskCategory)} ({items.length})
+            </h5>
+            <div className="risk-items">
+              {items.map((item, index) => (
+                <div key={index} className="risk-item">
+                  <div className="risk-item-header">
+                    <span className="risk-item-title">{item.title}</span>
+                    <span
+                      className="risk-item-severity"
+                      style={{ color: getSeverityColor(item.severity) }}
+                    >
+                      {getSeverityLabel(item.severity)} ({item.score}점)
+                    </span>
+                  </div>
+                  <p className="risk-item-description">{item.description}</p>
+                  {item.clause_reference && (
+                    <p className="risk-item-reference">
+                      관련 조항: {item.clause_reference}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recommendations */}
+      {riskAnalysis.recommendations && riskAnalysis.recommendations.length > 0 && (
+        <div className="risk-recommendations">
+          <h4>권장 사항</h4>
+          <ul>
+            {riskAnalysis.recommendations.map((rec, index) => (
+              <li key={index}>{rec}</li>
+            ))}
+          </ul>
+        </div>
       )}
+
+      {/* Refresh Analysis Button */}
+      <div className="risk-actions">
+        <button
+          onClick={handleAnalyzeRisk}
+          className="refresh-analysis-button"
+          disabled={analyzing}
+        >
+          리스크 재분석
+        </button>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
     </div>
   );
 };
