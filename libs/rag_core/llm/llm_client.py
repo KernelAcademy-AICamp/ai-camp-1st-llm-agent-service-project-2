@@ -34,6 +34,15 @@ class LLMClient(ABC):
         """대화형 생성"""
         pass
 
+    def chat_with_usage(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+        """대화형 생성 + 토큰 사용량 반환"""
+        # 기본 구현: 토큰 정보 없이 답변만 반환
+        content = self.chat(messages, **kwargs)
+        return {
+            'content': content,
+            'usage': None
+        }
+
 
 class OpenAIClient(LLMClient):
     """OpenAI GPT 클라이언트 (OpenAI API 호환 서버 지원)"""
@@ -107,6 +116,53 @@ class OpenAIClient(LLMClient):
 
                 if is_retryable and attempt < max_manual_retries:
                     delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"OpenAI API error (attempt {attempt + 1}/{max_manual_retries + 1}): {e}")
+                    logger.info(f"Retrying in {delay}s...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.error(f"OpenAI API error (final attempt): {e}")
+                    raise
+
+    def chat_with_usage(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+        """대화형 생성 + 토큰 사용량 반환"""
+        temperature = kwargs.get('temperature', self.temperature)
+        max_tokens = kwargs.get('max_tokens', self.max_tokens)
+
+        max_manual_retries = 3
+        base_delay = 2.0
+
+        for attempt in range(max_manual_retries + 1):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+
+                content = response.choices[0].message.content
+
+                # 토큰 사용량 추출
+                usage = None
+                if hasattr(response, 'usage') and response.usage:
+                    usage = {
+                        'prompt_tokens': response.usage.prompt_tokens,
+                        'completion_tokens': response.usage.completion_tokens,
+                        'total_tokens': response.usage.total_tokens
+                    }
+
+                return {
+                    'content': content,
+                    'usage': usage
+                }
+
+            except Exception as e:
+                error_str = str(e).lower()
+                is_retryable = any(code in error_str for code in ['502', '503', '504', 'timeout', 'connection'])
+
+                if is_retryable and attempt < max_manual_retries:
+                    delay = base_delay * (2 ** attempt)
                     logger.warning(f"OpenAI API error (attempt {attempt + 1}/{max_manual_retries + 1}): {e}")
                     logger.info(f"Retrying in {delay}s...")
                     time.sleep(delay)
