@@ -80,10 +80,14 @@ export interface RAGFilterOptions {
   document_ids?: string[];  // pre-filtered document IDs (from Django)
 }
 
+export type ResponseMode = 'concise' | 'standard' | 'detailed';
+
 export interface RAGChatRequest {
   query: string;
   top_k?: number;
   include_sources?: boolean;
+  enable_critique?: boolean;
+  response_mode?: ResponseMode;  // Phase 2: 응답 모드 (미지정시 자동 분류)
   filters?: RAGFilterOptions;
 }
 
@@ -114,6 +118,8 @@ export interface RAGChatResponse {
   model: string;
   timestamp: string;
   revised: boolean;
+  response_mode?: ResponseMode;  // Phase 2: 사용된 응답 모드
+  auto_classified?: boolean;     // Phase 2: 자동 분류 여부
 }
 
 // ============================================

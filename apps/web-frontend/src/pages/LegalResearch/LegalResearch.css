@@ -933,6 +933,57 @@
   border: 1px solid #a7f3d0;
 }
 
+/* Phase 2: 응답 모드 배지 */
+.response-mode-badge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.response-mode-badge--concise {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.response-mode-badge--standard {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.response-mode-badge--detailed {
+  background-color: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+
+/* Phase 2: 응답 모드 선택 */
+.response-mode-select {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #e5e5e5);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--color-text-primary, #1f2937);
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.response-mode-select:hover {
+  border-color: var(--color-primary, #4338ca);
+}
+
+.response-mode-select:focus {
+  outline: none;
+  border-color: var(--color-primary, #4338ca);
+  box-shadow: 0 0 0 2px rgba(67, 56, 202, 0.1);
+}
+
 .copy-button {
   padding: 10px 18px;
   background-color: white;
