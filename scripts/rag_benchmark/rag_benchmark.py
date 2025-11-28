@@ -95,6 +95,9 @@ class RAGBenchmarkMetrics:
     # 답변 품질 지표 (신뢰도 측정용)
     answer_quality: Dict[str, Any] = field(default_factory=dict)
 
+    # 응답 모드 통계 (Orchestrator 사용 시)
+    response_mode_stats: Dict[str, Any] = field(default_factory=dict)
+
 
 class RAGBenchmark:
     """RAG 전체 파이프라인 벤치마크"""
@@ -843,16 +846,516 @@ def run_before_benchmark():
     return metrics, str(output_path)
 
 
+class RAGBenchmarkAfter(RAGBenchmark):
+    """RAG 응답 최적화 적용 후 벤치마크 (Orchestrator 사용)"""
+
+    def __init__(self, config_name: str = "after_orchestrator_rag"):
+        super().__init__(config_name)
+        self.orchestrator = None
+
+    def setup_optimized_system(self):
+        """최적화된 시스템 설정 (Orchestrator 포함)"""
+        from embeddings.embedder import KoreanLegalEmbedder
+        from embeddings.vectordb import ChromaVectorDB
+        from retrieval.hybrid_retriever import HybridRetriever
+        from retrieval.retriever import LegalDocumentRetriever
+        from retrieval.bm25_index import BM25Index
+        from llm.llm_client import create_llm_client
+        from llm.constitutional_chatbot import ConstitutionalLawChatbot
+        from llm.orchestrator import LegalRAGOrchestrator
+
+        print("🔧 최적화된 시스템 설정 중 (Orchestrator)...")
+
+        # 임베딩 모델
+        self.embedder = KoreanLegalEmbedder()
+        self.embedding_model = self.embedder.model_name
+        self.embedding_dim = self.embedder.get_embedding_dimension()
+        print(f"  ✅ 임베딩: {self.embedding_model} ({self.embedding_dim}d)")
+
+        # VectorDB
+        chroma_dir = BASE_DIR / "data" / "vectordb" / "chroma_criminal_law"
+        self.vectordb = ChromaVectorDB(
+            collection_name="criminal_law_docs",
+            persist_directory=str(chroma_dir)
+        )
+        self.total_documents = self.vectordb.get_count()
+        print(f"  ✅ ChromaDB: {self.total_documents:,}개 문서")
+
+        # Semantic Retriever
+        semantic_retriever = LegalDocumentRetriever(
+            vectordb=self.vectordb,
+            embedder=self.embedder
+        )
+
+        # BM25 Index
+        bm25_dir = BASE_DIR / "data" / "bm25_index"
+        bm25 = BM25Index([])
+        if bm25_dir.exists():
+            bm25.load(str(bm25_dir))
+            print(f"  ✅ BM25 인덱스 로드")
+
+        # Hybrid Retriever
+        self.retriever = HybridRetriever(
+            semantic_retriever=semantic_retriever,
+            bm25_index=bm25
+        )
+
+        # LLM Client
+        self.llm_model = os.getenv("LLM_MODEL", "alias:qwen4b")
+        self.llm_client = create_llm_client(
+            provider=os.getenv("LLM_PROVIDER", "openai"),
+            api_key=os.getenv("LLM_API_KEY"),
+            model=self.llm_model,
+            base_url=os.getenv("LLM_BASE_URL")
+        )
+        print(f"  ✅ LLM: {self.llm_model}")
+
+        # Constitutional Chatbot
+        constitutional_chatbot = ConstitutionalLawChatbot(
+            retriever=semantic_retriever,  # Orchestrator에서 사용
+            llm_client=self.llm_client,
+            enable_self_critique=False  # Orchestrator가 모드별로 제어
+        )
+
+        # Orchestrator (핵심 변경점!)
+        self.orchestrator = LegalRAGOrchestrator(
+            chatbot=constitutional_chatbot,
+            enable_summarization=True,
+            summarize_threshold=800
+        )
+        print(f"  ✅ Orchestrator 초기화 완료")
+
+        print("✅ 최적화 시스템 설정 완료\n")
+
+    def search_and_generate_with_orchestrator(self, query: str, top_k: int = 3) -> Dict[str, Any]:
+        """Orchestrator를 통한 검색 + 답변 생성"""
+        total_start = time.perf_counter()
+
+        # Orchestrator를 통한 질의 처리 (모드 자동 결정)
+        result = self.orchestrator.chat(
+            query=query,
+            mode=None,  # 자동 분류
+            top_k=top_k,
+            include_critique_log=False
+        )
+
+        total_time = (time.perf_counter() - total_start) * 1000
+
+        # 검색 결과 정리
+        chunks = []
+        scores = []
+        for source in result.sources:
+            chunks.append({
+                'text': source.get('text', source.get('content', '')),
+                'score': source.get('score', 0),
+                'metadata': source.get('metadata', {}),
+                'source': source.get('metadata', {}).get('source', 'unknown')
+            })
+            scores.append(source.get('score', 0))
+
+        return {
+            'chunks': chunks,
+            'scores': scores,
+            'answer': result.answer,
+            'token_usage': None,  # Orchestrator는 별도로 토큰 추적
+            'retrieval_time_ms': 0,  # Orchestrator 내부에서 처리
+            'generation_time_ms': 0,
+            'total_time_ms': total_time,
+            'response_mode': result.mode,
+            'strategy_used': result.strategy_used,
+            'summarized': result.summarized,
+            'processing_time': result.processing_time
+        }
+
+    def run_benchmark(self, queries_path: str, top_k: int = 3) -> RAGBenchmarkMetrics:
+        """Orchestrator 기반 벤치마크 실행"""
+        with open(queries_path, 'r', encoding='utf-8') as f:
+            queries_data = json.load(f)
+
+        queries = queries_data['queries']
+        print(f"\n📊 After RAG 벤치마크 시작 (Orchestrator): {len(queries)}개 쿼리")
+        print("=" * 70)
+
+        all_results = []
+        all_total_times = []
+        all_top1_scores = []
+        all_top3_scores = []
+        all_top1_scores_normalized = []
+        all_keyword_hits = []
+        all_hit_at_k = {1: [], 3: [], 5: [], 10: []}
+        all_mrr = []
+        category_results = {}
+        source_results = {}
+        all_answer_quality = []
+
+        # 응답 모드 통계
+        mode_distribution = {"concise": 0, "standard": 0, "detailed": 0}
+        summarized_count = 0
+
+        for q in queries:
+            print(f"\n[{q['id']}] {q['query']}")
+
+            # Orchestrator로 검색 + 답변 생성
+            results = self.search_and_generate_with_orchestrator(q['query'], top_k=top_k)
+
+            # 품질 지표 계산
+            keywords = q.get('keywords', [])
+            expected_topics = q.get('expected_topics', keywords)
+            metrics = self.calculate_metrics(results, keywords, expected_topics)
+
+            # 답변 품질 지표 계산
+            answer_quality = self.calculate_answer_quality(results['answer'], keywords)
+
+            # 응답 모드 통계
+            response_mode = results.get('response_mode', 'standard')
+            if response_mode in mode_distribution:
+                mode_distribution[response_mode] += 1
+            if results.get('summarized', False):
+                summarized_count += 1
+
+            # 결과 저장
+            query_result = {
+                'query_id': q['id'],
+                'query': q['query'],
+                'category': q['category'],
+                'keywords': keywords,
+                'expected_topics': expected_topics,
+
+                # 시간
+                'total_time_ms': results['total_time_ms'],
+                'processing_time': results.get('processing_time', 0),
+
+                # 검색 결과
+                'top_scores': results['scores'][:5],
+                'retrieved_chunks': [
+                    {
+                        'rank': i + 1,
+                        'score': c['score'],
+                        'text_preview': c['text'][:200] + '...' if len(c['text']) > 200 else c['text'],
+                        'text_full': c['text'],
+                        'text_length': len(c['text']),
+                        'source': c['source']
+                    }
+                    for i, c in enumerate(results['chunks'][:3])
+                ],
+
+                # LLM 답변
+                'answer': results['answer'],
+
+                # Orchestrator 메타데이터
+                'response_mode': response_mode,
+                'strategy_used': results.get('strategy_used', ''),
+                'summarized': results.get('summarized', False),
+
+                # 품질 지표
+                'keyword_hit_rate': metrics['keyword_hit_rate'],
+                'hit_at_k': metrics['hit_at_k'],
+                'mrr': metrics['mrr'],
+                'normalized_top1_score': metrics['normalized_scores'][0] if metrics['normalized_scores'] else 0,
+                'source_distribution': metrics['source_distribution'],
+
+                # 답변 품질 지표
+                'answer_quality': answer_quality
+            }
+            all_results.append(query_result)
+
+            # 답변 품질 수집
+            all_answer_quality.append(answer_quality)
+
+            # 집계
+            all_total_times.append(results['total_time_ms'])
+
+            scores = results['scores']
+            if scores:
+                all_top1_scores.append(scores[0])
+                all_top3_scores.append(np.mean(scores[:3]) if len(scores) >= 3 else np.mean(scores))
+                if metrics['normalized_scores']:
+                    all_top1_scores_normalized.append(metrics['normalized_scores'][0])
+
+            all_keyword_hits.append(metrics['keyword_hit_rate'])
+            for k in [1, 3, 5, 10]:
+                all_hit_at_k[k].append(metrics['hit_at_k'].get(k, False))
+            all_mrr.append(metrics['mrr'])
+
+            # 카테고리별 수집
+            cat = q['category']
+            if cat not in category_results:
+                category_results[cat] = {'scores': [], 'times': [], 'hits': [], 'mrr': [], 'normalized_scores': []}
+            category_results[cat]['scores'].append(scores[0] if scores else 0)
+            category_results[cat]['times'].append(results['total_time_ms'])
+            category_results[cat]['hits'].append(metrics['keyword_hit_rate'])
+            category_results[cat]['mrr'].append(metrics['mrr'])
+            if metrics['normalized_scores']:
+                category_results[cat]['normalized_scores'].append(metrics['normalized_scores'][0])
+
+            # 소스별 성능 수집
+            for chunk in results['chunks']:
+                source = chunk.get('source', 'unknown')
+                if source not in source_results:
+                    source_results[source] = {'scores': [], 'mrr': [], 'count': 0}
+                source_results[source]['scores'].append(chunk.get('score', 0))
+                source_results[source]['count'] += 1
+            if results['chunks']:
+                top_source = results['chunks'][0].get('source', 'unknown')
+                if top_source not in source_results:
+                    source_results[top_source] = {'scores': [], 'mrr': [], 'count': 0}
+                source_results[top_source]['mrr'].append(metrics['mrr'])
+
+            # 출력
+            print(f"   전체 시간: {results['total_time_ms']:.0f}ms | 모드: {response_mode} | 요약: {results.get('summarized', False)}")
+            print(f"   Top-1 Score: {scores[0]:.4f}" if scores else "   No results")
+            print(f"   Hit@1/3/5: {metrics['hit_at_k'].get(1)}/{metrics['hit_at_k'].get(3)}/{metrics['hit_at_k'].get(5)} | MRR: {metrics['mrr']:.4f}")
+            # 답변 품질 지표 출력
+            aq = answer_quality
+            citation_mark = "✓" if aq['has_citation'] else "✗"
+            disclaimer_mark = "✓" if aq['has_disclaimer'] else "✗"
+            print(f"   품질: 길이={aq['answer_length']:,}자 | 단어={aq['word_count']} | 출처={citation_mark} | 면책={disclaimer_mark}")
+            print(f"   답변 미리보기: {results['answer'][:100]}..." if len(results['answer']) > 100 else f"   답변: {results['answer']}")
+
+        # 청킹 통계
+        chunking_stats = self.collect_chunking_stats()
+
+        # 카테고리별 성능
+        category_performance = {}
+        for cat, data in category_results.items():
+            category_performance[cat] = {
+                'avg_score': float(np.mean(data['scores'])),
+                'avg_score_normalized': float(np.mean(data['normalized_scores'])) if data['normalized_scores'] else 0,
+                'avg_time': float(np.mean(data['times'])),
+                'avg_hit_rate': float(np.mean(data['hits'])),
+                'avg_mrr': float(np.mean(data['mrr']))
+            }
+
+        # 소스별 성능
+        source_performance = {}
+        for source, data in source_results.items():
+            source_performance[source] = {
+                'result_count': data['count'],
+                'avg_score': float(np.mean(data['scores'])) if data['scores'] else 0,
+                'avg_mrr': float(np.mean(data['mrr'])) if data['mrr'] else 0,
+                'top1_count': len(data['mrr'])
+            }
+
+        # 응답 모드 통계
+        total_queries = len(queries)
+        response_mode_stats = {
+            'mode_distribution': mode_distribution,
+            'concise_ratio': mode_distribution['concise'] / total_queries,
+            'standard_ratio': mode_distribution['standard'] / total_queries,
+            'detailed_ratio': mode_distribution['detailed'] / total_queries,
+            'summarized_count': summarized_count,
+            'summarized_ratio': summarized_count / total_queries
+        }
+
+        # 답변 품질 통계
+        answer_quality_stats = {}
+        if all_answer_quality:
+            answer_quality_stats = {
+                'avg_answer_length': float(np.mean([aq['answer_length'] for aq in all_answer_quality])),
+                'avg_word_count': float(np.mean([aq['word_count'] for aq in all_answer_quality])),
+                'min_answer_length': int(np.min([aq['answer_length'] for aq in all_answer_quality])),
+                'max_answer_length': int(np.max([aq['answer_length'] for aq in all_answer_quality])),
+                'citation_rate': float(np.mean([1 if aq['has_citation'] else 0 for aq in all_answer_quality])),
+                'disclaimer_rate': float(np.mean([1 if aq['has_disclaimer'] else 0 for aq in all_answer_quality])),
+                'avg_answer_keyword_hit_rate': float(np.mean([aq['answer_keyword_hit_rate'] for aq in all_answer_quality])),
+                'structure_rate': float(np.mean([1 if aq['has_structure'] else 0 for aq in all_answer_quality])),
+                'query_count': len(all_answer_quality)
+            }
+
+        # 메트릭 생성
+        metrics = RAGBenchmarkMetrics(
+            timestamp=datetime.now().isoformat(),
+            config_name=self.config_name,
+            vector_db="chroma",
+            embedding_model=self.embedding_model,
+            embedding_dim=self.embedding_dim,
+            llm_model=self.llm_model,
+            total_documents=self.total_documents,
+            chunking_strategy="orchestrator_optimized",
+
+            avg_retrieval_time_ms=0,  # Orchestrator에서는 분리 측정 안함
+            avg_generation_time_ms=0,
+            avg_total_time_ms=float(np.mean(all_total_times)),
+
+            avg_top1_score=float(np.mean(all_top1_scores)) if all_top1_scores else 0,
+            avg_top3_score=float(np.mean(all_top3_scores)) if all_top3_scores else 0,
+            avg_top1_score_normalized=float(np.mean(all_top1_scores_normalized)) if all_top1_scores_normalized else 0,
+            hit_rate_at_1=float(np.mean(all_hit_at_k[1])),
+            hit_rate_at_3=float(np.mean(all_hit_at_k[3])),
+            hit_rate_at_5=float(np.mean(all_hit_at_k[5])),
+            mrr=float(np.mean(all_mrr)),
+            avg_keyword_hit_rate=float(np.mean(all_keyword_hits)),
+
+            category_performance=category_performance,
+            source_performance=source_performance,
+            query_results=all_results,
+            chunking_stats=chunking_stats,
+            token_usage={},  # Orchestrator에서는 별도 추적
+            answer_quality=answer_quality_stats,
+            response_mode_stats=response_mode_stats
+        )
+
+        return metrics
+
+    def print_summary(self, metrics: RAGBenchmarkMetrics):
+        """After 결과 요약 출력 (응답 모드 포함)"""
+        print("\n" + "=" * 70)
+        print("📊 After RAG 벤치마크 결과 요약 (Orchestrator)")
+        print("=" * 70)
+        print(f"설정: {metrics.config_name}")
+        print(f"시간: {metrics.timestamp}")
+
+        print("\n[ 시스템 설정 ]")
+        print(f"  VectorDB: {metrics.vector_db}")
+        print(f"  임베딩: {metrics.embedding_model} ({metrics.embedding_dim}d)")
+        print(f"  LLM: {metrics.llm_model}")
+        print(f"  총 문서 수: {metrics.total_documents:,}")
+        print(f"  전략: {metrics.chunking_strategy}")
+
+        print("\n[ 성능 (시간) ]")
+        print(f"  평균 전체 시간: {metrics.avg_total_time_ms:.0f}ms")
+
+        print("\n[ 검색 품질 ]")
+        print(f"  평균 Top-1 Score (raw): {metrics.avg_top1_score:.4f}")
+        print(f"  평균 Top-1 Score (normalized): {metrics.avg_top1_score_normalized:.4f}")
+        print(f"  Hit Rate@1: {metrics.hit_rate_at_1:.1%}")
+        print(f"  Hit Rate@3: {metrics.hit_rate_at_3:.1%}")
+        print(f"  Hit Rate@5: {metrics.hit_rate_at_5:.1%}")
+        print(f"  MRR: {metrics.mrr:.4f}")
+        print(f"  키워드 매칭률: {metrics.avg_keyword_hit_rate:.1%}")
+
+        print("\n[ 응답 모드 통계 ] ⭐ Orchestrator 핵심")
+        if metrics.response_mode_stats:
+            rms = metrics.response_mode_stats
+            print(f"  CONCISE 모드: {rms['mode_distribution']['concise']}건 ({rms['concise_ratio']:.1%})")
+            print(f"  STANDARD 모드: {rms['mode_distribution']['standard']}건 ({rms['standard_ratio']:.1%})")
+            print(f"  DETAILED 모드: {rms['mode_distribution']['detailed']}건 ({rms['detailed_ratio']:.1%})")
+            print(f"  요약 처리: {rms['summarized_count']}건 ({rms['summarized_ratio']:.1%})")
+
+        print("\n[ 답변 품질 지표 ] ⭐ 발표 핵심")
+        if metrics.answer_quality:
+            aq = metrics.answer_quality
+            print(f"  평균 답변 길이: {aq.get('avg_answer_length', 0):,.0f}자")
+            print(f"  평균 단어 수: {aq.get('avg_word_count', 0):,.0f}개")
+            print(f"  답변 길이 범위: {aq.get('min_answer_length', 0):,} ~ {aq.get('max_answer_length', 0):,}자")
+            print(f"  출처 포함률: {aq.get('citation_rate', 0):.1%}")
+            print(f"  면책 조항 포함률: {aq.get('disclaimer_rate', 0):.1%}")
+            print(f"  키워드 포함률 (답변): {aq.get('avg_answer_keyword_hit_rate', 0):.1%}")
+            print(f"  구조화 답변 비율: {aq.get('structure_rate', 0):.1%}")
+
+        print("\n[ 카테고리별 성능 ]")
+        for cat, perf in metrics.category_performance.items():
+            print(f"  {cat}: Score={perf['avg_score']:.4f}, MRR={perf['avg_mrr']:.4f}")
+
+        print("\n[ 발표용 예시 답변 (Q01) ]")
+        if metrics.query_results:
+            q1 = metrics.query_results[0]
+            print(f"  쿼리: {q1['query']}")
+            print(f"  모드: {q1.get('response_mode', 'N/A')}")
+            print(f"  답변: {q1['answer'][:300]}..." if len(q1['answer']) > 300 else f"  답변: {q1['answer']}")
+
+        print("=" * 70)
+
+
+def run_after_benchmark():
+    """After 측정 실행 (Orchestrator 사용)"""
+    print("\n" + "=" * 70)
+    print("🚀 After RAG 벤치마크 (Orchestrator 적용)")
+    print("=" * 70)
+
+    benchmark = RAGBenchmarkAfter(config_name="after_orchestrator_rag")
+    benchmark.setup_optimized_system()
+
+    queries_path = BASE_DIR / "data" / "benchmark" / "test_queries.json"
+    metrics = benchmark.run_benchmark(str(queries_path))
+
+    output_path = BASE_DIR / "scripts" / "rag_benchmark" / "results" / f"after_rag_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    benchmark.save_results(metrics, str(output_path))
+    benchmark.print_summary(metrics)
+
+    return metrics, str(output_path)
+
+
+def compare_results(before_path: str, after_path: str):
+    """Before/After 결과 비교"""
+    with open(before_path, 'r', encoding='utf-8') as f:
+        before = json.load(f)
+    with open(after_path, 'r', encoding='utf-8') as f:
+        after = json.load(f)
+
+    print("\n" + "=" * 70)
+    print("📊 Before vs After 비교 결과")
+    print("=" * 70)
+
+    # 답변 품질 비교
+    print("\n[ 답변 품질 비교 ] ⭐ 핵심")
+    before_aq = before.get('answer_quality', {})
+    after_aq = after.get('answer_quality', {})
+
+    before_len = before_aq.get('avg_answer_length', 0)
+    after_len = after_aq.get('avg_answer_length', 0)
+    len_change = ((after_len - before_len) / before_len * 100) if before_len else 0
+
+    print(f"  평균 답변 길이: {before_len:,.0f}자 → {after_len:,.0f}자 ({len_change:+.1f}%)")
+
+    before_words = before_aq.get('avg_word_count', 0)
+    after_words = after_aq.get('avg_word_count', 0)
+    words_change = ((after_words - before_words) / before_words * 100) if before_words else 0
+
+    print(f"  평균 단어 수: {before_words:,.0f}개 → {after_words:,.0f}개 ({words_change:+.1f}%)")
+
+    before_cite = before_aq.get('citation_rate', 0)
+    after_cite = after_aq.get('citation_rate', 0)
+    print(f"  출처 포함률: {before_cite:.1%} → {after_cite:.1%}")
+
+    before_disc = before_aq.get('disclaimer_rate', 0)
+    after_disc = after_aq.get('disclaimer_rate', 0)
+    print(f"  면책 조항 포함률: {before_disc:.1%} → {after_disc:.1%}")
+
+    # 검색 품질 비교
+    print("\n[ 검색 품질 비교 ]")
+    print(f"  Hit Rate@1: {before.get('hit_rate_at_1', 0):.1%} → {after.get('hit_rate_at_1', 0):.1%}")
+    print(f"  Hit Rate@3: {before.get('hit_rate_at_3', 0):.1%} → {after.get('hit_rate_at_3', 0):.1%}")
+    print(f"  MRR: {before.get('mrr', 0):.4f} → {after.get('mrr', 0):.4f}")
+
+    # 시간 비교
+    print("\n[ 시간 비교 ]")
+    before_time = before.get('avg_total_time_ms', 0)
+    after_time = after.get('avg_total_time_ms', 0)
+    time_change = ((after_time - before_time) / before_time * 100) if before_time else 0
+    print(f"  평균 전체 시간: {before_time:,.0f}ms → {after_time:,.0f}ms ({time_change:+.1f}%)")
+
+    # 응답 모드 통계 (After만)
+    print("\n[ 응답 모드 분포 (After) ]")
+    rms = after.get('response_mode_stats', {})
+    if rms:
+        mode_dist = rms.get('mode_distribution', {})
+        print(f"  CONCISE: {mode_dist.get('concise', 0)}건")
+        print(f"  STANDARD: {mode_dist.get('standard', 0)}건")
+        print(f"  DETAILED: {mode_dist.get('detailed', 0)}건")
+        print(f"  요약 처리: {rms.get('summarized_count', 0)}건")
+
+    print("=" * 70)
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="RAG 벤치마크")
-    parser.add_argument("--mode", choices=["before", "after"], default="before",
+    parser.add_argument("--mode", choices=["before", "after", "compare"], default="before",
                        help="벤치마크 모드")
+    parser.add_argument("--before-file", type=str, help="비교할 Before 결과 파일 경로")
+    parser.add_argument("--after-file", type=str, help="비교할 After 결과 파일 경로")
 
     args = parser.parse_args()
 
     if args.mode == "before":
         run_before_benchmark()
     elif args.mode == "after":
-        print("After 모드는 청킹/임베딩 개선 후 실행하세요.")
+        run_after_benchmark()
+    elif args.mode == "compare":
+        if args.before_file and args.after_file:
+            compare_results(args.before_file, args.after_file)
+        else:
+            print("비교 모드에는 --before-file과 --after-file이 필요합니다.")
+            print("예: python rag_benchmark.py --mode compare --before-file results/before_rag_xxx.json --after-file results/after_rag_xxx.json")
