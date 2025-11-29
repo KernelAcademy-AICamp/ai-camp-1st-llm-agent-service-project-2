@@ -1,13 +1,20 @@
 """
 Document Analysis Workflow
 
-Phase 4 - Week 12: 문서 분석 LangGraph 워크플로우
+Phase 4 - Week 12: 문서 분석 LangGraph 워크플로우 (Planning Agent 패턴)
 
 워크플로우 흐름:
-1. preprocess_node: 문서 텍스트 추출 (document_processor 사용)
-2. chunk_node: 텍스트 청킹
-3. parallel: summarize_node + extract_clauses_node (병렬 실행)
-4. aggregate_node: 결과 집계
+1. extract_text_node: 문서 텍스트 추출
+2. plan_node: LLM이 문서 타입에 따라 분석 계획 수립
+3. [조건부] summarize_node / extract_clauses_node / analyze_risk_node
+4. plan_node: 다음 작업 결정 (cyclic)
+5. aggregate_node: 결과 집계
+
+Cyclic Pattern:
+- plan → summarize → plan
+- plan → extract_clauses → plan
+- plan → analyze_risk → plan
+- plan → aggregate (all_done)
 
 Checkpointing: 불필요 (빠른 실행, 10-20초)
 
@@ -17,18 +24,15 @@ Checkpointing: 불필요 (빠른 실행, 10-20초)
         DocumentWorkflow
     )
 
-    # 방법 1: Workflow 클래스 사용
+    # Workflow 클래스 사용
     workflow = DocumentWorkflow()
     result = await workflow.arun(file_path="/path/to/file.pdf")
-
-    # 방법 2: 직접 그래프 생성
-    graph = create_document_workflow()
-    result = await graph.ainvoke(initial_state)
 """
 
 from typing import Dict, Any, Optional, List
 import logging
-import asyncio
+import json
+import re
 
 from langgraph.graph import StateGraph, START, END
 
@@ -38,22 +42,36 @@ from apps.ai_service.workflows.states.document_state import (
     SummaryResult,
     ClauseResult,
     ChunkData,
+    RiskAnalysisResult,
 )
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Node Functions (일반 Python 함수로 구현 - MCP 불필요)
+# Document Type → Analysis Tasks Mapping
 # ============================================================================
 
-async def preprocess_node(state: DocumentAnalysisState) -> Dict[str, Any]:
+DOC_TYPE_ANALYSIS = {
+    "CONTRACT": ["summary", "clauses", "risk"],
+    "STATUTE": ["summary"],
+    "CASE": ["summary", "clauses"],
+    "PRECEDENT": ["summary", "clauses"],
+    "OTHER": ["summary"],
+}
+
+
+# ============================================================================
+# Node Functions
+# ============================================================================
+
+async def extract_text_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     """
     문서 전처리 노드: 텍스트 추출
 
     기존 services/document_processor.py 직접 호출
     """
-    logger.info(f"[preprocess_node] Processing document: {state.get('file_path')}")
+    logger.info(f"[extract_text_node] Processing document: {state.get('file_path')}")
 
     try:
         from apps.ai_service.services.document_processor import DocumentProcessor
@@ -73,18 +91,17 @@ async def preprocess_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             if not result.get("success"):
                 return {
                     "error": result.get("error", "Failed to process document"),
-                    "completed_tasks": state.get("completed_tasks", []) + ["preprocess_failed"]
+                    "completed_tasks": state.get("completed_tasks", []) + ["extract_text_failed"]
                 }
 
             return {
                 "text": result.get("text", ""),
-                "chunks": [],  # chunk_node에서 처리
+                "chunks": [],  # plan_node에서 처리
                 "doc_type": state.get("doc_type", "OTHER"),
-                "completed_tasks": state.get("completed_tasks", []) + ["preprocess"]
+                "completed_tasks": state.get("completed_tasks", []) + ["extract_text"]
             }
         elif document_id:
-            # DB에서 텍스트 조회 (Django ORM)
-            # Django 설정이 필요하므로 동적 import
+            # DB에서 텍스트 조회
             try:
                 import django
                 django.setup()
@@ -98,82 +115,97 @@ async def preprocess_node(state: DocumentAnalysisState) -> Dict[str, Any]:
                     "text": full_text,
                     "chunks": [],
                     "doc_type": doc.doc_type if hasattr(doc, 'doc_type') else "OTHER",
-                    "completed_tasks": state.get("completed_tasks", []) + ["preprocess"]
+                    "completed_tasks": state.get("completed_tasks", []) + ["extract_text"]
                 }
             except Exception as e:
                 logger.warning(f"Django model access failed: {e}")
                 return {
                     "error": f"Failed to load document {document_id}: {str(e)}",
-                    "completed_tasks": state.get("completed_tasks", []) + ["preprocess_failed"]
+                    "completed_tasks": state.get("completed_tasks", []) + ["extract_text_failed"]
                 }
         else:
             # 이미 텍스트가 있는 경우
             if state.get("text"):
                 return {
-                    "completed_tasks": state.get("completed_tasks", []) + ["preprocess"]
+                    "completed_tasks": state.get("completed_tasks", []) + ["extract_text"]
                 }
             return {
                 "error": "No file_path, document_id, or text provided",
-                "completed_tasks": state.get("completed_tasks", []) + ["preprocess_failed"]
+                "completed_tasks": state.get("completed_tasks", []) + ["extract_text_failed"]
             }
 
     except Exception as e:
-        logger.error(f"[preprocess_node] Error: {e}")
+        logger.error(f"[extract_text_node] Error: {e}")
         return {
             "error": str(e),
-            "completed_tasks": state.get("completed_tasks", []) + ["preprocess_failed"]
+            "completed_tasks": state.get("completed_tasks", []) + ["extract_text_failed"]
         }
 
 
-async def chunk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
+async def planning_agent_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     """
-    청킹 노드: 텍스트를 청크로 분할
+    Planning Agent 노드: 문서 타입에 따라 분석 작업 계획
 
-    기존 services/document_processor.py의 chunk_text 직접 호출
+    문서 타입별 권장 분석:
+    - CONTRACT: summary, clauses, risk
+    - STATUTE: summary
+    - CASE/PRECEDENT: summary, clauses
+    - OTHER: summary
     """
-    logger.info(f"[chunk_node] Chunking text (length: {len(state.get('text', ''))})")
+    logger.info("[planning_agent_node] Planning analysis tasks")
 
     try:
-        from apps.ai_service.services.document_processor import DocumentProcessor
+        # 이미 완료된 작업 확인
+        completed = set(state.get("completed_tasks", []))
+        doc_type = state.get("doc_type", "OTHER")
 
-        processor = DocumentProcessor(
-            chunk_size=1000,
-            chunk_overlap=200
+        # 문서 타입별 권장 분석
+        recommended = DOC_TYPE_ANALYSIS.get(doc_type, ["summary"])
+
+        # 남은 작업 계산
+        remaining = [task for task in recommended if task not in completed]
+
+        logger.info(
+            f"[planning_agent_node] doc_type={doc_type}, "
+            f"completed={list(completed)}, remaining={remaining}"
         )
 
-        text = state.get("text", "")
-        if not text:
-            return {
-                "error": "No text to chunk",
-                "completed_tasks": state.get("completed_tasks", []) + ["chunk_failed"]
-            }
-
-        chunks_raw = processor.chunk_text(text)
-
-        # ChunkData 형식으로 변환
-        chunks: List[ChunkData] = []
-        for chunk in chunks_raw:
-            chunks.append({
-                "chunk_index": chunk.get("chunk_index", 0),
-                "text": chunk.get("text", ""),
-                "start_offset": chunk.get("start_offset", 0),
-                "end_offset": chunk.get("end_offset", 0),
-                "token_count": chunk.get("token_count", 0),
-            })
-
-        logger.info(f"[chunk_node] Created {len(chunks)} chunks")
-
         return {
-            "chunks": chunks,
-            "completed_tasks": state.get("completed_tasks", []) + ["chunk"]
+            "analysis_plan": remaining,
+            "completed_tasks": list(completed) + (["plan"] if "plan" not in completed else [])
         }
 
     except Exception as e:
-        logger.error(f"[chunk_node] Error: {e}")
+        logger.error(f"[planning_agent_node] Error: {e}")
         return {
             "error": str(e),
-            "completed_tasks": state.get("completed_tasks", []) + ["chunk_failed"]
+            "completed_tasks": state.get("completed_tasks", []) + ["plan_failed"]
         }
+
+
+def route_analysis_tasks(state: DocumentAnalysisState) -> str:
+    """
+    다음 실행할 분석 작업 선택
+
+    Returns:
+        "summary" | "clauses" | "risk" | "all_done"
+    """
+    plan = state.get("analysis_plan", [])
+
+    if not plan:
+        return "all_done"
+
+    # 첫 번째 작업 선택
+    next_task = plan[0]
+
+    if next_task == "summary":
+        return "summary"
+    elif next_task == "clauses":
+        return "clauses"
+    elif next_task == "risk":
+        return "risk"
+    else:
+        return "all_done"
 
 
 async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
@@ -185,7 +217,6 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     logger.info("[summarize_node] Generating summary")
 
     try:
-        # LLM 클라이언트 가져오기
         from libs.rag_core.llm.llm_client import get_llm_client
         from apps.ai_service.services.summarizer import Summarizer
 
@@ -196,7 +227,7 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
         if not text:
             return {
                 "error": "No text to summarize",
-                "completed_tasks": state.get("completed_tasks", []) + ["summarize_failed"]
+                "completed_tasks": state.get("completed_tasks", []) + ["summary_failed"]
             }
 
         # 요약 생성 (GLOBAL 타입)
@@ -214,16 +245,22 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 
         logger.info(f"[summarize_node] Summary generated: {len(summary_result['summary'])} chars")
 
+        # 완료된 작업 기록 및 analysis_plan에서 제거
+        completed = state.get("completed_tasks", [])
+        analysis_plan = state.get("analysis_plan", [])
+        new_plan = [t for t in analysis_plan if t != "summary"]
+
         return {
             "summary": summary_result,
-            "completed_tasks": state.get("completed_tasks", []) + ["summarize"]
+            "analysis_plan": new_plan,
+            "completed_tasks": completed + ["summary"]
         }
 
     except Exception as e:
         logger.error(f"[summarize_node] Error: {e}")
         return {
             "error": str(e),
-            "completed_tasks": state.get("completed_tasks", []) + ["summarize_failed"]
+            "completed_tasks": state.get("completed_tasks", []) + ["summary_failed"]
         }
 
 
@@ -246,7 +283,7 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
         if not text:
             return {
                 "error": "No text to extract clauses from",
-                "completed_tasks": state.get("completed_tasks", []) + ["extract_clauses_failed"]
+                "completed_tasks": state.get("completed_tasks", []) + ["clauses_failed"]
             }
 
         # 핵심 조항 추출
@@ -267,16 +304,117 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 
         logger.info(f"[extract_clauses_node] Extracted {len(clauses)} clauses")
 
+        # 완료된 작업 기록 및 analysis_plan에서 제거
+        completed = state.get("completed_tasks", [])
+        analysis_plan = state.get("analysis_plan", [])
+        new_plan = [t for t in analysis_plan if t != "clauses"]
+
         return {
             "clauses": clauses,
-            "completed_tasks": state.get("completed_tasks", []) + ["extract_clauses"]
+            "analysis_plan": new_plan,
+            "completed_tasks": completed + ["clauses"]
         }
 
     except Exception as e:
         logger.error(f"[extract_clauses_node] Error: {e}")
         return {
             "error": str(e),
-            "completed_tasks": state.get("completed_tasks", []) + ["extract_clauses_failed"]
+            "completed_tasks": state.get("completed_tasks", []) + ["clauses_failed"]
+        }
+
+
+async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
+    """
+    리스크 분석 노드 (CONTRACT 문서용)
+
+    기존 services/risk_analyzer.py 직접 호출
+    """
+    logger.info("[analyze_risk_node] Analyzing risks")
+
+    try:
+        from libs.rag_core.llm.llm_client import get_llm_client
+
+        llm_client = get_llm_client()
+
+        text = state.get("text", "")
+        doc_type = state.get("doc_type", "CONTRACT")
+
+        if not text:
+            return {
+                "error": "No text to analyze risks",
+                "completed_tasks": state.get("completed_tasks", []) + ["risk_failed"]
+            }
+
+        # 리스크 식별 프롬프트
+        prompt = f"""당신은 법률 리스크 분석 전문가입니다. 다음 {doc_type} 문서에서 잠재적 리스크를 식별해주세요.
+
+문서 내용:
+{text[:8000]}
+
+다음 JSON 배열 형식으로 리스크를 식별해주세요:
+[
+  {{
+    "risk_type": "LEGAL|FINANCIAL|COMPLIANCE|OPERATIONAL|OTHER",
+    "description": "리스크에 대한 상세 설명",
+    "severity": "CRITICAL|HIGH|MEDIUM|LOW|INFO",
+    "recommendation": "리스크 완화 권장사항"
+  }}
+]
+
+최대 5개의 리스크를 식별하세요. 반드시 유효한 JSON 형식으로만 응답해주세요."""
+
+        response = llm_client.generate(
+            prompt=prompt,
+            temperature=0.3,
+            max_tokens=2000
+        )
+
+        # JSON 파싱
+        risks: List[RiskAnalysisResult] = []
+        needs_review = False
+
+        try:
+            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group(0))
+
+                for risk_data in data:
+                    severity = risk_data.get("severity", "MEDIUM").upper()
+                    if severity not in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
+                        severity = "MEDIUM"
+
+                    # CRITICAL/HIGH 리스크가 있으면 전문가 검토 필요
+                    if severity in ["CRITICAL", "HIGH"]:
+                        needs_review = True
+
+                    risks.append({
+                        "risk_type": risk_data.get("risk_type", "OTHER"),
+                        "description": risk_data.get("description", ""),
+                        "severity": severity,
+                        "recommendation": risk_data.get("recommendation"),
+                    })
+        except Exception as e:
+            logger.warning(f"Failed to parse risks: {e}")
+
+        logger.info(f"[analyze_risk_node] Identified {len(risks)} risks, needs_review={needs_review}")
+
+        # 완료된 작업 기록 및 analysis_plan에서 제거
+        completed = state.get("completed_tasks", [])
+        analysis_plan = state.get("analysis_plan", [])
+        new_plan = [t for t in analysis_plan if t != "risk"]
+
+        return {
+            "risks": risks,
+            "needs_expert_review": needs_review,
+            "analysis_plan": new_plan,
+            "completed_tasks": completed + ["risk"]
+        }
+
+    except Exception as e:
+        logger.error(f"[analyze_risk_node] Error: {e}")
+        return {
+            "error": str(e),
+            "completed_tasks": state.get("completed_tasks", []) + ["risk_failed"]
         }
 
 
@@ -295,14 +433,6 @@ async def aggregate_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             "completed_tasks": completed_tasks + ["aggregate_with_error"]
         }
 
-    # 모든 작업 완료 확인
-    required_tasks = {"preprocess", "chunk", "summarize", "extract_clauses"}
-    completed_set = set(completed_tasks)
-
-    missing_tasks = required_tasks - completed_set
-    if missing_tasks:
-        logger.warning(f"[aggregate_node] Missing tasks: {missing_tasks}")
-
     return {
         "completed_tasks": completed_tasks + ["aggregate"]
     }
@@ -314,61 +444,69 @@ async def aggregate_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 
 def create_document_workflow() -> StateGraph:
     """
-    Document Analysis Workflow 생성
+    Document Analysis Workflow 생성 (Planning Agent 패턴)
 
     그래프 구조:
         START
           |
           v
-        preprocess
+      extract_text
           |
           v
-        chunk
-          |
-          v
-        +-----------+
-        |           |
-        v           v
-    summarize  extract_clauses  (병렬 실행 - LangGraph가 자동으로 처리)
-        |           |
-        +-----------+
-              |
-              v
-          aggregate
-              |
-              v
-            END
+        plan  <-----------------+
+          |                     |
+          v                     |
+    [조건부 분기]                |
+    /    |    \                |
+   v     v     v               |
+ summary clauses risk --------+
+   |     |     |
+   +-----+-----+
+         |
+         v (all_done)
+      aggregate
+         |
+         v
+        END
 
-    Checkpointing: 불필요 (compile() 시 checkpointer 없이)
+    Cyclic Pattern: 각 분석 노드 완료 후 다시 plan으로
 
     Returns:
         컴파일된 StateGraph
     """
-    # StateGraph 생성
     workflow = StateGraph(DocumentAnalysisState)
 
     # 노드 추가
-    workflow.add_node("preprocess", preprocess_node)
-    workflow.add_node("chunk", chunk_node)
+    workflow.add_node("extract_text", extract_text_node)
+    workflow.add_node("plan", planning_agent_node)
     workflow.add_node("summarize", summarize_node)
     workflow.add_node("extract_clauses", extract_clauses_node)
+    workflow.add_node("analyze_risk", analyze_risk_node)
     workflow.add_node("aggregate", aggregate_node)
 
     # 엣지 정의
-    # START -> preprocess
-    workflow.add_edge(START, "preprocess")
+    # START -> extract_text
+    workflow.add_edge(START, "extract_text")
 
-    # preprocess -> chunk
-    workflow.add_edge("preprocess", "chunk")
+    # extract_text -> plan
+    workflow.add_edge("extract_text", "plan")
 
-    # chunk -> summarize, extract_clauses (fan-out)
-    # LangGraph에서 동일 소스에서 여러 엣지를 추가하면 병렬 실행됨
-    workflow.add_edge("chunk", "summarize")
-    workflow.add_edge("chunk", "extract_clauses")
+    # plan -> [조건부] summarize/clauses/risk/all_done
+    workflow.add_conditional_edges(
+        "plan",
+        route_analysis_tasks,
+        {
+            "summary": "summarize",
+            "clauses": "extract_clauses",
+            "risk": "analyze_risk",
+            "all_done": "aggregate"
+        }
+    )
 
-    # summarize, extract_clauses -> aggregate (fan-in)
-    workflow.add_edge("summarize", "aggregate")
-    workflow.add_edge("extract_clauses", "aggregate")
+    # Cyclic: 각 분석 노드 완료 후 다시 plan으로
+    workflow.add_edge("summarize", "plan")
+    workflow.add_edge("extract_clauses", "plan")
+    workflow.add_edge("analyze_risk", "plan")
 
     # aggregate -> END
     workflow.add_edge("aggregate", END)
@@ -383,7 +521,7 @@ def create_document_workflow() -> StateGraph:
 
 class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
     """
-    Document Analysis Workflow 클래스
+    Document Analysis Workflow 클래스 (Planning Agent 패턴)
 
     BaseWorkflow를 상속하여 표준화된 인터페이스 제공
 
@@ -402,24 +540,38 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
         )
 
     def create_graph(self) -> StateGraph:
-        """StateGraph 생성"""
-        # StateGraph 생성 (compile 전)
+        """StateGraph 생성 (compile 전)"""
         workflow = StateGraph(DocumentAnalysisState)
 
         # 노드 추가
-        workflow.add_node("preprocess", preprocess_node)
-        workflow.add_node("chunk", chunk_node)
+        workflow.add_node("extract_text", extract_text_node)
+        workflow.add_node("plan", planning_agent_node)
         workflow.add_node("summarize", summarize_node)
         workflow.add_node("extract_clauses", extract_clauses_node)
+        workflow.add_node("analyze_risk", analyze_risk_node)
         workflow.add_node("aggregate", aggregate_node)
 
         # 엣지 정의
-        workflow.add_edge(START, "preprocess")
-        workflow.add_edge("preprocess", "chunk")
-        workflow.add_edge("chunk", "summarize")
-        workflow.add_edge("chunk", "extract_clauses")
-        workflow.add_edge("summarize", "aggregate")
-        workflow.add_edge("extract_clauses", "aggregate")
+        workflow.add_edge(START, "extract_text")
+        workflow.add_edge("extract_text", "plan")
+
+        # plan -> [조건부]
+        workflow.add_conditional_edges(
+            "plan",
+            route_analysis_tasks,
+            {
+                "summary": "summarize",
+                "clauses": "extract_clauses",
+                "risk": "analyze_risk",
+                "all_done": "aggregate"
+            }
+        )
+
+        # Cyclic edges
+        workflow.add_edge("summarize", "plan")
+        workflow.add_edge("extract_clauses", "plan")
+        workflow.add_edge("analyze_risk", "plan")
+
         workflow.add_edge("aggregate", END)
 
         return workflow
@@ -452,6 +604,9 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
             chunks=[],
             summary=None,
             clauses=[],
+            risks=None,
+            analysis_plan=[],
+            needs_expert_review=False,
             completed_tasks=[],
             error=None,
         )
@@ -473,6 +628,8 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
             "doc_type": result.get("doc_type"),
             "summary": result.get("summary"),
             "clauses": result.get("clauses", []),
+            "risks": result.get("risks"),
+            "needs_expert_review": result.get("needs_expert_review", False),
             "chunk_count": len(result.get("chunks", [])),
             "completed_tasks": result.get("completed_tasks", []),
             "processing_time": processing_time,

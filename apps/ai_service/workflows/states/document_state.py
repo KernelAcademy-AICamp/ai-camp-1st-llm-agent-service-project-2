@@ -39,6 +39,14 @@ class ChunkData(TypedDict):
     token_count: int
 
 
+class RiskAnalysisResult(TypedDict):
+    """리스크 분석 결과 (문서 분석용)"""
+    risk_type: str
+    description: str
+    severity: str
+    recommendation: Optional[str]
+
+
 class DocumentAnalysisState(TypedDict):
     """
     문서 분석 워크플로우 상태
@@ -51,6 +59,9 @@ class DocumentAnalysisState(TypedDict):
         chunks: 청킹된 텍스트 리스트
         summary: 요약 결과
         clauses: 추출된 핵심 조항 리스트
+        risks: 리스크 분석 결과 (문서 타입이 CONTRACT인 경우)
+        analysis_plan: LLM이 결정한 분석 작업 목록
+        needs_expert_review: 전문가 검토 필요 여부
         completed_tasks: 완료된 작업 목록
         error: 에러 메시지 (있는 경우)
     """
@@ -61,5 +72,8 @@ class DocumentAnalysisState(TypedDict):
     chunks: List[ChunkData]
     summary: Optional[SummaryResult]
     clauses: List[ClauseResult]
+    risks: Optional[List[RiskAnalysisResult]]
+    analysis_plan: List[str]
+    needs_expert_review: bool
     completed_tasks: List[str]
     error: Optional[str]

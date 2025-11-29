@@ -43,10 +43,13 @@ class CaseAnalysisState(TypedDict):
 
     Attributes:
         case_content: 원본 사건 내용
-        case_type: 사건 유형 (civil, criminal, administrative)
+        case_type: 사건 유형 (civil, criminal, administrative, family, other)
         parties: 당사자 정보 리스트
         issues: 쟁점 리스트
         related_precedents: 관련 판례 리스트
+        complexity_score: 사건 복잡도 점수 (0-100)
+        legal_strategy: 법률 전략 (복잡한 사건에서만 생성)
+        next_steps: 다음 단계 권장사항
         analysis: 종합 분석 결과
         completed_tasks: 완료된 작업 목록
         error: 에러 메시지 (있는 경우)
@@ -56,6 +59,9 @@ class CaseAnalysisState(TypedDict):
     parties: List[PartyInfo]
     issues: List[IssueInfo]
     related_precedents: List[PrecedentResult]
+    complexity_score: int
+    legal_strategy: Optional[str]
+    next_steps: List[str]
     analysis: Optional[str]
     completed_tasks: List[str]
     error: Optional[str]

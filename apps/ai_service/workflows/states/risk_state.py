@@ -42,28 +42,43 @@ class HumanReviewResult(TypedDict):
     modified_risks: Optional[List[RiskItem]]
 
 
+class SeverityAssessment(TypedDict):
+    """심각도 평가 결과"""
+    overall_score: float
+    critical_count: int
+    high_count: int
+
+
 class RiskAnalysisState(TypedDict):
     """
-    리스크 분석 워크플로우 상태
+    리스크 분석 워크플로우 상태 (Iterative Refinement 패턴)
 
     Attributes:
         document_id: 문서 ID
         text: 분석 대상 텍스트
         doc_type: 문서 타입
         identified_risks: 식별된 리스크 리스트
+        severity_assessment: 심각도 평가 결과
+        mitigation_strategies: 완화 전략 리스트
         requires_human_review: 전문가 검토 필요 여부
         human_review: 전문가 검토 결과
+        review_feedback: 리뷰 피드백 (refine 포함 시 재분석)
+        refinement_iteration: 재분석 반복 횟수 (최대 3회)
         report: 최종 보고서
         completed_tasks: 완료된 작업 목록
-        iteration_count: 반복 횟수 (최대 3회)
+        iteration_count: 총 반복 횟수
         error: 에러 메시지 (있는 경우)
     """
     document_id: Optional[str]
     text: str
     doc_type: str
     identified_risks: List[RiskItem]
+    severity_assessment: Optional[SeverityAssessment]
+    mitigation_strategies: List[str]
     requires_human_review: bool
     human_review: Optional[HumanReviewResult]
+    review_feedback: Optional[str]
+    refinement_iteration: int
     report: Optional[str]
     completed_tasks: List[str]
     iteration_count: int
