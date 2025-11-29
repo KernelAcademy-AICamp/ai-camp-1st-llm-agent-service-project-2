@@ -160,6 +160,12 @@ KOREAN_EMBEDDING_MODELS = {
         "description": "한국어 SBERT (의미 유사도)",
         "dimension": 768
     },
+    # 법률 RAG용 추천 모델 (외부 API 사용)
+    "snowflake-arctic-ko": {
+        "name": "dragonkue/snowflake-arctic-embed-l-v2.0-ko",
+        "description": "한국어 특화 Arctic Embed (법률 RAG 추천, max 8192 토큰)",
+        "dimension": 1024
+    },
 }
 
 

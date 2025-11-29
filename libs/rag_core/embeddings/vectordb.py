@@ -276,7 +276,7 @@ def create_vector_db(db_type: str, **kwargs) -> VectorDB:
     벡터 데이터베이스 팩토리 함수
 
     Args:
-        db_type: 'chroma' or 'faiss'
+        db_type: 'chroma', 'faiss', or 'qdrant'
         **kwargs: 데이터베이스별 파라미터
 
     Returns:
@@ -291,6 +291,15 @@ def create_vector_db(db_type: str, **kwargs) -> VectorDB:
         return FAISSVectorDB(
             index_path=kwargs.get("index_path", "./data/vectordb/faiss"),
             dimension=kwargs.get("dimension", 768)
+        )
+    elif db_type.lower() == "qdrant":
+        from .qdrant_vectordb import QdrantVectorDB
+        return QdrantVectorDB(
+            url=kwargs.get("url", "http://localhost:6333"),
+            api_key=kwargs.get("api_key"),
+            collection_name=kwargs.get("collection_name", "law_documents"),
+            embedding_dim=kwargs.get("embedding_dim", 1024),
+            distance=kwargs.get("distance", "cosine")
         )
     else:
         raise ValueError(f"Unknown vector DB type: {db_type}")
