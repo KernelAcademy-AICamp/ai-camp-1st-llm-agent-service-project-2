@@ -42,6 +42,13 @@ dependencies = [
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "httpx>=0.25.2",
+
+    # LangGraph (Phase 4)
+    "langgraph>=1.0.4",
+    "langgraph-checkpoint>=3.0.1",
+    "langchain-core>=1.1.0",
+    "langsmith",
+    "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]
