@@ -1,7 +1,7 @@
 """
 MCP Tools
 
-Phase 4 - Week 12: MCP Tool 정의
+Phase 4 - Week 12~13: MCP Tool 정의
 
 도구 목록:
 - precedent_tools: 판례 검색/조회
@@ -34,6 +34,12 @@ Phase 4 - Week 12: MCP Tool 정의
   - calculate_llm_metrics(results, task)
   - store_comparison_log(comparison_data)
   - select_best_model(metrics, criteria)
+
+- external_tools: 외부 API 도구 (Week 13 추가)
+  - fetch_court_api(case_number) - 대법원 판례 API
+  - fetch_statute_api(law_code) - 법령 API
+  - parse_legal_document(content) - 법률 문서 파싱
+  - validate_document_structure(data) - 문서 구조 검증
 
 참고: LANGGRAPH_FASTMCP_INTEGRATION_PLAN.md
 """
@@ -80,6 +86,14 @@ from apps.ai_service.mcp.tools.llm_tools import (
     select_best_model,
 )
 
+# External API Tools (Week 13)
+from apps.ai_service.mcp.tools.external_tools import (
+    fetch_court_api,
+    fetch_statute_api,
+    parse_legal_document,
+    validate_document_structure,
+)
+
 __all__ = [
     # Precedent Tools
     "search_precedents",
@@ -108,4 +122,9 @@ __all__ = [
     "calculate_llm_metrics",
     "store_comparison_log",
     "select_best_model",
+    # External API Tools
+    "fetch_court_api",
+    "fetch_statute_api",
+    "parse_legal_document",
+    "validate_document_structure",
 ]

@@ -1,10 +1,10 @@
 """
 MCP Server Entry Point
 
-Phase 4 - Week 12: FastMCP 기반 MCP 서버
+Phase 4 - Week 12~13: FastMCP 기반 MCP 서버
 
 MCP 서버:
-- 도구(Tools): 판례 검색, 문서 분석, 사건 분석, LLM 비교
+- 도구(Tools): 판례 검색, 문서 분석, 사건 분석, LLM 비교, 외부 API
 - 리소스(Resources): document://, precedent://
 
 사용법:
@@ -303,6 +303,119 @@ def create_mcp_server(name: str = "CriminalLaw MCP Server"):
             선택 결과
         """
         return await select_best_model(metrics, criteria)
+
+    # --- External API Tools (Week 13) ---
+    from apps.ai_service.mcp.tools.external_tools import (
+        fetch_court_api,
+        fetch_statute_api,
+        parse_legal_document,
+        validate_document_structure,
+    )
+
+    @mcp.tool()
+    async def mcp_fetch_court_api(
+        case_number: Optional[str] = None,
+        keyword: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        court: Optional[str] = None,
+        page: int = 1,
+        display: int = 20,
+        fetch_content: bool = True
+    ):
+        """대법원 판례 API를 호출합니다.
+
+        국가법령정보센터 판례 API를 통해 판례 데이터를 조회합니다.
+
+        Args:
+            case_number: 사건번호 (예: "2020도1234")
+            keyword: 검색 키워드
+            start_date: 선고일자 시작 (YYYY-MM-DD)
+            end_date: 선고일자 종료 (YYYY-MM-DD)
+            court: 법원명 (예: "대법원")
+            page: 페이지 번호 (기본값: 1)
+            display: 결과 개수 (기본값: 20, 최대: 100)
+            fetch_content: 본문 상세 조회 여부 (기본값: True)
+
+        Returns:
+            판례 검색 결과 (success, total_count, precedents, metadata)
+        """
+        return await fetch_court_api(
+            case_number=case_number,
+            keyword=keyword,
+            start_date=start_date,
+            end_date=end_date,
+            court=court,
+            page=page,
+            display=display,
+            fetch_content=fetch_content
+        )
+
+    @mcp.tool()
+    async def mcp_fetch_statute_api(
+        law_code: Optional[str] = None,
+        keyword: Optional[str] = None,
+        law_type: Optional[str] = None,
+        ministry: Optional[str] = None,
+        page: int = 1,
+        display: int = 20,
+        fetch_content: bool = False
+    ):
+        """법령 API를 호출합니다.
+
+        국가법령정보센터 API를 통해 법령 데이터를 조회합니다.
+
+        Args:
+            law_code: 법령 MST 코드
+            keyword: 검색 키워드
+            law_type: 법령 종류 (법률, 시행령, 시행규칙 등)
+            ministry: 소관부처
+            page: 페이지 번호 (기본값: 1)
+            display: 결과 개수 (기본값: 20, 최대: 100)
+            fetch_content: 본문 상세 조회 여부 (기본값: False)
+
+        Returns:
+            법령 검색 결과 (success, total_count, statutes, metadata)
+        """
+        return await fetch_statute_api(
+            law_code=law_code,
+            keyword=keyword,
+            law_type=law_type,
+            ministry=ministry,
+            page=page,
+            display=display,
+            fetch_content=fetch_content
+        )
+
+    @mcp.tool()
+    async def mcp_parse_legal_document(content: str, doc_type: str = "unknown"):
+        """법률 문서를 파싱합니다.
+
+        법률 문서의 구조를 분석하고 주요 섹션을 추출합니다.
+
+        Args:
+            content: 문서 내용 (HTML 또는 텍스트)
+            doc_type: 문서 타입 ("precedent", "statute", "contract", "unknown")
+
+        Returns:
+            파싱 결과 (success, doc_type, title, sections, metadata)
+        """
+        return await parse_legal_document(content, doc_type)
+
+    @mcp.tool()
+    async def mcp_validate_document_structure(data: dict, doc_type: str = "precedent"):
+        """문서 구조를 검증합니다.
+
+        법률 문서가 필수 필드를 포함하고 있는지 검증합니다.
+
+        Args:
+            data: 검증할 문서 데이터
+            doc_type: 문서 타입 ("precedent", "statute", "contract")
+
+        Returns:
+            검증 결과 (valid, doc_type, missing_fields, warnings, metadata)
+        """
+        return await validate_document_structure(data, doc_type)
 
     # ==========================================================================
     # Resources 등록
