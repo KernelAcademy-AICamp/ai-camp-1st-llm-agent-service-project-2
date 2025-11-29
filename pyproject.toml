@@ -49,6 +49,9 @@ dependencies = [
     "langchain-core>=1.1.0",
     "langsmith",
     "redis>=5.0.0",
+
+    # FastMCP (Phase 4 - Week 12)
+    "fastmcp>=2.13.1",
 ]
 
 [project.optional-dependencies]
