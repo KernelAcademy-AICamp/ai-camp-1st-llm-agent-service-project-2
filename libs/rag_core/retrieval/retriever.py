@@ -11,7 +11,7 @@ class LegalDocumentRetriever:
         self,
         vectordb: VectorDB,
         embedder: KoreanLegalEmbedder,
-        top_k: int = 5
+        top_k: int = 3  # 5 → 3 (토큰 절약)
     ):
         """
         Args:

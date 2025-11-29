@@ -14,6 +14,16 @@ from .rag_chatbot import RAGChatbot, AdvancedRAGChatbot
 from .constitutional_chatbot import ConstitutionalLawChatbot
 from .adapter_chatbot import AdapterChatbot
 from .constitutional_prompts import ConstitutionalPrinciples
+from .response_modes import (
+    ResponseMode,
+    ResponseModeConfig,
+    QueryClassifier,
+    DynamicFewShotSelector
+)
+from .orchestrator import (
+    LegalRAGOrchestrator,
+    OrchestratorResult
+)
 
 __all__ = [
     'LLMClient',
@@ -25,5 +35,11 @@ __all__ = [
     'AdvancedRAGChatbot',
     'ConstitutionalLawChatbot',
     'AdapterChatbot',
-    'ConstitutionalPrinciples'
+    'ConstitutionalPrinciples',
+    'ResponseMode',
+    'ResponseModeConfig',
+    'QueryClassifier',
+    'DynamicFewShotSelector',
+    'LegalRAGOrchestrator',
+    'OrchestratorResult'
 ]

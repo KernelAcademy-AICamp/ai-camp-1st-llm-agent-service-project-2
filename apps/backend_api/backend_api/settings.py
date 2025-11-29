@@ -148,7 +148,9 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # AI Service
-AI_SERVICE_URL = os.getenv('AI_SERVICE_URL', 'http://localhost:8001')
+# Note: localhost can conflict with VS Code's port forwarding (Code Helper)
+# Using 127.0.0.1 explicitly to avoid conflicts
+AI_SERVICE_URL = os.getenv('AI_SERVICE_URL', 'http://127.0.0.1:8001')
 
 # Logging
 LOGGING = {

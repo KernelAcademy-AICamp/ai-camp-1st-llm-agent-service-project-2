@@ -11,7 +11,8 @@ import DocumentFilter from './DocumentFilter';
 const LegalResearch: React.FC = () => {
   const { token, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [topK, setTopK] = useState(5);
+  const [topK, setTopK] = useState(3);  // Phase 1: 기본값 5 → 3
+  const [responseMode, setResponseMode] = useState<'auto' | 'concise' | 'standard' | 'detailed'>('auto');  // Phase 2: 응답 모드
   const [ragResponse, setRagResponse] = useState<RAGChatResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +109,7 @@ const LegalResearch: React.FC = () => {
         top_k: topK,
         include_sources: true,
         filters: filters, // Include filters (Session 13-C)
+        response_mode: responseMode === 'auto' ? undefined : responseMode,  // Phase 2: 응답 모드
       }, token || undefined);
 
       // 타이머 정리
@@ -227,6 +229,7 @@ const LegalResearch: React.FC = () => {
         top_k: topK,
         include_sources: true,
         filters: filters, // Include filters (Session 13-C)
+        response_mode: responseMode === 'auto' ? undefined : responseMode,  // Phase 2: 응답 모드
       }, token || undefined);
 
       // 타이머 정리
@@ -300,20 +303,34 @@ const LegalResearch: React.FC = () => {
 
         <div className="search-filters">
           <span className="filter-label">
-            <FiFilter /> 검색 문서 수 (Top-K):
+            <FiFilter /> 응답 모드:
+          </span>
+          <select
+            className="response-mode-select"
+            value={responseMode}
+            onChange={(e) => setResponseMode(e.target.value as 'auto' | 'concise' | 'standard' | 'detailed')}
+            title="AI 응답 상세도를 선택하세요"
+          >
+            <option value="auto">🤖 자동 (AI 판단)</option>
+            <option value="concise">⚡ 간결 (핵심만)</option>
+            <option value="standard">📝 표준 (권장)</option>
+            <option value="detailed">📚 상세 (분석 포함)</option>
+          </select>
+          <span className="filter-label">
+            검색 문서:
           </span>
           <select
             className="top-k-select"
             value={topK}
             onChange={(e) => setTopK(Number(e.target.value))}
           >
-            <option value={3}>3개 (빠름)</option>
-            <option value={5}>5개 (권장)</option>
-            <option value={7}>7개 (상세)</option>
-            <option value={10}>10개 (매우 상세)</option>
+            <option value={2}>2개 (빠름)</option>
+            <option value={3}>3개 (권장)</option>
+            <option value={5}>5개 (상세)</option>
+            <option value={7}>7개 (매우 상세)</option>
           </select>
           <span className="search-info">
-            388,767개 형사법 문서 | Hybrid Search (Semantic + BM25) | Constitutional AI
+            388,767개 형사법 문서 | Hybrid Search | Constitutional AI
           </span>
         </div>
       </form>
@@ -372,6 +389,14 @@ const LegalResearch: React.FC = () => {
                 <h3>AI 답변</h3>
                 <div className="answer-meta">
                   <span className="model-badge">{ragResponse.model}</span>
+                  {ragResponse.response_mode && (
+                    <span className={`response-mode-badge response-mode-badge--${ragResponse.response_mode}`}>
+                      {ragResponse.response_mode === 'concise' && '⚡ 간결'}
+                      {ragResponse.response_mode === 'standard' && '📝 표준'}
+                      {ragResponse.response_mode === 'detailed' && '📚 상세'}
+                      {ragResponse.auto_classified && ' (자동)'}
+                    </span>
+                  )}
                   {ragResponse.revised && (
                     <span className="revised-badge">
                       <FiCheckCircle /> Self-Critique 검증됨

@@ -13,6 +13,7 @@ import logging
 from models.database import get_db
 from services.feedback_adapter import DatabaseFeedbackProvider
 from libs.rag_core import filter_results
+from libs.rag_core.llm.orchestrator import LegalRAGOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,9 @@ class RAGFilterOptions(BaseModel):
 class RAGRequest(BaseModel):
     """RAG 질의응답 요청"""
     query: str = Field(..., description="사용자 질문", min_length=1)
-    top_k: int = Field(5, description="검색할 문서 수", ge=1, le=20)
+    top_k: Optional[int] = Field(None, description="검색할 문서 수 (자동 결정)", ge=1, le=10)
     include_sources: bool = Field(True, description="출처 포함 여부")
-    enable_critique: bool = Field(True, description="Constitutional AI 활성화")
+    enable_critique: Optional[bool] = Field(None, description="Constitutional AI 활성화 (자동 결정)")
     filters: Optional[RAGFilterOptions] = Field(
         None,
         description="검색 필터 옵션 (Session 13-C)"
@@ -74,6 +75,7 @@ class RAGResponse(BaseModel):
     model: str
     timestamp: str
     critique_log: Optional[List[Dict[str, Any]]] = None
+    response_mode: Optional[str] = None  # 사용된 응답 모드 (Orchestrator가 자동 결정)
 
 # ===== Helper Functions =====
 
@@ -179,20 +181,38 @@ async def rag_chat(
         else:
             logger.info(f"📨 RAG request (anonymous): {request.query[:50]}...")
 
-        # 1. 피드백 필터 적용 (DB에서 제외할 판례 ID 조회)
+        # 1. Orchestrator 생성 (기존 chatbot 래핑)
+        # Orchestrator가 질문을 분석하여 응답 모드를 자동 결정
+        orchestrator = LegalRAGOrchestrator(chatbot=chatbot)
+
+        # 2. 피드백 필터 적용 (DB에서 제외할 판례 ID 조회)
         feedback_provider = DatabaseFeedbackProvider(db)
         excluded_ids = await feedback_provider.get_excluded_ids()
 
-        # 2. RAG 검색 (top_k + excluded 보정)
-        #    excluded_ids가 있으면 더 많이 검색해서 필터링 후 top_k 유지
-        retrieval_top_k = request.top_k + min(len(excluded_ids), 5)
+        # top_k 결정 (명시적 지정 또는 Orchestrator가 모드에 따라 자동 결정)
+        effective_top_k = request.top_k
+        if effective_top_k:
+            # excluded 보정
+            effective_top_k = effective_top_k + min(len(excluded_ids), 5)
 
-        # 3. Constitutional AI + RAG
-        result = chatbot.chat(
+        # 3. Orchestrator로 RAG 처리 (모드 자동 결정)
+        enable_critique = request.enable_critique if request.enable_critique is not None else False
+        orchestrator_result = orchestrator.chat(
             query=request.query,
-            top_k=retrieval_top_k,
-            include_critique_log=request.enable_critique
+            mode=None,  # Orchestrator가 QueryClassifier로 자동 분류
+            top_k=effective_top_k,  # None이면 모드에 따라 자동
+            include_critique_log=enable_critique
         )
+
+        # Orchestrator 결과에서 필요한 값 추출
+        result = {
+            'answer': orchestrator_result.answer,
+            'sources': orchestrator_result.sources,
+            'model': chatbot.llm_client.model_name if hasattr(chatbot.llm_client, 'model_name') else 'Unknown'
+        }
+        response_mode = orchestrator_result.mode  # 자동 결정된 모드
+
+        logger.info(f"🎯 Response mode: {response_mode}, strategy={orchestrator_result.strategy_used}")
 
         # 4. 피드백 필터 적용 (제외할 판례 제거)
         sources = result.get('sources', [])
@@ -204,21 +224,22 @@ async def rag_chat(
             )
             logger.info(f"🔍 Filtered {len(result['sources']) - len(sources)} precedents by feedback")
 
-        # 4.5. Session 13-C: 문서 필터 적용
+        # Session 13-C: 문서 필터 적용
         if request.filters:
             sources = apply_document_filters(sources, request.filters)
             logger.info(f"🔍 Applied document filters, remaining sources: {len(sources)}")
 
         # 5. top_k로 잘라내기
-        sources = sources[:request.top_k]
+        final_top_k = request.top_k or len(sources)
+        sources = sources[:final_top_k]
 
         # 6. 응답 생성
         return RAGResponse(
             answer=result['answer'],
             sources=[
                 Source(
-                    source=s.get('source', ''),
-                    content=s.get('content', ''),
+                    source=s.get('source', s.get('metadata', {}).get('doc_id', '')),
+                    content=s.get('content', s.get('text', '')),
                     score=s.get('score', 0.0),
                     metadata=s.get('metadata', {})
                 )
@@ -227,7 +248,8 @@ async def rag_chat(
             query=request.query,
             model=result.get('model', 'Unknown'),
             timestamp=datetime.now().isoformat(),
-            critique_log=result.get('critique_log') if request.enable_critique else None
+            critique_log=result.get('critique_log') if enable_critique else None,
+            response_mode=response_mode
         )
 
     except HTTPException:
