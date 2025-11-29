@@ -23,7 +23,7 @@ import logging
 import json
 import asyncio
 
-from apps.ai_service.graphs.rag_graph import RAGWorkflow
+from apps.ai_service.workflows.rag_workflow import RAGWorkflow
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +246,7 @@ async def compare_v1_v2(request: RAGv2Request):
         두 버전의 응답 비교 결과
     """
     try:
-        from apps.ai_service.graphs.rag_graph import RAGWorkflow
+        from apps.ai_service.workflows.rag_workflow import RAGWorkflow
 
         logger.info(f"[compare] query='{request.query[:50]}...'")
 

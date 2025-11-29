@@ -1,27 +1,30 @@
 """
-LangGraph Workflow Definitions
+LangGraph Workflow Definitions (DEPRECATED)
+
+⚠️ DEPRECATED: 이 모듈은 workflows/로 이동되었습니다.
+하위 호환성을 위해 workflows/로 리다이렉트합니다.
 
 Phase 4 - Week 11: LangGraph 기반 워크플로우
 
-워크플로우 목록:
-- RAGWorkflow: RAG 기반 질의응답 (Checkpointing 불필요)
+사용:
+    # 새로운 import 경로 (권장)
+    from apps.ai_service.workflows import get_rag_workflow, create_rag_workflow
 
-Week 12 예정:
-- RiskWorkflow: 리스크 분석 (Checkpointing 필수)
-- ComparisonWorkflow: LLM 비교 (Checkpointing 필수)
+    # 레거시 import 경로 (deprecated)
+    from apps.ai_service.graphs import get_rag_workflow, create_rag_workflow
 """
 
-# 지연 import로 순환 참조 방지
-def get_rag_workflow():
-    """RAG Workflow 인스턴스 반환"""
-    from apps.ai_service.graphs.rag_graph import RAGWorkflow
-    return RAGWorkflow()
+import warnings
 
+# workflows 모듈에서 가져오기 (리다이렉트)
+from apps.ai_service.workflows import get_rag_workflow, create_rag_workflow
 
-def create_rag_workflow():
-    """RAG Workflow StateGraph 생성"""
-    from apps.ai_service.graphs.rag_graph import create_rag_workflow as _create
-    return _create()
-
+# Deprecation 경고
+warnings.warn(
+    "apps.ai_service.graphs is deprecated. "
+    "Use apps.ai_service.workflows instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 __all__ = ["get_rag_workflow", "create_rag_workflow"]
