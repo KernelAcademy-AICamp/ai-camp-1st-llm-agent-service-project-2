@@ -6,9 +6,10 @@ Phase 4 - Week 11~13: LangGraph 기반 워크플로우
 포함 워크플로우:
 - RAG Workflow (Week 11)
 - Crawler Workflow (Week 13, Checkpointing 필수)
+- Analytics Workflow (Week 13, Checkpointing 불필요)
 
 사용:
-    from apps.ai_service.graphs import RAGWorkflow, CrawlerWorkflow
+    from apps.ai_service.graphs import RAGWorkflow, CrawlerWorkflow, AnalyticsWorkflow
 """
 
 # RAG Workflow (rag_graph.py)
@@ -25,6 +26,17 @@ from apps.ai_service.graphs.crawler_graph import (
     retry_node,
 )
 
+# Analytics Workflow (analytics_graph.py) - Week 13 (Checkpointing 불필요)
+from apps.ai_service.graphs.analytics_graph import (
+    AnalyticsWorkflow,
+    create_analytics_workflow,
+    collect_metrics_node,
+    analyze_node,
+    detect_anomalies_node,
+    alert_node,
+    generate_insights_node,
+)
+
 __all__ = [
     # RAG Workflow
     "RAGWorkflow",
@@ -37,6 +49,14 @@ __all__ = [
     "validate_node",
     "store_node",
     "retry_node",
+    # Analytics Workflow (Week 13, Checkpointing 불필요)
+    "AnalyticsWorkflow",
+    "create_analytics_workflow",
+    "collect_metrics_node",
+    "analyze_node",
+    "detect_anomalies_node",
+    "alert_node",
+    "generate_insights_node",
 ]
 
 
