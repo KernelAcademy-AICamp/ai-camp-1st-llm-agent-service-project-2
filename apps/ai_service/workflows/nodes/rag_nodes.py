@@ -48,17 +48,17 @@ def retrieve_node(state: RAGState) -> Dict[str, Any]:
 
     try:
         from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
-        from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
-        from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
+        from libs.rag_core.embeddings.vectordb import ChromaVectorDB
+        from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
         from apps.ai_service.config.settings import settings
 
-        # Retriever 초기화
-        embedder = RemoteEmbedder()
-        vectordb = QdrantVectorDB(
-            collection_name="criminal_law",
-            embedder=embedder
+        # v1과 동일한 ChromaDB + KoreanLegalEmbedder 사용
+        embedder = KoreanLegalEmbedder()
+        vectordb = ChromaVectorDB(
+            collection_name="criminal_law_docs",
+            persist_directory=str(settings.CHROMA_DIR)
         )
-        retriever = LegalDocumentRetriever(vectordb=vectordb)
+        retriever = LegalDocumentRetriever(vectordb=vectordb, embedder=embedder)
 
         # 검색 수행
         documents = retriever.retrieve(query, top_k=top_k)
