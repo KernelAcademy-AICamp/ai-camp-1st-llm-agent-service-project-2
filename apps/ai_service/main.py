@@ -47,17 +47,22 @@ app.add_middleware(
 )
 
 # ===== Router 등록 =====
-# V1 Routers
+
+# V1 Routers - DEPRECATED (Phase 4 완료 후 제거 예정)
+# Django Backend는 v2 API를 직접 호출하도록 마이그레이션 완료
+# v1 라우터는 하위 호환성을 위해 당분간 유지
 from routers import chat, analyze, preprocess, rag, llm, crawler
 
-app.include_router(chat.router)
-app.include_router(analyze.router)
-app.include_router(preprocess.router)
-app.include_router(rag.router)
-app.include_router(llm.router)
-app.include_router(crawler.router)
+# v1 라우터 등록 (Deprecated - 향후 제거 예정)
+app.include_router(chat.router)       # DEPRECATED: use /v2/rag/chat
+app.include_router(analyze.router)    # DEPRECATED: use /v2/cases/analyze
+app.include_router(preprocess.router) # 유지 (preprocessing은 v1만 존재)
+app.include_router(rag.router)        # DEPRECATED: use /v2/rag/*
+app.include_router(llm.router)        # DEPRECATED: use /v2/llm/*, /v2/documents/*, /v2/risk/*
+app.include_router(crawler.router)    # DEPRECATED: use /v2/crawler/*
 
 # V2 Routers (LangGraph Based - Phase 4)
+# 메인 API로 사용
 from routers.v2 import (
     rag_router as rag_v2_router,
     documents_router as documents_v2_router,

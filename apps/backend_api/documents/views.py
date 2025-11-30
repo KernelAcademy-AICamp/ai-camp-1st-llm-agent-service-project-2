@@ -1003,15 +1003,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not document_text:
                 raise ValueError("No text content found in document chunks")
 
-            # Call AI Service summarize endpoint
+            # Call AI Service v2 documents/analyze endpoint
             ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            import uuid
             response = httpx.post(
-                f'{ai_service_url}/v1/llm/summarize',
+                f'{ai_service_url}/v2/documents/analyze/text',
                 json={
                     'document_id': str(document.id),
                     'text': document_text,
-                    'llm_model': llm_model,
-                    'summary_type': 'GLOBAL'
+                    'doc_type': document.doc_type or 'OTHER',
+                    'session_id': str(uuid.uuid4())
                 },
                 timeout=60.0
             )
@@ -1020,19 +1021,26 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 result = response.json()
 
                 if result.get('success'):
+                    # v2 응답에서 summary 추출
+                    summary_content = result.get('summary', '')
+                    if not summary_content and result.get('analysis', {}).get('summary'):
+                        summary_content = result['analysis']['summary']
+
                     # Save summary to database
                     summary = Summary.objects.create(
                         document=document,
                         llm_model=llm_model,
                         summary_type=Summary.SUMMARY_TYPE_GLOBAL,
-                        content=result.get('summary', ''),
+                        content=summary_content,
                         meta={
                             'token_count': result.get('token_count', 0),
-                            'model_version': result.get('model_version', '')
+                            'model_version': result.get('model', ''),
+                            'session_id': result.get('session_id', ''),
+                            'version': 'v2'
                         }
                     )
 
-                    logger.info(f"Summary generated for document {document.id} using {llm_model}")
+                    logger.info(f"Summary generated for document {document.id} using {llm_model} (v2 API)")
                     return summary
                 else:
                     raise Exception(f"AI Service error: {result.get('error', 'Unknown error')}")
@@ -1060,15 +1068,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not document_text:
                 raise ValueError("No text content found in document chunks")
 
-            # Call AI Service clause extraction endpoint
+            # Call AI Service v2 documents/analyze endpoint (clauses are extracted together)
             ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            import uuid
             response = httpx.post(
-                f'{ai_service_url}/v1/llm/clauses',
+                f'{ai_service_url}/v2/documents/analyze/text',
                 json={
                     'document_id': str(document.id),
                     'text': document_text,
-                    'llm_model': llm_model,
-                    'doc_type': document.doc_type
+                    'doc_type': document.doc_type or 'OTHER',
+                    'session_id': str(uuid.uuid4())
                 },
                 timeout=60.0
             )
@@ -1077,8 +1086,11 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 result = response.json()
 
                 if result.get('success'):
-                    # Save clauses to database
+                    # v2 응답에서 clauses 추출
                     clauses_data = result.get('clauses', [])
+                    if not clauses_data and result.get('analysis', {}).get('clauses'):
+                        clauses_data = result['analysis']['clauses']
+
                     clause_objs = []
 
                     for clause_data in clauses_data:
@@ -1094,7 +1106,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
                     logger.info(
                         f"Extracted {len(clause_objs)} clauses for document {document.id} "
-                        f"using {llm_model}"
+                        f"using {llm_model} (v2 API)"
                     )
                     return clause_objs
                 else:
@@ -1123,15 +1135,17 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not document_text:
                 raise ValueError("No text content found in document chunks")
 
-            # Call AI Service risk analysis endpoint
+            # Call AI Service v2 risk/analyze endpoint
             ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            import uuid
+            session_id = str(uuid.uuid4())
             response = httpx.post(
-                f'{ai_service_url}/v1/llm/analyze_risk',
+                f'{ai_service_url}/v2/risk/analyze',
                 json={
-                    'document_id': str(document.id),
                     'text': document_text,
-                    'llm_model': llm_model,
-                    'document_type': document.doc_type
+                    'doc_type': document.doc_type or 'CONTRACT',
+                    'document_id': str(document.id),
+                    'session_id': session_id
                 },
                 timeout=90.0  # Longer timeout for risk analysis
             )
@@ -1140,16 +1154,43 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 result = response.json()
 
                 if result.get('success'):
+                    # v2 응답에서 리스크 정보 추출
+                    identified_risks = result.get('identified_risks', [])
+
+                    # 리스크 아이템을 v1 형식으로 변환
+                    risk_items = []
+                    for risk in identified_risks:
+                        risk_items.append({
+                            'risk_type': risk.get('risk_type', 'OTHER'),
+                            'description': risk.get('description', ''),
+                            'severity': risk.get('severity', 'MEDIUM'),
+                            'recommendation': risk.get('recommendation', ''),
+                            'clause_reference': risk.get('clause_reference', '')
+                        })
+
+                    # 심각도 결정 (가장 높은 심각도)
+                    severity_order = ['INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+                    max_severity = 'MEDIUM'
+                    for risk in identified_risks:
+                        risk_sev = risk.get('severity', 'MEDIUM')
+                        if severity_order.index(risk_sev) > severity_order.index(max_severity):
+                            max_severity = risk_sev
+
                     # Save risk analysis to database
                     risk_analysis = RiskAnalysisResult.objects.create(
                         document=document,
-                        overall_risk_score=result.get('overall_risk_score', 0),
-                        severity=result.get('severity', 'MEDIUM'),
-                        risk_items=result.get('risk_items', []),
-                        recommendations=result.get('recommendations', []),
-                        summary=result.get('summary', ''),
+                        overall_risk_score=len([r for r in identified_risks if r.get('severity') in ['HIGH', 'CRITICAL']]) * 25,
+                        severity=max_severity,
+                        risk_items=risk_items,
+                        recommendations=[r.get('recommendation', '') for r in identified_risks if r.get('recommendation')],
+                        summary=result.get('report', ''),
                         llm_model=llm_model,
-                        meta=result.get('meta', {})
+                        meta={
+                            'session_id': result.get('session_id', session_id),
+                            'requires_human_review': result.get('requires_human_review', False),
+                            'awaiting_review': result.get('awaiting_review', False),
+                            'version': 'v2'
+                        }
                     )
 
                     logger.info(
@@ -1157,7 +1198,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         f"Score={risk_analysis.overall_risk_score}, "
                         f"Severity={risk_analysis.severity}, "
                         f"Items={len(risk_analysis.risk_items)} "
-                        f"using {llm_model}"
+                        f"using {llm_model} (v2 API)"
                     )
                     return risk_analysis
                 else:
@@ -1191,15 +1232,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not document_text:
                 raise ValueError("No text content found in document chunks")
 
-            # Call AI Service case analysis endpoint
+            # Call AI Service v2 cases/analyze endpoint
             ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            import uuid
             response = httpx.post(
-                f'{ai_service_url}/v1/llm/analyze_case',
+                f'{ai_service_url}/v2/cases/analyze',
                 json={
-                    'document_id': str(document.id),
-                    'text': document_text,
-                    'llm_model': llm_model,
-                    'scenario': scenario
+                    'case_content': document_text,
+                    'case_type': scenario or 'other',
+                    'session_id': str(uuid.uuid4())
                 },
                 timeout=90.0  # Longer timeout for case analysis
             )
@@ -1208,16 +1249,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 result = response.json()
 
                 if result.get('success'):
+                    # v2 응답에서 분석 결과 추출
+                    analysis = result.get('analysis', {})
+
                     # Save case analysis to database
                     case_analysis = CaseAnalysis.objects.create(
                         document=document,
-                        suggested_case_name=result.get('suggested_case_name', document.title),
-                        document_types=result.get('document_types', []),
-                        parties=result.get('parties', {}),
-                        key_dates=result.get('key_dates', {}),
-                        issues=result.get('issues', []),
-                        related_precedents=result.get('related_cases', []),
-                        suggested_next_steps=result.get('suggested_next_steps', []),
+                        suggested_case_name=analysis.get('suggested_case_name', document.title),
+                        document_types=analysis.get('document_types', []),
+                        parties=analysis.get('parties', {}),
+                        key_dates=analysis.get('key_dates', {}),
+                        issues=analysis.get('issues', []),
+                        related_precedents=result.get('related_precedents', []),
+                        suggested_next_steps=analysis.get('suggested_next_steps', []),
                         scenario=scenario,
                         llm_model=llm_model
                     )
@@ -1227,7 +1271,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         f"Parties={len(case_analysis.parties)}, "
                         f"Issues={len(case_analysis.issues)}, "
                         f"Scenario={scenario} "
-                        f"using {llm_model}"
+                        f"using {llm_model} (v2 API)"
                     )
                     return case_analysis
                 else:

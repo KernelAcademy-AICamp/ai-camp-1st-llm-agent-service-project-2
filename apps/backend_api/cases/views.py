@@ -208,41 +208,49 @@ class CaseViewSet(viewsets.ModelViewSet):
 
         logger.info(f"📁 Case created: {case.id}, starting AI analysis...")
 
-        # AI 분석 호출
+        # AI 분석 호출 (v2 API)
         try:
+            import uuid as uuid_module
+            session_id = str(uuid_module.uuid4())
+
             with httpx.Client(timeout=300.0) as client:  # 5분 타임아웃
                 ai_response = client.post(
-                    f"{AI_SERVICE_URL}/v1/analyze/case",
+                    f"{AI_SERVICE_URL}/v2/cases/analyze",
                     json={
-                        "text": full_content,
-                        "include_related_cases": True
+                        "case_content": full_content,
+                        "case_type": "other",
+                        "session_id": session_id
                     },
                     headers={"X-User-ID": str(request.user.id)}
                 )
                 ai_response.raise_for_status()
                 ai_result = ai_response.json()
 
-            logger.info(f"✅ AI analysis completed for case {case.id}")
+            logger.info(f"✅ AI analysis completed for case {case.id} (v2 API)")
+
+            # v2 응답에서 분석 결과 추출
+            analysis = ai_result.get('analysis', {})
 
             # AI 분석 결과를 Case에 저장
             case.analysis = ai_result
             case.status = 'analyzed'
-            case.title = ai_result.get('suggested_case_name', case.title)
+            case.title = analysis.get('suggested_case_name', case.title)
             case.save()
 
             # 프론트엔드가 기대하는 형식으로 응답 반환
             response_data = {
                 'case_id': str(case.id),
-                'summary': ai_result.get('summary', f'{len(files)}개 파일 업로드됨'),
-                'document_types': ai_result.get('document_types', []),
-                'issues': ai_result.get('issues', []),
-                'key_dates': ai_result.get('key_dates', {}),
-                'parties': ai_result.get('parties', {}),
-                'related_cases': ai_result.get('related_cases', []),
-                'suggested_case_name': ai_result.get('suggested_case_name', case.title),
-                'suggested_next_steps': ai_result.get('suggested_next_steps', []),
+                'summary': analysis.get('summary', f'{len(files)}개 파일 업로드됨'),
+                'document_types': analysis.get('document_types', []),
+                'issues': analysis.get('issues', []),
+                'key_dates': analysis.get('key_dates', {}),
+                'parties': analysis.get('parties', {}),
+                'related_cases': ai_result.get('related_precedents', []),
+                'suggested_case_name': analysis.get('suggested_case_name', case.title),
+                'suggested_next_steps': analysis.get('suggested_next_steps', []),
                 'uploaded_files': uploaded_files,
-                'scenario': ai_result.get('scenario')
+                'scenario': ai_result.get('case_type'),
+                'session_id': ai_result.get('session_id', session_id)
             }
 
         except httpx.HTTPError as e:

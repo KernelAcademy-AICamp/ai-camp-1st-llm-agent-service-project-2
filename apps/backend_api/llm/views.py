@@ -211,38 +211,59 @@ class LLMComparisonViewSet(viewsets.ModelViewSet):
         # Generate session ID
         session_id = uuid.uuid4()
 
-        # Call AI Service for comparison
+        # Call AI Service v2 for comparison
         try:
+            # v2 API 요청 형식으로 변환
             compare_request = {
-                "text": text,
-                "task_type": task_type,
+                "task": task_type,
+                "input_data": {
+                    "text": text,
+                    "prompt": text,
+                    "options": options
+                },
                 "models": [
                     {
-                        "id": str(m.id),
-                        "name": m.name,
+                        "model_name": m.model_id,
                         "provider": m.provider,
-                        "model_id": m.model_id,
-                        "api_key_env_var": m.api_key_env_var,
-                        "base_url": m.base_url,
-                        "temperature": m.default_temperature,
-                        "max_tokens": m.default_max_tokens,
-                        "input_cost_per_1k": float(m.input_cost_per_1k),
-                        "output_cost_per_1k": float(m.output_cost_per_1k)
+                        "temperature": float(m.default_temperature) if m.default_temperature else 0.7,
+                        "max_tokens": m.default_max_tokens
                     }
                     for m in models
                 ],
-                "session_id": str(session_id),
-                "options": options
+                "session_id": str(session_id)
             }
 
             with httpx.Client(timeout=120.0) as client:
                 response = client.post(
-                    f"{AI_SERVICE_URL}/v1/llm/compare",
+                    f"{AI_SERVICE_URL}/v2/llm/compare",
                     json=compare_request,
                     headers={"X-User-ID": str(request.user.id)}
                 )
                 response.raise_for_status()
                 result = response.json()
+
+            # v2 응답을 v1 형식으로 변환
+            v2_results = result.get('results', {})
+            v2_metrics = result.get('metrics', {})
+
+            # results를 리스트 형식으로 변환
+            converted_results = []
+            for model_name, model_result in v2_results.items():
+                matching_model = next((m for m in models if m.model_id == model_name), None)
+                converted_results.append({
+                    'model_id': str(matching_model.id) if matching_model else model_name,
+                    'model_name': model_name,
+                    'response_text': model_result.result if hasattr(model_result, 'result') else model_result.get('result', ''),
+                    'latency_ms': int((v2_metrics.get(model_name, {}).get('latency', 0) or 0) * 1000),
+                    'prompt_tokens': 0,
+                    'response_tokens': v2_metrics.get(model_name, {}).get('tokens', 0) or 0,
+                    'status': 'error' if (model_result.error if hasattr(model_result, 'error') else model_result.get('error')) else 'success',
+                    'error_message': model_result.error if hasattr(model_result, 'error') else model_result.get('error', '')
+                })
+
+            result['results'] = converted_results
+            result['fastest_model'] = result.get('best_model', '')
+            result['cheapest_model'] = result.get('best_model', '')
 
         except httpx.TimeoutException:
             return Response(
