@@ -7,7 +7,13 @@ Used to compare Phase 3 (current) vs Phase 4 (LangGraph + FastMCP) implementatio
 
 Usage:
     python benchmark_runner.py --mode phase3 --output results/phase3_baseline_v1.json
-    python benchmark_runner.py --mode phase4 --output results/phase4_langgraph_v1.json
+    python benchmark_runner.py --mode phase4 --output results/phase4_langgraph_v2.json
+
+Phase 4 (v2 API) Features:
+- LangGraph StateGraph 기반 워크플로우
+- Checkpointing (Risk, LLM Compare, Crawler)
+- Human-in-the-Loop 패턴
+- MCP Tools 통합
 """
 
 import argparse
@@ -109,7 +115,7 @@ class BenchmarkRunner:
 
     def run_rag_chat_tests(self) -> List[BenchmarkResult]:
         """Run RAG chat benchmark tests"""
-        print("\n--- RAG Chat Tests ---")
+        print(f"\n--- RAG Chat Tests ({self.mode}) ---")
         results = []
 
         test_cases = self.test_cases.get("test_cases", {}).get("rag_chat", {}).get("tests", [])
@@ -122,13 +128,23 @@ class BenchmarkRunner:
 
             print(f"  Running: {test_name}...", end=" ", flush=True)
 
-            def execute_rag():
-                return requests.post(
-                    f"{self.base_url}/ai/chat/rag",
-                    headers=self._headers(),
-                    json={"query": query, "top_k": top_k},
-                    timeout=120
-                )
+            if self.mode == "phase4":
+                # Phase 4: v2 API (LangGraph)
+                def execute_rag():
+                    return requests.post(
+                        f"{self.ai_service_url}/v2/rag/chat",
+                        json={"query": query, "top_k": top_k},
+                        timeout=120
+                    )
+            else:
+                # Phase 3: v1 API
+                def execute_rag():
+                    return requests.post(
+                        f"{self.base_url}/ai/chat/rag",
+                        headers=self._headers(),
+                        json={"query": query, "top_k": top_k},
+                        timeout=120
+                    )
 
             perf_metrics, response = self.collector.collect_performance_metrics(
                 operation=f"rag_chat_{test_id}",
@@ -148,13 +164,15 @@ class BenchmarkRunner:
                 result.response_data = {
                     "answer_length": len(data.get("answer", "")),
                     "sources_count": len(data.get("sources", [])),
-                    "status": "success"
+                    "status": "success",
+                    "api_version": "v2" if self.mode == "phase4" else "v1"
                 }
                 print(f"OK ({perf_metrics.duration_ms:.0f}ms)")
             else:
                 result.response_data = {
                     "status": "error",
-                    "error": perf_metrics.error_message or "Unknown error"
+                    "error": perf_metrics.error_message or "Unknown error",
+                    "api_version": "v2" if self.mode == "phase4" else "v1"
                 }
                 print(f"FAIL")
 
@@ -164,7 +182,7 @@ class BenchmarkRunner:
 
     def run_document_analysis_tests(self) -> List[BenchmarkResult]:
         """Run document analysis benchmark tests (summarize + clause extraction)"""
-        print("\n--- Document Analysis Tests ---")
+        print(f"\n--- Document Analysis Tests ({self.mode}) ---")
         results = []
 
         test_cases = self.test_cases.get("test_cases", {}).get("document_analysis", {}).get("tests", [])
@@ -176,18 +194,30 @@ class BenchmarkRunner:
 
             print(f"  Running: {test_name}...", end=" ", flush=True)
 
-            # Call FastAPI summarize directly
-            def execute_summarize():
-                return requests.post(
-                    f"{self.ai_service_url}/v1/llm/summarize",
-                    json={
-                        "document_id": f"benchmark_{test_id}",
-                        "text": content,
-                        "summary_type": "GLOBAL",
-                        "document_type": test.get("document_type", "CONTRACT")
-                    },
-                    timeout=120
-                )
+            if self.mode == "phase4":
+                # Phase 4: v2 API (LangGraph)
+                def execute_summarize():
+                    return requests.post(
+                        f"{self.ai_service_url}/v2/documents/analyze/text",
+                        json={
+                            "text": content,
+                            "document_type": test.get("document_type", "CONTRACT")
+                        },
+                        timeout=120
+                    )
+            else:
+                # Phase 3: v1 API
+                def execute_summarize():
+                    return requests.post(
+                        f"{self.ai_service_url}/v1/llm/summarize",
+                        json={
+                            "document_id": f"benchmark_{test_id}",
+                            "text": content,
+                            "summary_type": "GLOBAL",
+                            "document_type": test.get("document_type", "CONTRACT")
+                        },
+                        timeout=120
+                    )
 
             perf_metrics, response = self.collector.collect_performance_metrics(
                 operation=f"doc_analysis_{test_id}",
@@ -206,13 +236,15 @@ class BenchmarkRunner:
                 result.llm = self.collector.collect_llm_metrics(data)
                 result.response_data = {
                     "summary_length": len(data.get("summary", "")),
-                    "status": "success"
+                    "status": "success",
+                    "api_version": "v2" if self.mode == "phase4" else "v1"
                 }
                 print(f"OK ({perf_metrics.duration_ms:.0f}ms)")
             else:
                 result.response_data = {
                     "status": "error",
-                    "error": perf_metrics.error_message or "Unknown error"
+                    "error": perf_metrics.error_message or "Unknown error",
+                    "api_version": "v2" if self.mode == "phase4" else "v1"
                 }
                 print(f"FAIL")
 
@@ -222,7 +254,7 @@ class BenchmarkRunner:
 
     def run_risk_analysis_tests(self) -> List[BenchmarkResult]:
         """Run risk analysis benchmark tests (Phase 3-4)"""
-        print("\n--- Risk Analysis Tests ---")
+        print(f"\n--- Risk Analysis Tests ({self.mode}) ---")
         results = []
 
         test_cases = self.test_cases.get("test_cases", {}).get("risk_analysis", {}).get("tests", [])
@@ -234,17 +266,29 @@ class BenchmarkRunner:
 
             print(f"  Running: {test_name}...", end=" ", flush=True)
 
-            # Call FastAPI risk analysis directly
-            def execute_risk():
-                return requests.post(
-                    f"{self.ai_service_url}/v1/llm/analyze_risk",
-                    json={
-                        "document_id": f"benchmark_{test_id}",
-                        "text": content,
-                        "document_type": test.get("document_type", "CONTRACT")
-                    },
-                    timeout=120
-                )
+            if self.mode == "phase4":
+                # Phase 4: v2 API (LangGraph with Checkpointing)
+                def execute_risk():
+                    return requests.post(
+                        f"{self.ai_service_url}/v2/risk/analyze",
+                        json={
+                            "document_text": content,
+                            "document_type": test.get("document_type", "CONTRACT")
+                        },
+                        timeout=120
+                    )
+            else:
+                # Phase 3: v1 API
+                def execute_risk():
+                    return requests.post(
+                        f"{self.ai_service_url}/v1/llm/analyze_risk",
+                        json={
+                            "document_id": f"benchmark_{test_id}",
+                            "text": content,
+                            "document_type": test.get("document_type", "CONTRACT")
+                        },
+                        timeout=120
+                    )
 
             perf_metrics, response = self.collector.collect_performance_metrics(
                 operation=f"risk_analysis_{test_id}",
@@ -262,16 +306,168 @@ class BenchmarkRunner:
                 data = response.json()
                 result.llm = self.collector.collect_llm_metrics(data)
                 result.response_data = {
-                    "risk_score": data.get("overall_risk_score", 0),
+                    "risk_score": data.get("overall_risk_score", data.get("risk_score", 0)),
                     "risk_items_count": len(data.get("risk_items", [])),
                     "severity": data.get("severity", "unknown"),
-                    "status": "success"
+                    "status": "success",
+                    "api_version": "v2" if self.mode == "phase4" else "v1",
+                    "checkpointing": self.mode == "phase4"
                 }
                 print(f"OK ({perf_metrics.duration_ms:.0f}ms)")
             else:
                 result.response_data = {
                     "status": "error",
-                    "error": perf_metrics.error_message or "Unknown error"
+                    "error": perf_metrics.error_message or "Unknown error",
+                    "api_version": "v2" if self.mode == "phase4" else "v1"
+                }
+                print(f"FAIL")
+
+            results.append(result)
+
+        return results
+
+    def run_analytics_tests(self) -> List[BenchmarkResult]:
+        """Run analytics benchmark tests (Phase 4 only)"""
+        if self.mode != "phase4":
+            return []
+
+        print(f"\n--- Analytics Tests ({self.mode}) ---")
+        results = []
+
+        # Analytics test cases (Phase 4 전용)
+        analytics_tests = [
+            {
+                "test_id": "analytics_overview",
+                "name": "Analytics Overview",
+                "time_range": "1d"
+            },
+            {
+                "test_id": "analytics_trends",
+                "name": "Analytics Trends",
+                "time_range": "7d"
+            },
+            {
+                "test_id": "analytics_generate",
+                "name": "Analytics Full Report",
+                "time_range": "1d"
+            }
+        ]
+
+        for test in analytics_tests:
+            test_id = test["test_id"]
+            test_name = test["name"]
+            time_range = test["time_range"]
+
+            print(f"  Running: {test_name}...", end=" ", flush=True)
+
+            if test_id == "analytics_overview":
+                def execute_analytics():
+                    return requests.get(
+                        f"{self.ai_service_url}/v2/analytics/overview",
+                        params={"time_range": time_range},
+                        timeout=60
+                    )
+            elif test_id == "analytics_trends":
+                def execute_analytics():
+                    return requests.get(
+                        f"{self.ai_service_url}/v2/analytics/trends",
+                        params={"time_range": time_range},
+                        timeout=60
+                    )
+            else:
+                def execute_analytics():
+                    return requests.post(
+                        f"{self.ai_service_url}/v2/analytics/generate",
+                        json={"time_range": time_range},
+                        timeout=120
+                    )
+
+            perf_metrics, response = self.collector.collect_performance_metrics(
+                operation=f"analytics_{test_id}",
+                func=execute_analytics
+            )
+
+            result = BenchmarkResult(
+                test_id=test_id,
+                test_name=test_name,
+                category="analytics",
+                performance=perf_metrics
+            )
+
+            if response and response.status_code == 200:
+                data = response.json()
+                result.response_data = {
+                    "status": "success",
+                    "api_version": "v2",
+                    "checkpointing": False  # Analytics는 Checkpointing 불필요
+                }
+                print(f"OK ({perf_metrics.duration_ms:.0f}ms)")
+            else:
+                result.response_data = {
+                    "status": "error",
+                    "error": perf_metrics.error_message or "Unknown error",
+                    "api_version": "v2"
+                }
+                print(f"FAIL")
+
+            results.append(result)
+
+        return results
+
+    def run_crawler_tests(self) -> List[BenchmarkResult]:
+        """Run crawler benchmark tests (Phase 4 only)"""
+        if self.mode != "phase4":
+            return []
+
+        print(f"\n--- Crawler Tests ({self.mode}) ---")
+        results = []
+
+        # Crawler health test only (실제 크롤링은 시간이 오래 걸림)
+        crawler_tests = [
+            {
+                "test_id": "crawler_health",
+                "name": "Crawler Health Check",
+            }
+        ]
+
+        for test in crawler_tests:
+            test_id = test["test_id"]
+            test_name = test["name"]
+
+            print(f"  Running: {test_name}...", end=" ", flush=True)
+
+            def execute_crawler():
+                return requests.get(
+                    f"{self.ai_service_url}/v2/crawler/health",
+                    timeout=30
+                )
+
+            perf_metrics, response = self.collector.collect_performance_metrics(
+                operation=f"crawler_{test_id}",
+                func=execute_crawler
+            )
+
+            result = BenchmarkResult(
+                test_id=test_id,
+                test_name=test_name,
+                category="crawler",
+                performance=perf_metrics
+            )
+
+            if response and response.status_code == 200:
+                data = response.json()
+                result.response_data = {
+                    "status": "success",
+                    "api_version": "v2",
+                    "checkpointing": data.get("checkpointing", True),
+                    "max_retry": data.get("max_retry", 3)
+                }
+                print(f"OK ({perf_metrics.duration_ms:.0f}ms)")
+            else:
+                result.response_data = {
+                    "status": "error",
+                    "error": perf_metrics.error_message or "Unknown error",
+                    "api_version": "v2"
                 }
                 print(f"FAIL")
 
@@ -340,11 +536,16 @@ class BenchmarkRunner:
         print(f"Timestamp: {datetime.now().isoformat()}")
         print(f"Base URL: {self.base_url}")
         print(f"AI Service: {self.ai_service_url}")
+        if self.mode == "phase4":
+            print(f"API Version: v2 (LangGraph)")
 
-        # Authenticate
-        print("\nAuthenticating...")
-        if not self._authenticate():
-            print("Warning: Authentication failed, some tests may fail")
+        # Authenticate (Phase 3 only needs this)
+        if self.mode == "phase3":
+            print("\nAuthenticating...")
+            if not self._authenticate():
+                print("Warning: Authentication failed, some tests may fail")
+        else:
+            print("\nPhase 4: Using direct AI Service calls (v2 API)")
 
         # Run test suites
         all_results = []
@@ -361,6 +562,13 @@ class BenchmarkRunner:
         risk_results = self.run_risk_analysis_tests()
         all_results.extend(risk_results)
 
+        # Phase 4 전용 테스트
+        analytics_results = self.run_analytics_tests()
+        all_results.extend(analytics_results)
+
+        crawler_results = self.run_crawler_tests()
+        all_results.extend(crawler_results)
+
         # Calculate summary
         summary = self.calculate_summary(all_results)
 
@@ -369,13 +577,18 @@ class BenchmarkRunner:
             "metadata": {
                 "timestamp": datetime.now().isoformat(),
                 "mode": self.mode,
+                "api_version": "v2" if self.mode == "phase4" else "v1",
                 "version": self.test_cases.get("version", "1.0.0"),
-                "system": self.collector.get_system_info()
+                "system": self.collector.get_system_info(),
+                "langgraph_enabled": self.mode == "phase4",
+                "checkpointing_enabled": self.mode == "phase4"
             },
             "results": {
                 "rag_chat": [r.to_dict() for r in rag_results],
                 "document_analysis": [r.to_dict() for r in doc_results],
-                "risk_analysis": [r.to_dict() for r in risk_results]
+                "risk_analysis": [r.to_dict() for r in risk_results],
+                "analytics": [r.to_dict() for r in analytics_results] if analytics_results else [],
+                "crawler": [r.to_dict() for r in crawler_results] if crawler_results else []
             },
             "summary": summary
         }
