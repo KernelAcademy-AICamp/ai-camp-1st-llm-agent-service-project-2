@@ -58,17 +58,23 @@ app.include_router(llm.router)
 app.include_router(crawler.router)
 
 # V2 Routers (LangGraph Based - Phase 4)
-from routers.v2 import rag_router as rag_v2_router
-from routers.v2 import documents_router as documents_v2_router
-from routers.v2 import cases_router as cases_v2_router
-from routers.v2 import risk_router as risk_v2_router
-from routers.v2 import crawler_router as crawler_v2_router
+from routers.v2 import (
+    rag_router as rag_v2_router,
+    documents_router as documents_v2_router,
+    cases_router as cases_v2_router,
+    risk_router as risk_v2_router,
+    llm_compare_router as llm_compare_v2_router,
+    crawler_router as crawler_v2_router,
+    analytics_router as analytics_v2_router,
+)
 
 app.include_router(rag_v2_router)
 app.include_router(documents_v2_router)
 app.include_router(cases_v2_router)
 app.include_router(risk_v2_router)
+app.include_router(llm_compare_v2_router)
 app.include_router(crawler_v2_router)
+app.include_router(analytics_v2_router)
 
 # ===== Startup Event =====
 
