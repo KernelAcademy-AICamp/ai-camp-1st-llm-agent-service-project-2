@@ -7,6 +7,7 @@ from django.db.models import Q, Avg, Count
 from django.conf import settings
 import httpx
 import logging
+import threading
 
 from .models import Document, DocumentChunk, Summary, KeyClause, RiskAnalysisResult, CaseAnalysis
 from .serializers import (
@@ -218,6 +219,275 @@ class DocumentViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    @action(detail=False, methods=['post'], url_path='upload-and-analyze', parser_classes=[MultiPartParser, FormParser])
+    def upload_and_analyze(self, request):
+        """
+        POST /api/v1/documents/upload-and-analyze/
+        Upload a document and automatically start sequential analysis
+
+        Analysis order (sequential, not parallel):
+        1. Summary generation
+        2. Clause extraction
+        3. Risk analysis
+
+        Each step updates analysis_status, allowing frontend to poll for progress.
+        When one step completes, it's immediately available while others continue.
+
+        Request body (multipart/form-data):
+        - title: Document title (required)
+        - doc_type: Document type (required) - CASE/CONTRACT/STATUTE/PRECEDENT/OTHER
+        - language: Language (optional, default: ko)
+        - original_file: File to upload (required)
+
+        Response:
+        - 201: Document uploaded, analysis started
+        - 400: Validation error
+        """
+        serializer = DocumentUploadSerializer(data=request.data, context={'request': request})
+
+        if serializer.is_valid():
+            document = serializer.save()
+
+            # Start preprocessing and analysis in background thread
+            # This allows immediate response to client
+            def run_analysis_pipeline(doc_id):
+                try:
+                    # Need to re-fetch document in thread context
+                    from django.db import connection
+                    connection.close()
+
+                    doc = Document.objects.get(pk=doc_id)
+
+                    # Update status to pending
+                    doc.analysis_status = Document.ANALYSIS_PENDING
+                    doc.save(update_fields=['analysis_status'])
+
+                    # Step 1: Preprocessing (required for analysis)
+                    self._trigger_preprocessing(doc)
+
+                    # Re-fetch after preprocessing
+                    doc.refresh_from_db()
+
+                    # Check if preprocessing succeeded
+                    if doc.status not in [Document.STATUS_PREPROCESSED, Document.STATUS_EMBEDDED]:
+                        doc.analysis_status = Document.ANALYSIS_FAILED
+                        doc.analysis_error = 'Document preprocessing failed'
+                        doc.save(update_fields=['analysis_status', 'analysis_error'])
+                        return
+
+                    # Step 2: Summary (sequential)
+                    try:
+                        doc.analysis_status = Document.ANALYSIS_SUMMARIZING
+                        doc.save(update_fields=['analysis_status'])
+                        self._generate_summary(doc, 'gpt-4')
+                        logger.info(f"Summary completed for document {doc.id}")
+                    except Exception as e:
+                        logger.error(f"Summary failed for document {doc.id}: {e}")
+                        # Continue with next step even if this fails
+
+                    # Step 3: Clauses (sequential)
+                    try:
+                        doc.analysis_status = Document.ANALYSIS_EXTRACTING_CLAUSES
+                        doc.save(update_fields=['analysis_status'])
+                        self._extract_clauses(doc, 'gpt-4')
+                        logger.info(f"Clause extraction completed for document {doc.id}")
+                    except Exception as e:
+                        logger.error(f"Clause extraction failed for document {doc.id}: {e}")
+                        # Continue with next step even if this fails
+
+                    # Step 4: Risk Analysis (sequential)
+                    try:
+                        doc.analysis_status = Document.ANALYSIS_ANALYZING_RISK
+                        doc.save(update_fields=['analysis_status'])
+                        self._analyze_risk(doc, 'gpt-4')
+                        logger.info(f"Risk analysis completed for document {doc.id}")
+                    except Exception as e:
+                        logger.error(f"Risk analysis failed for document {doc.id}: {e}")
+
+                    # Mark as completed
+                    doc.analysis_status = Document.ANALYSIS_COMPLETED
+                    doc.save(update_fields=['analysis_status'])
+                    logger.info(f"All analysis completed for document {doc.id}")
+
+                except Exception as e:
+                    logger.error(f"Analysis pipeline failed for document {doc_id}: {e}", exc_info=True)
+                    try:
+                        doc = Document.objects.get(pk=doc_id)
+                        doc.analysis_status = Document.ANALYSIS_FAILED
+                        doc.analysis_error = str(e)
+                        doc.save(update_fields=['analysis_status', 'analysis_error'])
+                    except Exception:
+                        pass
+
+            # Start analysis in background thread
+            thread = threading.Thread(target=run_analysis_pipeline, args=(str(document.id),))
+            thread.daemon = True
+            thread.start()
+
+            # Return immediately with document info
+            response_serializer = DocumentSerializer(document)
+            return Response(
+                {
+                    'message': 'Document uploaded, analysis started',
+                    'document': response_serializer.data
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            {
+                'error': 'Validation failed',
+                'details': serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    @action(detail=True, methods=['get'], url_path='analysis-status')
+    def analysis_status(self, request, pk=None):
+        """
+        GET /api/v1/documents/{id}/analysis-status/
+        Get current analysis status for polling
+
+        Response:
+        {
+            "document_id": "...",
+            "analysis_status": "summarizing" | "extracting_clauses" | "analyzing_risk" | "completed" | "failed",
+            "analysis_status_display": "Summarizing",
+            "has_summary": true,
+            "has_clauses": true,
+            "clause_count": 5,
+            "has_risk_analysis": false
+        }
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check what analysis results exist
+        has_summary = document.summaries.filter(summary_type=Summary.SUMMARY_TYPE_GLOBAL).exists()
+        has_clauses = document.key_clauses.exists()
+        clause_count = document.key_clauses.count()
+        has_risk_analysis = document.risk_analyses.exists()
+
+        return Response({
+            'document_id': str(document.id),
+            'document_title': document.title,
+            'analysis_status': document.analysis_status,
+            'analysis_status_display': document.get_analysis_status_display(),
+            'analysis_error': document.analysis_error,
+            'has_summary': has_summary,
+            'has_clauses': has_clauses,
+            'clause_count': clause_count,
+            'has_risk_analysis': has_risk_analysis
+        })
+
+    @action(detail=True, methods=['post'], url_path='start-analysis')
+    def start_analysis(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/start-analysis/
+        Start sequential analysis for an existing document
+
+        Use this to re-run analysis or start analysis for a previously uploaded document.
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if document is ready for analysis
+        if document.status not in [Document.STATUS_PREPROCESSED, Document.STATUS_EMBEDDED]:
+            return Response(
+                {
+                    'error': 'Document not ready for analysis',
+                    'status': document.status,
+                    'message': 'Document must be preprocessed first'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if analysis is already running
+        if document.analysis_status in [
+            Document.ANALYSIS_PENDING,
+            Document.ANALYSIS_SUMMARIZING,
+            Document.ANALYSIS_EXTRACTING_CLAUSES,
+            Document.ANALYSIS_ANALYZING_RISK
+        ]:
+            return Response(
+                {
+                    'error': 'Analysis already in progress',
+                    'analysis_status': document.analysis_status
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Start analysis in background thread
+        def run_analysis_pipeline(doc_id):
+            try:
+                from django.db import connection
+                connection.close()
+
+                doc = Document.objects.get(pk=doc_id)
+
+                # Step 1: Summary
+                try:
+                    doc.analysis_status = Document.ANALYSIS_SUMMARIZING
+                    doc.save(update_fields=['analysis_status'])
+                    self._generate_summary(doc, 'gpt-4')
+                except Exception as e:
+                    logger.error(f"Summary failed for document {doc.id}: {e}")
+
+                # Step 2: Clauses
+                try:
+                    doc.analysis_status = Document.ANALYSIS_EXTRACTING_CLAUSES
+                    doc.save(update_fields=['analysis_status'])
+                    self._extract_clauses(doc, 'gpt-4')
+                except Exception as e:
+                    logger.error(f"Clause extraction failed for document {doc.id}: {e}")
+
+                # Step 3: Risk Analysis
+                try:
+                    doc.analysis_status = Document.ANALYSIS_ANALYZING_RISK
+                    doc.save(update_fields=['analysis_status'])
+                    self._analyze_risk(doc, 'gpt-4')
+                except Exception as e:
+                    logger.error(f"Risk analysis failed for document {doc.id}: {e}")
+
+                # Mark as completed
+                doc.analysis_status = Document.ANALYSIS_COMPLETED
+                doc.save(update_fields=['analysis_status'])
+
+            except Exception as e:
+                logger.error(f"Analysis pipeline failed: {e}", exc_info=True)
+                try:
+                    doc = Document.objects.get(pk=doc_id)
+                    doc.analysis_status = Document.ANALYSIS_FAILED
+                    doc.analysis_error = str(e)
+                    doc.save(update_fields=['analysis_status', 'analysis_error'])
+                except Exception:
+                    pass
+
+        thread = threading.Thread(target=run_analysis_pipeline, args=(str(document.id),))
+        thread.daemon = True
+        thread.start()
+
+        # Update status immediately
+        document.analysis_status = Document.ANALYSIS_PENDING
+        document.analysis_error = None
+        document.save(update_fields=['analysis_status', 'analysis_error'])
+
+        return Response({
+            'message': 'Analysis started',
+            'document_id': str(document.id),
+            'analysis_status': document.analysis_status
+        })
 
     @action(detail=False, methods=['get'], url_path='risk-overview')
     def risk_overview(self, request):
@@ -730,6 +1000,147 @@ class DocumentViewSet(viewsets.ModelViewSet):
         else:
             return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=True, methods=['post'], url_path='extract_clauses_preview')
+    def extract_clauses_preview(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/extract_clauses_preview/
+        Extract clauses preview WITHOUT saving to DB
+
+        This allows users to see extracted clauses before deciding which ones to add.
+
+        Response:
+        {
+            "success": true,
+            "document_id": "...",
+            "clauses": [
+                {
+                    "clause_type": "...",
+                    "title": "...",
+                    "content": "...",
+                    "importance_score": 80
+                }
+            ]
+        }
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if document is ready for analysis
+        if document.status not in [Document.STATUS_PREPROCESSED, Document.STATUS_EMBEDDED]:
+            return Response(
+                {
+                    'error': 'Document not ready for analysis',
+                    'status': document.status,
+                    'message': 'Document must be preprocessed first'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Extract clauses WITHOUT saving
+            clauses_data = self._extract_clauses_preview(document)
+
+            return Response({
+                'success': True,
+                'document_id': str(document.id),
+                'document_title': document.title,
+                'clauses': clauses_data,
+                'clause_count': len(clauses_data)
+            })
+
+        except Exception as e:
+            logger.error(f"Error extracting clauses preview for document {document.id}: {e}", exc_info=True)
+            return Response(
+                {
+                    'success': False,
+                    'error': str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], url_path='save_selected_clauses')
+    def save_selected_clauses(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/save_selected_clauses/
+        Save only selected clauses to the database
+
+        Request body:
+        {
+            "clauses": [
+                {
+                    "clause_type": "...",
+                    "title": "...",
+                    "content": "...",
+                    "importance_score": 80
+                }
+            ]
+        }
+
+        Response:
+        {
+            "success": true,
+            "document_id": "...",
+            "saved_count": 3,
+            "clauses": [...]
+        }
+        """
+        try:
+            document = self.get_queryset().get(pk=pk)
+        except Document.DoesNotExist:
+            return Response(
+                {'error': 'Document not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        clauses_data = request.data.get('clauses', [])
+
+        if not clauses_data:
+            return Response(
+                {'error': 'No clauses provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            saved_clauses = []
+            llm_model = request.data.get('llm_model', 'gpt-4')
+
+            for clause_data in clauses_data:
+                clause = KeyClause.objects.create(
+                    document=document,
+                    clause_type=clause_data.get('clause_type', 'OTHER'),
+                    title=clause_data.get('title', ''),
+                    content=clause_data.get('content', ''),
+                    importance_score=clause_data.get('importance_score', 50),
+                    llm_model=llm_model
+                )
+                saved_clauses.append(clause)
+
+            logger.info(
+                f"Saved {len(saved_clauses)} selected clauses for document {document.id}"
+            )
+
+            return Response({
+                'success': True,
+                'document_id': str(document.id),
+                'saved_count': len(saved_clauses),
+                'clauses': KeyClauseSerializer(saved_clauses, many=True).data
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Error saving selected clauses for document {document.id}: {e}", exc_info=True)
+            return Response(
+                {
+                    'success': False,
+                    'error': str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=True, methods=['get'], url_path='case-analysis')
     def case_analysis(self, request, pk=None):
         """
@@ -911,7 +1322,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         """
         Trigger document indexing via AI Service
 
-        This sends the chunks to FastAPI for embedding generation and ChromaDB storage.
+        This sends the chunks to FastAPI for embedding generation and Qdrant storage.
         The embedding IDs are then saved to DocumentChunk records.
         """
         if not chunks:
@@ -1003,7 +1414,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not document_text:
                 raise ValueError("No text content found in document chunks")
 
-            # Call AI Service v2 documents/analyze endpoint
+            # Call AI Service v2 documents/analyze endpoint (요약만 요청)
             ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
             import uuid
             response = httpx.post(
@@ -1012,7 +1423,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     'document_id': str(document.id),
                     'text': document_text,
                     'doc_type': document.doc_type or 'OTHER',
-                    'session_id': str(uuid.uuid4())
+                    'session_id': str(uuid.uuid4()),
+                    'analysis_type': 'summary'  # 요약만 요청
                 },
                 timeout=60.0
             )
@@ -1021,10 +1433,22 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 result = response.json()
 
                 if result.get('success'):
-                    # v2 응답에서 summary 추출
-                    summary_content = result.get('summary', '')
-                    if not summary_content and result.get('analysis', {}).get('summary'):
-                        summary_content = result['analysis']['summary']
+                    # v2 응답에서 summary 추출 (v2는 SummaryV2 객체 반환)
+                    summary_data = result.get('summary')
+                    if isinstance(summary_data, dict):
+                        # v2 API: {"summary": {"summary": "...", "token_count": N, ...}}
+                        summary_content = summary_data.get('summary', '')
+                        token_count = summary_data.get('token_count', 0)
+                        model_version = summary_data.get('model_version', '')
+                    elif isinstance(summary_data, str):
+                        # 문자열로 바로 반환된 경우
+                        summary_content = summary_data
+                        token_count = 0
+                        model_version = ''
+                    else:
+                        summary_content = ''
+                        token_count = 0
+                        model_version = ''
 
                     # Save summary to database
                     summary = Summary.objects.create(
@@ -1033,8 +1457,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         summary_type=Summary.SUMMARY_TYPE_GLOBAL,
                         content=summary_content,
                         meta={
-                            'token_count': result.get('token_count', 0),
-                            'model_version': result.get('model', ''),
+                            'token_count': token_count,
+                            'model_version': model_version,
                             'session_id': result.get('session_id', ''),
                             'version': 'v2'
                         }
@@ -1068,7 +1492,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not document_text:
                 raise ValueError("No text content found in document chunks")
 
-            # Call AI Service v2 documents/analyze endpoint (clauses are extracted together)
+            # Call AI Service v2 documents/analyze endpoint (조항만 요청)
             ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
             import uuid
             response = httpx.post(
@@ -1077,7 +1501,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     'document_id': str(document.id),
                     'text': document_text,
                     'doc_type': document.doc_type or 'OTHER',
-                    'session_id': str(uuid.uuid4())
+                    'session_id': str(uuid.uuid4()),
+                    'analysis_type': 'clauses'  # 조항만 요청
                 },
                 timeout=60.0
             )
@@ -1086,10 +1511,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 result = response.json()
 
                 if result.get('success'):
-                    # v2 응답에서 clauses 추출
+                    # v2 응답에서 clauses 추출 (ClauseV2 객체 리스트 -> dict 리스트로 직렬화됨)
                     clauses_data = result.get('clauses', [])
-                    if not clauses_data and result.get('analysis', {}).get('clauses'):
-                        clauses_data = result['analysis']['clauses']
 
                     clause_objs = []
 
@@ -1157,15 +1580,42 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     # v2 응답에서 리스크 정보 추출
                     identified_risks = result.get('identified_risks', [])
 
-                    # 리스크 아이템을 v1 형식으로 변환
+                    # severity → score 변환 함수
+                    def severity_to_score(severity: str) -> int:
+                        scores = {
+                            'CRITICAL': 100,
+                            'HIGH': 75,
+                            'MEDIUM': 50,
+                            'LOW': 25,
+                            'INFO': 10
+                        }
+                        return scores.get(severity, 50)
+
+                    # 리스크 아이템을 프론트엔드 형식으로 변환
+                    # 프론트엔드 RiskItem: category, title, description, severity, score, clause_reference
                     risk_items = []
-                    for risk in identified_risks:
+                    for i, risk in enumerate(identified_risks, 1):
+                        risk_type = risk.get('risk_type', 'OTHER')
+                        severity = risk.get('severity', 'MEDIUM')
+                        description = risk.get('description', '')
+                        clause_ref = risk.get('clause_reference', '')
+
+                        # title 생성: clause_reference가 있으면 사용, 없으면 risk_type + 번호
+                        if clause_ref:
+                            title = f"{clause_ref} 관련 리스크"
+                        else:
+                            title = f"{risk_type} 리스크 #{i}"
+
                         risk_items.append({
-                            'risk_type': risk.get('risk_type', 'OTHER'),
-                            'description': risk.get('description', ''),
-                            'severity': risk.get('severity', 'MEDIUM'),
-                            'recommendation': risk.get('recommendation', ''),
-                            'clause_reference': risk.get('clause_reference', '')
+                            'category': risk_type,  # risk_type → category
+                            'title': title,
+                            'description': description,
+                            'severity': severity,
+                            'score': severity_to_score(severity),
+                            'clause_reference': clause_ref,
+                            # 레거시 필드 (호환성)
+                            'risk_type': risk_type,
+                            'recommendation': risk.get('recommendation', '')
                         })
 
                     # 심각도 결정 (가장 높은 심각도)
@@ -1176,20 +1626,34 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         if severity_order.index(risk_sev) > severity_order.index(max_severity):
                             max_severity = risk_sev
 
+                    # AI Service에서 계산된 overall_score 사용 (없으면 폴백 계산)
+                    severity_assessment = result.get('severity_assessment', {})
+                    overall_score = severity_assessment.get('overall_score')
+                    if overall_score is None:
+                        # 폴백: 리스크 아이템의 평균 점수
+                        if risk_items:
+                            overall_score = sum(item['score'] for item in risk_items) / len(risk_items)
+                        else:
+                            overall_score = 0
+
                     # Save risk analysis to database
+                    # summary: 간결한 요약 (프론트엔드 표시용), report: 상세 보고서
+                    # summary가 없으면 report를 폴백으로 사용
+                    risk_summary = result.get('summary') or result.get('report', '')
                     risk_analysis = RiskAnalysisResult.objects.create(
                         document=document,
-                        overall_risk_score=len([r for r in identified_risks if r.get('severity') in ['HIGH', 'CRITICAL']]) * 25,
+                        overall_risk_score=int(overall_score),
                         severity=max_severity,
                         risk_items=risk_items,
                         recommendations=[r.get('recommendation', '') for r in identified_risks if r.get('recommendation')],
-                        summary=result.get('report', ''),
+                        summary=risk_summary,
                         llm_model=llm_model,
                         meta={
                             'session_id': result.get('session_id', session_id),
                             'requires_human_review': result.get('requires_human_review', False),
                             'awaiting_review': result.get('awaiting_review', False),
-                            'version': 'v2'
+                            'version': 'v2',
+                            'report': result.get('report', '')  # 상세 보고서 meta에 저장
                         }
                     )
 
@@ -1250,18 +1714,57 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
                 if result.get('success'):
                     # v2 응답에서 분석 결과 추출
-                    analysis = result.get('analysis', {})
+                    # v2 API는 parties, issues, related_precedents를 최상위 레벨에서 반환
+                    # analysis는 종합 분석 문자열 (dict가 아님)
+
+                    # parties 파싱 (PartyV2 객체 리스트 → dict로 변환)
+                    parties_data = result.get('parties', [])
+                    parties_dict = {}
+                    for party in parties_data:
+                        if isinstance(party, dict):
+                            role = party.get('role', 'unknown')
+                            name = party.get('name', '')
+                            desc = party.get('description', '')
+                            if role not in parties_dict:
+                                parties_dict[role] = []
+                            parties_dict[role].append({'name': name, 'description': desc})
+
+                    # issues 파싱 (IssueV2 객체 리스트)
+                    issues_data = result.get('issues', [])
+                    issues_list = []
+                    for issue in issues_data:
+                        if isinstance(issue, dict):
+                            issues_list.append({
+                                'type': issue.get('issue_type', ''),
+                                'description': issue.get('description', ''),
+                                'legal_basis': issue.get('legal_basis', '')
+                            })
+
+                    # related_precedents 파싱 (PrecedentV2 객체 리스트)
+                    precedents_data = result.get('related_precedents', [])
+                    precedents_list = []
+                    for prec in precedents_data:
+                        if isinstance(prec, dict):
+                            precedents_list.append({
+                                'case_number': prec.get('case_number', ''),
+                                'title': prec.get('title', ''),
+                                'summary': prec.get('summary', ''),
+                                'relevance_score': prec.get('relevance_score', 0.0)
+                            })
+
+                    # analysis 문자열에서 추가 정보 추출 시도
+                    analysis_text = result.get('analysis', '') or ''
 
                     # Save case analysis to database
                     case_analysis = CaseAnalysis.objects.create(
                         document=document,
-                        suggested_case_name=analysis.get('suggested_case_name', document.title),
-                        document_types=analysis.get('document_types', []),
-                        parties=analysis.get('parties', {}),
-                        key_dates=analysis.get('key_dates', {}),
-                        issues=analysis.get('issues', []),
-                        related_precedents=result.get('related_precedents', []),
-                        suggested_next_steps=analysis.get('suggested_next_steps', []),
+                        suggested_case_name=document.title,  # v2에서는 별도 제공 안 함
+                        document_types=[result.get('case_type', scenario)],  # case_type 사용
+                        parties=parties_dict,
+                        key_dates={},  # v2에서는 별도 제공 안 함
+                        issues=issues_list,
+                        related_precedents=precedents_list,
+                        suggested_next_steps=[],  # v2에서는 별도 제공 안 함
                         scenario=scenario,
                         llm_model=llm_model
                     )
@@ -1284,4 +1787,52 @@ class DocumentViewSet(viewsets.ModelViewSet):
             raise Exception(f"Failed to connect to AI Service: {str(e)}")
         except Exception as e:
             logger.error(f"Error analyzing case: {e}", exc_info=True)
+            raise
+
+    def _extract_clauses_preview(self, document: Document) -> list:
+        """
+        Extract key clauses from a document via AI Service WITHOUT saving to DB
+
+        Returns a list of clause dictionaries for preview.
+        """
+        try:
+            # Prepare document text from chunks
+            chunks = document.chunks.all().order_by('chunk_index')
+            document_text = '\n\n'.join([chunk.text for chunk in chunks])
+
+            if not document_text:
+                raise ValueError("No text content found in document chunks")
+
+            # Call AI Service v2 documents/analyze endpoint (조항만 요청)
+            ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
+            import uuid
+            response = httpx.post(
+                f'{ai_service_url}/v2/documents/analyze/text',
+                json={
+                    'document_id': str(document.id),
+                    'text': document_text,
+                    'doc_type': document.doc_type or 'OTHER',
+                    'session_id': str(uuid.uuid4()),
+                    'analysis_type': 'clauses'  # 조항만 요청
+                },
+                timeout=60.0
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get('success'):
+                    # v2 응답에서 clauses 추출 (DB 저장 없이 반환)
+                    clauses_data = result.get('clauses', [])
+                    return clauses_data
+                else:
+                    raise Exception(f"AI Service error: {result.get('error', 'Unknown error')}")
+            else:
+                raise Exception(f"AI Service returned {response.status_code}: {response.text}")
+
+        except httpx.RequestError as e:
+            logger.error(f"Request error calling AI Service for clauses preview: {e}", exc_info=True)
+            raise Exception(f"Failed to connect to AI Service: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error extracting clauses preview: {e}", exc_info=True)
             raise

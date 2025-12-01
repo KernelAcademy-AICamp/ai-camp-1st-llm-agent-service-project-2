@@ -66,8 +66,8 @@ def rag_chat(request):
             "stream": False  # Django는 동기 호출
         }
 
-        # AI Service v2 호출
-        with httpx.Client(timeout=60.0) as client:
+        # AI Service v2 호출 (BM25 로드 시간 포함하여 충분한 timeout 설정)
+        with httpx.Client(timeout=180.0) as client:
             response = client.post(
                 f"{AI_SERVICE_URL}/v2/rag/chat",
                 json=v2_request,

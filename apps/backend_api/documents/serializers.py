@@ -62,6 +62,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     chunk_count = serializers.IntegerField(read_only=True)
     is_processing_complete = serializers.BooleanField(read_only=True)
     user_email = serializers.EmailField(source='user.email', read_only=True)
+    analysis_status_display = serializers.CharField(source='get_analysis_status_display', read_only=True)
 
     class Meta:
         model = Document
@@ -75,6 +76,9 @@ class DocumentSerializer(serializers.ModelSerializer):
             'original_file',
             'language',
             'status',
+            'analysis_status',
+            'analysis_status_display',
+            'analysis_error',
             'file_size',
             'file_type',
             'page_count',
@@ -93,6 +97,9 @@ class DocumentSerializer(serializers.ModelSerializer):
             'error_message',
             'chunk_count',
             'is_processing_complete',
+            'analysis_status',
+            'analysis_status_display',
+            'analysis_error',
             'created_at',
             'updated_at',
         ]
@@ -183,6 +190,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     is_processing_complete = serializers.BooleanField(read_only=True)
     user_email = serializers.EmailField(source='user.email', read_only=True)
     case_analysis = CaseAnalysisSerializer(read_only=True)
+    analysis_status_display = serializers.CharField(source='get_analysis_status_display', read_only=True)
 
     class Meta:
         model = Document
@@ -196,6 +204,9 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'original_file',
             'language',
             'status',
+            'analysis_status',
+            'analysis_status_display',
+            'analysis_error',
             'file_size',
             'file_type',
             'page_count',
@@ -216,6 +227,9 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'error_message',
             'chunk_count',
             'is_processing_complete',
+            'analysis_status',
+            'analysis_status_display',
+            'analysis_error',
             'chunks',
             'case_analysis',
             'created_at',
@@ -308,3 +322,57 @@ class RiskAnalysisResultSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError('Risk score must be between 0 and 100')
         return value
+
+    def to_representation(self, instance):
+        """
+        Override to transform risk_items to frontend format.
+        Frontend RiskItem: category, title, description, severity, score, clause_reference
+        """
+        data = super().to_representation(instance)
+
+        # severity → score 변환 함수
+        def severity_to_score(severity: str) -> int:
+            scores = {
+                'CRITICAL': 100,
+                'HIGH': 75,
+                'MEDIUM': 50,
+                'LOW': 25,
+                'INFO': 10
+            }
+            return scores.get(severity, 50)
+
+        # Transform risk_items to frontend format if needed
+        risk_items = data.get('risk_items', [])
+        if risk_items:
+            transformed_items = []
+            for i, risk in enumerate(risk_items, 1):
+                # Check if already in new format (has 'category' field)
+                if 'category' in risk:
+                    transformed_items.append(risk)
+                else:
+                    # Transform from old format to new format
+                    risk_type = risk.get('risk_type', 'OTHER')
+                    severity = risk.get('severity', 'MEDIUM')
+                    description = risk.get('description', '')
+                    clause_ref = risk.get('clause_reference', '')
+
+                    # Generate title
+                    if clause_ref:
+                        title = f"{clause_ref} 관련 리스크"
+                    else:
+                        title = f"{risk_type} 리스크 #{i}"
+
+                    transformed_items.append({
+                        'category': risk_type,
+                        'title': title,
+                        'description': description,
+                        'severity': severity,
+                        'score': severity_to_score(severity),
+                        'clause_reference': clause_ref,
+                        # Legacy fields for compatibility
+                        'risk_type': risk_type,
+                        'recommendation': risk.get('recommendation', '')
+                    })
+            data['risk_items'] = transformed_items
+
+        return data
