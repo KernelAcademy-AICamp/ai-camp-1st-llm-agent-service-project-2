@@ -38,7 +38,7 @@ from tqdm import tqdm
 
 # ⚠️ 올바른 import 경로 (libs.rag_core 사용)
 from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
-from libs.rag_core.embeddings.vectordb import ChromaVectorDB, create_vector_db
+from libs.rag_core.embeddings.vectordb import create_vector_db
 
 # Remote embedder (선택적)
 try:
@@ -46,11 +46,8 @@ try:
 except ImportError:
     RemoteEmbedder = None
 
-# Qdrant (선택적)
-try:
-    from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
-except ImportError:
-    QdrantVectorDB = None
+# Qdrant VectorDB
+from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
 
 # Data loader for AI-Hub data
 from scripts.criminal_law_data_loader import CriminalLawDataLoader
@@ -63,7 +60,7 @@ EMBED_MODE = os.getenv("EMBED_MODE", "local")  # remote, local
 EMBED_MODEL = os.getenv("EMBED_MODEL", "dragonkue/snowflake-arctic-embed-l-v2.0-ko")
 REMOTE_EMBED_URL = os.getenv("REMOTE_EMBED_BASE_URL", "https://llm.wonllmapi.uk")
 
-VECTOR_DB = os.getenv("VECTOR_DB", "chroma")  # qdrant, chroma
+VECTOR_DB = os.getenv("VECTOR_DB", "qdrant")  # qdrant (default)
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "law_documents")
 
@@ -217,24 +214,14 @@ def initialize_vectordb(embedding_dim: int):
     logger.info(f"\nStep 4: Initializing VectorDB (type: {VECTOR_DB})...")
     vectordb_init_start = time.time()
 
-    if VECTOR_DB == "qdrant":
-        if QdrantVectorDB is None:
-            raise ImportError("QdrantVectorDB not available. Install qdrant-client.")
-
-        logger.info(f"Using Qdrant: {QDRANT_URL}")
-        vectordb = QdrantVectorDB(
-            url=QDRANT_URL,
-            collection_name=QDRANT_COLLECTION,
-            embedding_dim=embedding_dim,
-            distance="cosine"
-        )
-    else:  # chroma
-        logger.info("Using ChromaDB")
-        chroma_path = BASE_DIR / "data" / "vectordb" / "chroma_criminal_law"
-        vectordb = ChromaVectorDB(
-            persist_directory=str(chroma_path),
-            collection_name="criminal_law_docs"
-        )
+    # Qdrant is the only supported VectorDB
+    logger.info(f"Using Qdrant: {QDRANT_URL}")
+    vectordb = QdrantVectorDB(
+        url=QDRANT_URL,
+        collection_name=QDRANT_COLLECTION,
+        embedding_dim=embedding_dim,
+        distance="cosine"
+    )
 
     elapsed = time.time() - vectordb_init_start
     logger.info(f"✅ VectorDB initialized in {elapsed:.2f}s")

@@ -94,24 +94,30 @@ class DataSourceViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_202_ACCEPTED)
 
     def _call_ai_service_crawler(self, data_source, crawl_job, validated_data):
-        """AI Service 크롤러 호출"""
+        """AI Service v2 크롤러 호출"""
         ai_service_url = getattr(settings, 'AI_SERVICE_URL', 'http://localhost:8001')
 
-        # 소스 타입에 따른 엔드포인트 결정
-        endpoint_map = {
-            'COURT_API': '/v1/crawler/court-precedents',
-            'STATUTE_API': '/v1/crawler/statutes',
-            'WEB_CRAWL': '/v1/crawler/web'
-        }
-        endpoint = endpoint_map.get(data_source.source_type, '/v1/crawler/web')
+        # v2 API는 통합 엔드포인트 사용
+        endpoint = '/v2/crawler/start'
 
-        # 요청 데이터
+        # 소스 타입 매핑 (Django → v2 API)
+        source_type_map = {
+            'COURT_API': 'court_precedent',
+            'STATUTE_API': 'statute',
+            'WEB_CRAWL': 'web'
+        }
+        source = source_type_map.get(data_source.source_type, 'web')
+
+        # v2 요청 데이터
+        filters = validated_data.get('filters', {})
+        keywords = filters.get('keywords', [])
+        if not keywords:
+            keywords = [data_source.base_url]
+
         payload = {
-            'data_source_id': str(data_source.id),
-            'job_id': str(crawl_job.id),
-            'base_url': data_source.base_url,
-            'config': data_source.config,
-            'filters': validated_data.get('filters', {})
+            'source': source,
+            'keywords': keywords,
+            'crawl_job_id': str(crawl_job.id)
         }
 
         try:
@@ -125,9 +131,16 @@ class DataSourceViewSet(viewsets.ModelViewSet):
                     logger.error(f"AI Service 에러: {response.text}")
                     raise Exception(f"AI Service 응답 에러: {response.status_code}")
 
+                result = response.json()
+
+                # v2 응답에서 thread_id 저장 (checkpointing용)
+                if result.get('thread_id'):
+                    crawl_job.thread_id = result['thread_id']
+                    crawl_job.save()
+
                 # 작업 시작 상태 업데이트
                 crawl_job.start()
-                logger.info(f"크롤링 작업 시작: {crawl_job.id}")
+                logger.info(f"크롤링 작업 시작 (v2 API): {crawl_job.id}, thread_id={result.get('thread_id')}")
 
         except httpx.TimeoutException:
             logger.warning("AI Service 타임아웃 - 백그라운드 처리 가정")

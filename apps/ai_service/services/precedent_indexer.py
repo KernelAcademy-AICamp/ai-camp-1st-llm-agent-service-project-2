@@ -1,17 +1,18 @@
 """
 Precedent Indexer Service
-판례 데이터의 ChromaDB 및 BM25 인덱싱 담당
+판례 데이터의 Qdrant 및 BM25 인덱싱 담당
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from datetime import datetime
 
-from libs.rag_core import (
-    KoreanLegalEmbedder,
-    ChromaVectorDB,
-    BM25Index,
-)
+from libs.rag_core import BM25Index
+from libs.rag_core.embeddings.vectordb import VectorDB
+
+if TYPE_CHECKING:
+    from libs.rag_core import KoreanLegalEmbedder
+    from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
 
 logger = logging.getLogger(__name__)
 
@@ -20,22 +21,22 @@ class PrecedentIndexer:
     """
     판례 인덱서
 
-    크롤링된 판례 데이터를 ChromaDB와 BM25 인덱스에 저장
+    크롤링된 판례 데이터를 Qdrant와 BM25 인덱스에 저장
     """
 
     def __init__(
         self,
-        embedder: KoreanLegalEmbedder,
-        vectordb: ChromaVectorDB,
+        embedder: "KoreanLegalEmbedder",
+        vectordb: VectorDB,
         bm25_index: BM25Index,
-        collection_name: str = "criminal_law_docs"
+        collection_name: str = "law_documents"
     ):
         """
         Initialize precedent indexer
 
         Args:
             embedder: Korean legal embedder instance
-            vectordb: ChromaDB instance
+            vectordb: VectorDB instance (Qdrant)
             bm25_index: BM25 index instance
             collection_name: Collection name for precedents
         """
@@ -89,7 +90,7 @@ class PrecedentIndexer:
 
             if metadata:
                 for key, value in metadata.items():
-                    # ChromaDB는 단순 타입만 지원
+                    # VectorDB는 단순 타입만 지원
                     if isinstance(value, (str, int, float, bool)):
                         doc_metadata[key] = value
                     elif value is None:
@@ -97,7 +98,7 @@ class PrecedentIndexer:
                     else:
                         doc_metadata[key] = str(value)
 
-            # 4. ChromaDB에 저장
+            # 4. VectorDB에 저장
             embedding_id = f"prec_{case_number.replace(' ', '_')}"
 
             self.vectordb.add_documents(
@@ -106,7 +107,7 @@ class PrecedentIndexer:
                 metadatas=[doc_metadata]
             )
 
-            logger.info(f"ChromaDB indexed: {case_number}")
+            logger.info(f"VectorDB indexed: {case_number}")
 
             # 5. BM25 인덱스 업데이트
             self.bm25_index.add_documents(
@@ -120,7 +121,7 @@ class PrecedentIndexer:
                 'success': True,
                 'case_number': case_number,
                 'embedding_id': embedding_id,
-                'chromadb_count': self.vectordb.get_count(),
+                'vectordb_count': self.vectordb.get_count(),
                 'bm25_count': len(self.bm25_index.documents)
             }
 
@@ -197,7 +198,7 @@ class PrecedentIndexer:
             'indexed_count': indexed_count,
             'failed_count': failed_count,
             'errors': errors[:10],  # 최대 10개 에러만 반환
-            'chromadb_total': self.vectordb.get_count(),
+            'vectordb_total': self.vectordb.get_count(),
             'bm25_total': len(self.bm25_index.documents)
         }
 
@@ -210,7 +211,7 @@ class PrecedentIndexer:
         """
         return {
             'collection_name': self.collection_name,
-            'chromadb_count': self.vectordb.get_count(),
+            'vectordb_count': self.vectordb.get_count(),
             'bm25_count': len(self.bm25_index.documents),
             'embedding_dimension': self.embedder.get_embedding_dimension()
         }

@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import {
   UserDocument,
   UserDocumentType,
-  UserDocumentStatus
+  UserDocumentStatus,
+  AnalysisStatus,
+  ANALYSIS_STATUS_LABELS
 } from '../types';
 import '../styles/Documents.css';
 
@@ -32,10 +34,21 @@ const Documents: React.FC = () => {
     return localStorage.getItem('hideDocumentsGuide') !== 'true';
   });
 
+  // Polling state for analysis status
+  const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
   const dismissGuideBanner = () => {
     setShowGuideBanner(false);
     localStorage.setItem('hideDocumentsGuide', 'true');
   };
+
+  // Cleanup polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      pollingIntervalsRef.current.forEach((interval) => clearInterval(interval));
+      pollingIntervalsRef.current.clear();
+    };
+  }, []);
 
   // Load documents
   const loadDocuments = useCallback(async () => {
@@ -103,15 +116,52 @@ const Documents: React.FC = () => {
     }
   };
 
-  // Handle upload
-  const handleUpload = async () => {
+  // Start polling for document analysis status
+  const startPollingAnalysisStatus = useCallback((documentId: string) => {
+    if (!token) return;
+
+    // Don't start polling if already polling for this document
+    if (pollingIntervalsRef.current.has(documentId)) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await apiClient.getAnalysisStatus(documentId, token);
+
+        // Update document in list with new status
+        setDocuments(prev => prev.map(doc =>
+          doc.id === documentId
+            ? {
+                ...doc,
+                analysis_status: status.analysis_status,
+                analysis_status_display: status.analysis_status_display,
+                analysis_error: status.analysis_error
+              }
+            : doc
+        ));
+
+        // Stop polling if analysis is complete or failed
+        if (status.analysis_status === 'completed' || status.analysis_status === 'failed') {
+          clearInterval(pollInterval);
+          pollingIntervalsRef.current.delete(documentId);
+        }
+      } catch (err) {
+        console.error('Failed to poll analysis status:', err);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    pollingIntervalsRef.current.set(documentId, pollInterval);
+  }, [token]);
+
+  // Handle upload and start analysis (replaces old handleUpload)
+  const handleUploadAndAnalyze = async () => {
     if (!uploadFile || !uploadTitle || !token) return;
 
     setUploading(true);
     setError(null);
 
     try {
-      await apiClient.uploadDocument(
+      // Upload and start auto-analysis
+      const response = await apiClient.uploadAndAnalyze(
         uploadFile,
         uploadTitle,
         uploadDocType,
@@ -125,14 +175,27 @@ const Documents: React.FC = () => {
       setUploadDocType('CONTRACT');
       setShowUploadForm(false);
 
-      // Reload documents
+      // Reload documents to get the new one
       await loadDocuments();
+
+      // Start polling for this document's analysis status
+      startPollingAnalysisStatus(response.document.id);
     } catch (err: any) {
-      setError(err.message || 'Upload failed');
+      setError(err.message || 'Upload and analyze failed');
     } finally {
       setUploading(false);
     }
   };
+
+  // Start polling for documents that are currently being analyzed
+  useEffect(() => {
+    documents.forEach(doc => {
+      const status = doc.analysis_status;
+      if (status && status !== 'none' && status !== 'completed' && status !== 'failed') {
+        startPollingAnalysisStatus(doc.id);
+      }
+    });
+  }, [documents, startPollingAnalysisStatus]);
 
   const cancelUpload = () => {
     setUploadFile(null);
@@ -153,6 +216,39 @@ const Documents: React.FC = () => {
 
     const badge = badges[status];
     return <span className={`status-badge ${badge.className}`}>{badge.label}</span>;
+  };
+
+  // Analysis status badge
+  const getAnalysisStatusBadge = (analysisStatus: AnalysisStatus | undefined) => {
+    if (!analysisStatus || analysisStatus === 'none') {
+      return <span className="analysis-badge analysis-none">-</span>;
+    }
+
+    const badgeConfig: Record<AnalysisStatus, { className: string; icon?: string }> = {
+      none: { className: 'analysis-none' },
+      pending: { className: 'analysis-pending', icon: '...' },
+      summarizing: { className: 'analysis-progress', icon: '1/3' },
+      extracting_clauses: { className: 'analysis-progress', icon: '2/3' },
+      analyzing_risk: { className: 'analysis-progress', icon: '3/3' },
+      completed: { className: 'analysis-completed' },
+      failed: { className: 'analysis-failed' },
+    };
+
+    const config = badgeConfig[analysisStatus];
+    const label = ANALYSIS_STATUS_LABELS[analysisStatus];
+
+    // Show spinner for in-progress states
+    const isInProgress = ['pending', 'summarizing', 'extracting_clauses', 'analyzing_risk'].includes(analysisStatus);
+
+    return (
+      <span className={`analysis-badge ${config.className}`}>
+        {isInProgress && (
+          <span className="analysis-spinner"></span>
+        )}
+        {config.icon && <span className="analysis-step">{config.icon}</span>}
+        {label}
+      </span>
+    );
   };
 
   // Format file size
@@ -235,11 +331,11 @@ const Documents: React.FC = () => {
           <div className="upload-form-footer">
             <button className="btn-cancel" onClick={cancelUpload}>취소</button>
             <button
-              className="btn-submit"
-              onClick={handleUpload}
+              className="btn-submit btn-analyze"
+              onClick={handleUploadAndAnalyze}
               disabled={uploading || !uploadTitle}
             >
-              {uploading ? '업로드 중...' : '업로드'}
+              {uploading ? '업로드 및 분석 중...' : '분석하기'}
             </button>
           </div>
         </div>
@@ -304,6 +400,7 @@ const Documents: React.FC = () => {
                 <th>크기</th>
                 <th>업로드일</th>
                 <th>상태</th>
+                <th>분석 상태</th>
               </tr>
             </thead>
             <tbody>
@@ -320,6 +417,7 @@ const Documents: React.FC = () => {
                   <td>{formatFileSize(doc.file_size)}</td>
                   <td>{new Date(doc.created_at).toLocaleDateString('ko-KR')}</td>
                   <td>{getStatusBadge(doc.status)}</td>
+                  <td>{getAnalysisStatusBadge(doc.analysis_status)}</td>
                 </tr>
               ))}
             </tbody>

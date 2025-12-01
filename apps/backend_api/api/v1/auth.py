@@ -13,6 +13,7 @@ from django.contrib.auth import authenticate
 from users.models import User
 from users.serializers import (
     UserSerializer,
+    UserWithRoleSerializer,
     UserCreateSerializer,
     ChangePasswordSerializer
 )
@@ -93,7 +94,7 @@ def login(request):
     return Response({
         "access": str(refresh.access_token),
         "refresh": str(refresh),
-        "user": UserSerializer(user).data
+        "user": UserWithRoleSerializer(user).data
     })
 
 @api_view(['POST'])
@@ -130,7 +131,7 @@ def me(request):
 
     GET /api/v1/auth/me
     """
-    return Response(UserSerializer(request.user).data)
+    return Response(UserWithRoleSerializer(request.user).data)
 
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])

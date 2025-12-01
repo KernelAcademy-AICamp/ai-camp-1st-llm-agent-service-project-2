@@ -1,0 +1,355 @@
+/* Source Detail Modal Styles */
+
+.source-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.source-modal-container {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.source-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 16px 16px 0 0;
+}
+
+.source-modal-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.source-modal-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.source-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-modal-close {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.source-modal-close:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.source-modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 24px;
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.source-modal-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.source-modal-tag svg {
+  color: #9ca3af;
+}
+
+/* Doc type colors */
+.doc-type-precedent {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.doc-type-precedent svg {
+  color: #3b82f6;
+}
+
+.doc-type-decision {
+  background-color: #fef3c7;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+
+.doc-type-decision svg {
+  color: #f59e0b;
+}
+
+.doc-type-law {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+
+.doc-type-law svg {
+  color: #10b981;
+}
+
+.doc-type-interpretation {
+  background-color: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
+
+.doc-type-interpretation svg {
+  color: #8b5cf6;
+}
+
+.doc-type-other {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+  color: #4b5563;
+}
+
+.source-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.source-modal-content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.source-modal-content-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+}
+
+.source-modal-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.source-modal-copy-btn:hover {
+  background-color: #e5e7eb;
+  color: #1f2937;
+}
+
+.source-modal-copy-btn.copied {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+
+.source-modal-text {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.source-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  border-radius: 0 0 16px 16px;
+}
+
+.source-modal-score {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.source-modal-close-btn {
+  padding: 10px 24px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.source-modal-close-btn:hover {
+  background-color: #2563eb;
+}
+
+/* Loading state */
+.source-modal-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  gap: 12px;
+}
+
+.source-modal-loading .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error state */
+.source-modal-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+/* Highlight for relevant snippet */
+.source-modal-highlight {
+  background: linear-gradient(to bottom, #fef9c3 0%, #fef08a 100%);
+  border-left: 3px solid #eab308;
+  padding: 8px 12px;
+  margin: 4px 0;
+  display: block;
+  border-radius: 0 6px 6px 0;
+  position: relative;
+}
+
+.source-modal-highlight::before {
+  content: "관련 부분";
+  position: absolute;
+  top: -10px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #a16207;
+  background: #fef9c3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #fcd34d;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .source-modal-overlay {
+    padding: 10px;
+  }
+
+  .source-modal-container {
+    max-height: 90vh;
+    border-radius: 12px;
+  }
+
+  .source-modal-header {
+    padding: 16px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .source-modal-title {
+    font-size: 16px;
+  }
+
+  .source-modal-meta {
+    padding: 12px 16px;
+  }
+
+  .source-modal-content {
+    padding: 16px;
+  }
+
+  .source-modal-footer {
+    padding: 12px 16px;
+    border-radius: 0 0 12px 12px;
+  }
+}

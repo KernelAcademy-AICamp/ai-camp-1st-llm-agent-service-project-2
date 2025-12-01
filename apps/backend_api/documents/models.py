@@ -51,6 +51,25 @@ class Document(models.Model):
         (STATUS_FAILED, 'Processing Failed'),
     ]
 
+    # Analysis status (for auto-analysis pipeline)
+    ANALYSIS_PENDING = 'pending'
+    ANALYSIS_SUMMARIZING = 'summarizing'
+    ANALYSIS_EXTRACTING_CLAUSES = 'extracting_clauses'
+    ANALYSIS_ANALYZING_RISK = 'analyzing_risk'
+    ANALYSIS_COMPLETED = 'completed'
+    ANALYSIS_FAILED = 'failed'
+    ANALYSIS_NONE = 'none'
+
+    ANALYSIS_STATUS_CHOICES = [
+        (ANALYSIS_NONE, 'No Analysis'),
+        (ANALYSIS_PENDING, 'Pending'),
+        (ANALYSIS_SUMMARIZING, 'Summarizing'),
+        (ANALYSIS_EXTRACTING_CLAUSES, 'Extracting Clauses'),
+        (ANALYSIS_ANALYZING_RISK, 'Analyzing Risk'),
+        (ANALYSIS_COMPLETED, 'Completed'),
+        (ANALYSIS_FAILED, 'Failed'),
+    ]
+
     # Language choices
     LANGUAGE_KO = 'ko'
     LANGUAGE_EN = 'en'
@@ -103,6 +122,18 @@ class Document(models.Model):
         db_index=True,
         help_text='Processing status'
     )
+    analysis_status = models.CharField(
+        max_length=30,
+        choices=ANALYSIS_STATUS_CHOICES,
+        default=ANALYSIS_NONE,
+        db_index=True,
+        help_text='Analysis pipeline status'
+    )
+    analysis_error = models.TextField(
+        null=True,
+        blank=True,
+        help_text='Error message if analysis failed'
+    )
 
     # Metadata
     file_size = models.BigIntegerField(
@@ -111,7 +142,7 @@ class Document(models.Model):
         help_text='File size in bytes'
     )
     file_type = models.CharField(
-        max_length=50,
+        max_length=100,
         null=True,
         blank=True,
         help_text='File MIME type (e.g., application/pdf)'
@@ -197,7 +228,7 @@ class DocumentChunk(models.Model):
         null=True,
         blank=True,
         db_index=True,
-        help_text='ID in vector database (ChromaDB/Qdrant)'
+        help_text='ID in vector database (Qdrant)'
     )
 
     # Metadata

@@ -20,8 +20,11 @@
 .document-filter--collapsed {
   width: 56px;
   min-width: 56px;
+  height: auto;
+  align-self: flex-start;
   background: var(--color-surface, #ffffff);
   border-right: 1px solid var(--color-border, #e5e5e5);
+  border-radius: 0 0 8px 0;
 }
 
 /* Header */
@@ -100,8 +103,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 16px 8px;
-  gap: 8px;
+  padding: 12px 8px;
+  gap: 12px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -123,17 +126,25 @@
   transform: translateX(2px);
 }
 
+.document-filter__toggle-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
 .document-filter__toggle-icon {
-  font-size: 20px;
+  font-size: 18px;
   color: var(--color-text-secondary, #6b7280);
   transition: all 0.2s ease;
 }
 
 .document-filter__toggle-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--color-text-secondary, #6b7280);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .document-filter__toggle-arrow {
@@ -161,6 +172,20 @@
   justify-content: center;
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
   animation: badge-pulse 2s ease-in-out infinite;
+}
+
+.document-filter__badge--inline {
+  position: static;
+  min-width: 16px;
+  height: 16px;
+  font-size: 10px;
+  margin-top: 2px;
+  animation: none;
+}
+
+.document-filter__badge--history {
+  background: var(--color-success, #10b981);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
 }
 
 @keyframes badge-pulse {
@@ -295,7 +320,6 @@
   padding: 12px 16px;
   background: var(--color-background, #f8f9fa);
   border-top: 1px solid var(--color-border, #e5e5e5);
-  margin-top: auto;
 }
 
 .document-filter__summary-label {
@@ -425,4 +449,175 @@
   font-weight: 500;
   margin-left: 6px;
   opacity: 0.9;
+}
+
+/* ================================
+   Search History Section
+   ================================ */
+
+.document-filter__history {
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border, #e5e5e5);
+  flex-shrink: 0;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.document-filter__history-list-container {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 220px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border, #e5e5e5) transparent;
+}
+
+.document-filter__history-list-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.document-filter__history-list-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.document-filter__history-list-container::-webkit-scrollbar-thumb {
+  background: var(--color-border, #e5e5e5);
+  border-radius: 3px;
+}
+
+.document-filter__history-list-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted, #9ca3af);
+}
+
+.document-filter__history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.document-filter__history-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.document-filter__history-icon {
+  font-size: 14px;
+  color: var(--color-text-muted, #9ca3af);
+}
+
+.document-filter__history-clear {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--color-text-muted, #9ca3af);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.document-filter__history-clear:hover {
+  color: var(--color-error, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.document-filter__history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.document-filter__history-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.document-filter__history-item:hover {
+  background: var(--color-background, #f8f9fa);
+}
+
+.document-filter__history-query {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  min-width: 0;
+}
+
+.document-filter__history-query:hover {
+  background: var(--color-primary-light, #eff6ff);
+}
+
+.document-filter__history-text {
+  font-size: 13px;
+  color: var(--color-text-primary, #1f2937);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.document-filter__history-time {
+  font-size: 10px;
+  color: var(--color-text-muted, #9ca3af);
+}
+
+.document-filter__history-delete {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--color-text-muted, #9ca3af);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.document-filter__history-item:hover .document-filter__history-delete {
+  opacity: 1;
+}
+
+.document-filter__history-delete:hover {
+  color: var(--color-error, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.document-filter__history-more {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted, #9ca3af);
+  text-align: center;
 }

@@ -1,6 +1,5 @@
 from typing import List, Dict, Any, Optional
 from loguru import logger
-from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
 from libs.rag_core.embeddings.vectordb import VectorDB
 
 
@@ -10,7 +9,7 @@ class LegalDocumentRetriever:
     def __init__(
         self,
         vectordb: VectorDB,
-        embedder: KoreanLegalEmbedder,
+        embedder: Any,  # RemoteEmbedder / KoreanLegalEmbedder 호환
         top_k: int = 3  # 5 → 3 (토큰 절약)
     ):
         """

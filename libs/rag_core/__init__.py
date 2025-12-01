@@ -12,17 +12,16 @@ Note:
 Usage:
     from libs.rag_core import (
         KoreanLegalEmbedder,
-        ChromaVectorDB,
         create_llm_client,
         HybridRetriever
     )
+    from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
 """
 
 # Embeddings
 from .embeddings import (
     KoreanLegalEmbedder,
     VectorDB,
-    ChromaVectorDB,
     FAISSVectorDB,
     create_vector_db
 )
@@ -55,7 +54,6 @@ __all__ = [
     # Embeddings
     'KoreanLegalEmbedder',
     'VectorDB',
-    'ChromaVectorDB',
     'FAISSVectorDB',
     'create_vector_db',
 

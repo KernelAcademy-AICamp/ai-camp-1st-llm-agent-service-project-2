@@ -6,7 +6,6 @@ RAG Core Embeddings Module
 from .embedder import KoreanLegalEmbedder, KOREAN_EMBEDDING_MODELS, get_recommended_model
 from .vectordb import (
     VectorDB,
-    ChromaVectorDB,
     FAISSVectorDB,
     create_vector_db
 )
@@ -27,7 +26,6 @@ __all__ = [
     'KoreanLegalEmbedder',
     'RemoteEmbedder',
     'VectorDB',
-    'ChromaVectorDB',
     'FAISSVectorDB',
     'QdrantVectorDB',
     'create_vector_db',

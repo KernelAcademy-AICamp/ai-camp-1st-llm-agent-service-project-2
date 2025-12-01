@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/v1/', include('organizations.urls')),  # Organization & Project CRUD API
     path('api/v1/llm/', include('llm.urls')),  # LLM Models & Comparison API
     path('api/v1/', include('crawler.urls')),  # Crawler API
+    path('api/v1/users/', include('users.urls')),  # User & Search History API
 ]
 
 # Serve media files in development

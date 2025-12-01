@@ -5,6 +5,78 @@
   padding: 1.25rem 2rem;
 }
 
+/* Analysis Progress Banner */
+.analysis-progress-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, var(--color-primary-light, #dbeafe) 0%, #eff6ff 100%);
+  border: 1px solid var(--color-primary-light, #bfdbfe);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.progress-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-primary, #1e40af);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progress-step {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary, #1e40af);
+  background: white;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+}
+
+.progress-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-primary, #1e40af);
+  flex: 1;
+}
+
+.progress-bar-container {
+  width: 120px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--color-primary, #1e40af);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Analysis Complete Badge in Header */
+.analysis-complete-badge {
+  color: #059669;
+  font-weight: 500;
+  font-size: 0.8rem;
+  background: #d1fae5;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+}
+
 /* Header - research/cases와 통일된 스타일 */
 .detail-header-compact {
   display: flex;

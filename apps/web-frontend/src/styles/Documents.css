@@ -392,6 +392,66 @@
   color: #991b1b;
 }
 
+/* Analysis Status Badge */
+.analysis-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.analysis-none {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.analysis-pending {
+  background: var(--color-primary-light, #dbeafe);
+  color: var(--color-primary, #1e40af);
+}
+
+.analysis-progress {
+  background: var(--color-primary-light, #dbeafe);
+  color: var(--color-primary, #1e40af);
+}
+
+.analysis-completed {
+  background: var(--color-primary-light, #dbeafe);
+  color: var(--color-primary, #1e40af);
+}
+
+.analysis-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.analysis-step {
+  font-size: 0.65rem;
+  opacity: 0.8;
+}
+
+.analysis-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Analyze Button - Primary color scheme */
+.btn-analyze {
+  background: linear-gradient(135deg, var(--color-primary, #1e40af) 0%, var(--color-primary-hover, #1e3a8a) 100%);
+}
+
+.btn-analyze:hover:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.35);
+}
+
 /* Loading State */
 .loading-state {
   display: flex;

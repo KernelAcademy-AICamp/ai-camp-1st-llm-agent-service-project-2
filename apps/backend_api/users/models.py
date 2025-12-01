@@ -103,3 +103,99 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.full_name} ({self.email})"
+
+
+class SearchHistory(models.Model):
+    """
+    검색 기록 모델
+
+    사용자별 검색 기록을 저장하여 다른 기기/브라우저에서도 접근 가능
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='search_history',
+        verbose_name='사용자'
+    )
+
+    query = models.TextField(
+        verbose_name='검색 쿼리'
+    )
+
+    top_k = models.IntegerField(
+        default=3,
+        verbose_name='검색 문서 수'
+    )
+
+    response_mode = models.CharField(
+        max_length=20,
+        default='auto',
+        choices=[
+            ('auto', '자동'),
+            ('concise', '간결'),
+            ('standard', '표준'),
+            ('detailed', '상세'),
+        ],
+        verbose_name='응답 모드'
+    )
+
+    filters = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='검색 필터'
+    )
+
+    source_count = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name='검색 결과 수'
+    )
+
+    # 답변 저장 (검색 기록 클릭 시 복원용)
+    answer = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name='AI 답변'
+    )
+
+    sources = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='참고 자료'
+    )
+
+    model = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name='사용된 모델'
+    )
+
+    revised = models.BooleanField(
+        default=False,
+        verbose_name='Self-Critique 검증 여부'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='검색 시간'
+    )
+
+    class Meta:
+        db_table = 'search_history'
+        verbose_name = '검색 기록'
+        verbose_name_plural = '검색 기록'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email}: {self.query[:50]}..."

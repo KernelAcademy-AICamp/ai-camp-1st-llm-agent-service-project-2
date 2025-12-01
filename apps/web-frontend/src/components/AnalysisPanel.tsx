@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserDocumentDetail, Summary, KeyClause } from '../types';
+import { UserDocumentDetail, Summary, KeyClause, AnalysisStatus } from '../types';
 import SummarySection from './SummarySection';
 import ClauseList from './ClauseList';
 import RiskAnalysisSection from './RiskAnalysisSection';
@@ -24,6 +24,15 @@ interface AnalysisPanelProps {
   clausesError: string | null;
   onExtractClauses: () => void;
   extractingClauses: boolean;
+  // Preview clauses props
+  previewClauses?: KeyClause[];
+  previewLoading?: boolean;
+  onExtractPreview?: () => void;
+  onSaveSelected?: (clauses: KeyClause[]) => void;
+  savingSelected?: boolean;
+  onCancelPreview?: () => void;
+  // Analysis status prop
+  analysisStatus?: AnalysisStatus;
 }
 
 const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
@@ -39,6 +48,13 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
   clausesError,
   onExtractClauses,
   extractingClauses,
+  previewClauses,
+  previewLoading,
+  onExtractPreview,
+  onSaveSelected,
+  savingSelected,
+  onCancelPreview,
+  analysisStatus,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('summary');
 
@@ -82,6 +98,13 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
             error={clausesError}
             onExtract={onExtractClauses}
             extracting={extractingClauses}
+            previewClauses={previewClauses}
+            previewLoading={previewLoading}
+            onExtractPreview={onExtractPreview}
+            onSaveSelected={onSaveSelected}
+            savingSelected={savingSelected}
+            onCancelPreview={onCancelPreview}
+            analysisStatus={analysisStatus}
           />
         );
 
@@ -91,6 +114,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
             documentId={document.id}
             token={token}
             documentTitle={document.title}
+            analysisStatus={analysisStatus}
           />
         );
 
