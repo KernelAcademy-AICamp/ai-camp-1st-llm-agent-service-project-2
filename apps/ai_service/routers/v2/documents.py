@@ -56,6 +56,10 @@ class DocumentAnalyzeRequest(BaseModel):
     )
     document_id: Optional[str] = Field(None, description="문서 ID (DB 저장용)")
     session_id: Optional[str] = Field(None, description="세션 ID")
+    analysis_type: Optional[str] = Field(
+        None,
+        description="분석 유형: 'summary' | 'clauses' | 'risk' | None (전체)"
+    )
 
 
 class DocumentAnalyzeResponse(BaseModel):
@@ -162,10 +166,10 @@ async def analyze_document_text(request: DocumentAnalyzeRequest):
     텍스트 직접 분석 (v2)
 
     워크플로우:
-    1. preprocess: 텍스트 직접 사용 (추출 생략)
-    2. chunk: 텍스트 청킹
-    3. summarize + extract_clauses: 병렬 실행
-    4. aggregate: 결과 집계
+    - analysis_type=None: 전체 분석 (summary + clauses + risk)
+    - analysis_type='summary': 요약만 생성
+    - analysis_type='clauses': 조항만 추출
+    - analysis_type='risk': 리스크만 분석
 
     Args:
         request: 분석 요청 (텍스트 포함)
@@ -174,9 +178,23 @@ async def analyze_document_text(request: DocumentAnalyzeRequest):
         문서 분석 결과
     """
     try:
-        logger.info(f"[v2/documents/analyze/text] text_len={len(request.text)}, type={request.doc_type}")
+        analysis_type = request.analysis_type
+        logger.info(
+            f"[v2/documents/analyze/text] text_len={len(request.text)}, "
+            f"type={request.doc_type}, analysis_type={analysis_type}"
+        )
 
-        # 워크플로우 실행
+        # 선택적 분석: 개별 서비스 직접 호출 (워크플로우 우회)
+        if analysis_type in ('summary', 'clauses', 'risk'):
+            result = await _run_single_analysis(
+                text=request.text,
+                doc_type=request.doc_type,
+                document_id=request.document_id,
+                analysis_type=analysis_type
+            )
+            return _build_response(result, request.session_id)
+
+        # 전체 분석: 워크플로우 실행
         workflow = DocumentWorkflow()
         result = await workflow.arun(
             text=request.text,
@@ -194,6 +212,126 @@ async def analyze_document_text(request: DocumentAnalyzeRequest):
             status_code=500,
             detail=str(e)
         )
+
+
+async def _run_single_analysis(
+    text: str,
+    doc_type: str,
+    document_id: Optional[str],
+    analysis_type: str
+) -> Dict[str, Any]:
+    """
+    개별 분석 실행 (워크플로우 우회)
+
+    Args:
+        text: 분석할 텍스트
+        doc_type: 문서 유형
+        document_id: 문서 ID
+        analysis_type: 'summary' | 'clauses' | 'risk'
+
+    Returns:
+        분석 결과
+    """
+    import time
+    from libs.rag_core.llm.llm_client import create_llm_client
+    from apps.ai_service.config.settings import settings
+
+    start_time = time.time()
+
+    llm_client = create_llm_client(
+        provider=settings.LLM_PROVIDER,
+        api_key=settings.LLM_API_KEY,
+        model=settings.LLM_MODEL,
+        base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+        temperature=settings.LLM_TEMPERATURE,
+        max_tokens=settings.LLM_MAX_TOKENS
+    )
+
+    result = {
+        "success": True,
+        "document_id": document_id,
+        "doc_type": doc_type,
+        "summary": None,
+        "clauses": [],
+        "risks": None,
+        "completed_tasks": [],
+        "error": None,
+    }
+
+    try:
+        if analysis_type == 'summary':
+            from apps.ai_service.services.summarizer import Summarizer
+            summarizer = Summarizer(llm_client)
+            summary_result = await summarizer.summarize(
+                text=text,
+                document_id=document_id,
+                summary_type="GLOBAL"
+            )
+            result["summary"] = {
+                "summary": summary_result.get("summary", ""),
+                "token_count": summary_result.get("token_count", 0),
+                "model_version": summary_result.get("model_version", "unknown"),
+            }
+            result["completed_tasks"] = ["summary"]
+
+        elif analysis_type == 'clauses':
+            from apps.ai_service.services.clause_extractor import ClauseExtractor
+            extractor = ClauseExtractor(llm_client)
+            clauses_result = await extractor.extract_clauses(
+                text=text,
+                document_id=document_id,
+                doc_type=doc_type
+            )
+            result["clauses"] = clauses_result.get("clauses", [])
+            result["completed_tasks"] = ["clauses"]
+
+        elif analysis_type == 'risk':
+            # 리스크 분석은 별도 엔드포인트 사용 권장
+            # 여기서는 간단히 처리
+            import json
+            import re
+
+            prompt = f"""당신은 법률 리스크 분석 전문가입니다. 다음 {doc_type} 문서에서 잠재적 리스크를 식별해주세요.
+
+문서 내용:
+{text[:8000]}
+
+다음 JSON 배열 형식으로 리스크를 식별해주세요:
+[
+  {{
+    "risk_type": "LEGAL|FINANCIAL|COMPLIANCE|OPERATIONAL|OTHER",
+    "description": "리스크에 대한 상세 설명",
+    "severity": "CRITICAL|HIGH|MEDIUM|LOW|INFO",
+    "recommendation": "리스크 완화 권장사항"
+  }}
+]
+
+최대 5개의 리스크를 식별하세요. 반드시 유효한 JSON 형식으로만 응답해주세요."""
+
+            response = llm_client.generate(
+                prompt=prompt,
+                temperature=0.3,
+                max_tokens=2000
+            )
+
+            risks = []
+            try:
+                json_match = re.search(r'\[.*\]', response, re.DOTALL)
+                if json_match:
+                    risks = json.loads(json_match.group(0))
+            except Exception as e:
+                logger.warning(f"Failed to parse risks: {e}")
+
+            result["risks"] = risks
+            result["completed_tasks"] = ["risk"]
+
+    except Exception as e:
+        logger.error(f"[_run_single_analysis] Error: {e}", exc_info=True)
+        result["success"] = False
+        result["error"] = str(e)
+
+    result["processing_time"] = time.time() - start_time
+    return result
 
 
 @router.get("/health")
@@ -233,7 +371,10 @@ async def document_v2_health():
 
 # ===== Helper Functions =====
 
-def _build_response(result: Dict[str, Any]) -> DocumentAnalyzeResponse:
+def _build_response(
+    result: Dict[str, Any],
+    session_id: Optional[str] = None
+) -> DocumentAnalyzeResponse:
     """
     워크플로우 결과를 응답 모델로 변환
     """
@@ -266,7 +407,7 @@ def _build_response(result: Dict[str, Any]) -> DocumentAnalyzeResponse:
         chunk_count=result.get("chunk_count", 0),
         completed_tasks=result.get("completed_tasks", []),
         processing_time=result.get("processing_time", 0),
-        session_id=result.get("session_id"),
+        session_id=session_id or result.get("session_id"),
         error=result.get("error"),
         timestamp=datetime.now().isoformat()
     )

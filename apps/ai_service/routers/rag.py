@@ -80,7 +80,7 @@ async def index_document(request: IndexRequest, fastapi_request: Request):
     Index document chunks into vector database
 
     - Generate embeddings for each chunk
-    - Store embeddings in ChromaDB (user_documents collection)
+    - Store embeddings in Qdrant (user_documents collection)
     - Return embedding IDs for updating Django database
 
     Args:
@@ -164,7 +164,7 @@ async def search_similar(request: SearchRequest, fastapi_request: Request):
     Search for similar chunks in user documents
 
     - Generate query embedding
-    - Search in ChromaDB user_documents collection
+    - Search in Qdrant user_documents collection
     - Return top-k similar chunks
 
     Args:

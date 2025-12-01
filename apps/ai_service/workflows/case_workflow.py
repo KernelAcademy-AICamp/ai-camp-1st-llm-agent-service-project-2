@@ -262,13 +262,14 @@ async def legal_strategist_agent(state: CaseAnalysisState) -> Dict[str, Any]:
         try:
             from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
             from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
-            from libs.rag_core.vectordb.chromadb import ChromaVectorDB
+            from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
             from config.settings import settings
 
             embedder = KoreanLegalEmbedder()
-            vectordb = ChromaVectorDB(
-                collection_name="criminal_law_docs",
-                persist_directory=str(settings.CHROMA_DIR)
+            vectordb = QdrantVectorDB(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY or None,
+                collection_name=settings.QDRANT_COLLECTION
             )
             retriever = LegalDocumentRetriever(vectordb=vectordb, embedder=embedder)
 
@@ -372,13 +373,14 @@ async def precedent_researcher_agent(state: CaseAnalysisState) -> Dict[str, Any]
         try:
             from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
             from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
-            from libs.rag_core.vectordb.chromadb import ChromaVectorDB
+            from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
             from config.settings import settings
 
             embedder = KoreanLegalEmbedder()
-            vectordb = ChromaVectorDB(
-                collection_name="criminal_law_docs",
-                persist_directory=str(settings.CHROMA_DIR)
+            vectordb = QdrantVectorDB(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY or None,
+                collection_name=settings.QDRANT_COLLECTION
             )
             retriever = LegalDocumentRetriever(vectordb=vectordb, embedder=embedder)
 

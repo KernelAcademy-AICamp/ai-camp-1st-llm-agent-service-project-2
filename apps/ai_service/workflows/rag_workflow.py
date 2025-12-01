@@ -98,10 +98,21 @@ class RAGWorkflow:
     사용 예:
         workflow = RAGWorkflow()
         result = workflow.run("절도죄란?", mode="standard")
+
+    또는 (pre-initialized retriever 사용):
+        workflow = RAGWorkflow(retriever=app.state.retriever)
+        result = workflow.run("절도죄란?", mode="standard")
     """
 
-    def __init__(self):
+    def __init__(self, retriever=None):
+        """
+        Args:
+            retriever: 미리 초기화된 HybridRetriever (optional)
+                       제공되면 BM25 재로드 없이 바로 사용
+                       None이면 nodes에서 fallback으로 새로 생성
+        """
         self.graph = create_rag_workflow()
+        self.retriever = retriever  # app.state.retriever 전달받음
         logger.info("RAGWorkflow initialized")
 
     def run(
@@ -129,14 +140,15 @@ class RAGWorkflow:
         """
         start_time = time.time()
 
-        # 초기 상태 생성
+        # 초기 상태 생성 (retriever 주입)
         initial_state = create_initial_rag_state(
             query=query,
             mode=mode,
             top_k=top_k,
             session_id=session_id or str(uuid.uuid4()),
             user_id=user_id,
-            include_critique_log=include_critique_log
+            include_critique_log=include_critique_log,
+            retriever=self.retriever  # app.state.retriever 전달
         )
 
         logger.info(f"[RAGWorkflow] Starting: query='{query}', mode={mode}")
@@ -198,14 +210,15 @@ class RAGWorkflow:
         """
         start_time = time.time()
 
-        # 초기 상태 생성
+        # 초기 상태 생성 (retriever 주입)
         initial_state = create_initial_rag_state(
             query=query,
             mode=mode,
             top_k=top_k,
             session_id=session_id or str(uuid.uuid4()),
             user_id=user_id,
-            include_critique_log=include_critique_log
+            include_critique_log=include_critique_log,
+            retriever=self.retriever  # app.state.retriever 전달
         )
 
         logger.info(f"[RAGWorkflow] Starting async: query='{query}', mode={mode}")

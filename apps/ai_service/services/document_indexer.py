@@ -4,13 +4,14 @@ Handles embedding generation and vector database indexing
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import uuid
 
-from libs.rag_core import (
-    KoreanLegalEmbedder,
-    ChromaVectorDB,
-)
+from libs.rag_core.embeddings.vectordb import VectorDB
+from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
+
+if TYPE_CHECKING:
+    from libs.rag_core import KoreanLegalEmbedder
 
 logger = logging.getLogger(__name__)
 
@@ -22,26 +23,29 @@ class DocumentIndexer:
 
     def __init__(
         self,
-        vectordb: ChromaVectorDB,
-        embedder: KoreanLegalEmbedder,
-        collection_name: str = "user_documents"
+        vectordb: VectorDB,
+        embedder: "KoreanLegalEmbedder",
+        collection_name: str = "user_documents",
+        qdrant_url: str = "http://localhost:6333"
     ):
         """
         Initialize document indexer
 
         Args:
-            vectordb: ChromaDB instance for precedent documents
+            vectordb: VectorDB instance for precedent documents (not used directly)
             embedder: Korean legal embedder instance
             collection_name: Collection name for user documents
+            qdrant_url: Qdrant server URL
         """
         self.embedder = embedder
         self.collection_name = collection_name
 
         # Create separate collection for user documents
         # (separate from precedent documents)
-        self.user_vectordb = ChromaVectorDB(
-            persist_directory=str(vectordb.persist_directory),
-            collection_name=collection_name
+        self.user_vectordb = QdrantVectorDB(
+            url=qdrant_url,
+            collection_name=collection_name,
+            embedding_dim=embedder.get_embedding_dimension()
         )
 
         logger.info(f"DocumentIndexer initialized with collection: {collection_name}")
@@ -105,7 +109,7 @@ class DocumentIndexer:
                 # Add document-level metadata if provided
                 if document_metadata:
                     for key, value in document_metadata.items():
-                        # Only add simple types (Chroma limitation)
+                        # Only add simple types (VectorDB limitation)
                         if isinstance(value, (str, int, float, bool)):
                             metadata[f'doc_{key}'] = value
 
@@ -189,11 +193,10 @@ class DocumentIndexer:
             Success status
         """
         try:
-            # ChromaDB doesn't support easy deletion by metadata
-            # This is a limitation we'll note for now
+            # TODO: Implement deletion by metadata filter in Qdrant
             logger.warning(
                 f"Deletion of embeddings for document {document_id} "
-                "not implemented (ChromaDB limitation)"
+                "not implemented yet"
             )
             return True
 

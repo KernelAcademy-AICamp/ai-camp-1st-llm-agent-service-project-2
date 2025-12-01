@@ -1,6 +1,6 @@
 """
 Crawler Pipeline Service
-크롤링 → Precedent 저장 → ChromaDB/BM25 인덱싱 파이프라인
+크롤링 → Precedent 저장 → Qdrant/BM25 인덱싱 파이프라인
 """
 
 import logging
@@ -16,11 +16,14 @@ from services.precedent_indexer import PrecedentIndexer
 from models.precedent import Precedent
 from models.database import write_async_session
 
-from libs.rag_core import (
-    KoreanLegalEmbedder,
-    ChromaVectorDB,
-    BM25Index,
-)
+from typing import Any, TYPE_CHECKING
+from libs.rag_core import BM25Index
+# v2: RemoteEmbedder + QdrantVectorDB 호환
+from libs.rag_core.embeddings.vectordb import VectorDB  # 인터페이스
+
+if TYPE_CHECKING:
+    from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
+    from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +47,13 @@ class CrawlerPipeline:
     1. CourtPrecedentCrawler로 판례 크롤링
     2. case_number로 중복 체크
     3. 새 판례를 Precedent 모델에 저장
-    4. PrecedentIndexer로 ChromaDB/BM25 인덱싱
+    4. PrecedentIndexer로 Qdrant/BM25 인덱싱
     """
 
     def __init__(
         self,
-        embedder: KoreanLegalEmbedder,
-        vectordb: ChromaVectorDB,
+        embedder: "RemoteEmbedder",
+        vectordb: "QdrantVectorDB",
         bm25_index: BM25Index,
         crawler_config: Optional[Dict[str, Any]] = None
     ):
@@ -58,8 +61,8 @@ class CrawlerPipeline:
         Initialize crawler pipeline
 
         Args:
-            embedder: Korean legal embedder
-            vectordb: ChromaDB instance
+            embedder: Korean legal embedder (로컬 또는 원격)
+            vectordb: QdrantVectorDB instance
             bm25_index: BM25 index instance
             crawler_config: Crawler configuration (oc, timeout, use_mock 등)
         """
@@ -210,7 +213,7 @@ class CrawlerPipeline:
                 metadata={
                     'keywords': search_keywords,
                     'page': page,
-                    'chromadb_total': self.vectordb.get_count(),
+                    'vectordb_total': self.vectordb.get_count(),
                     'bm25_total': len(self.bm25_index.documents)
                 }
             )
@@ -319,7 +322,7 @@ class CrawlerPipeline:
 
         return {
             'precedent_count': precedent_count,
-            'chromadb_count': self.vectordb.get_count(),
+            'vectordb_count': self.vectordb.get_count(),
             'bm25_count': len(self.bm25_index.documents),
             'embedding_dimension': self.embedder.get_embedding_dimension()
         }

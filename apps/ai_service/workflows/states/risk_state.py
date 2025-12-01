@@ -64,9 +64,11 @@ class RiskAnalysisState(TypedDict):
         human_review: 전문가 검토 결과
         review_feedback: 리뷰 피드백 (refine 포함 시 재분석)
         refinement_iteration: 재분석 반복 횟수 (최대 3회)
-        report: 최종 보고서
+        summary: 간결한 요약 (프론트엔드 표시용)
+        report: 최종 보고서 (상세 분석)
         completed_tasks: 완료된 작업 목록
         iteration_count: 총 반복 횟수
+        skip_human_review: Human-in-the-Loop 스킵 여부 (기본: True)
         error: 에러 메시지 (있는 경우)
     """
     document_id: Optional[str]
@@ -79,7 +81,9 @@ class RiskAnalysisState(TypedDict):
     human_review: Optional[HumanReviewResult]
     review_feedback: Optional[str]
     refinement_iteration: int
+    summary: Optional[str]
     report: Optional[str]
     completed_tasks: List[str]
     iteration_count: int
+    skip_human_review: bool
     error: Optional[str]

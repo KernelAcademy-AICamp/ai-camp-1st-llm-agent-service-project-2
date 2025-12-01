@@ -1,6 +1,6 @@
 """
 AI Service Configuration
-환경변수 기반 설정 (PostgreSQL)
+환경변수 기반 설정 (PostgreSQL + Qdrant)
 """
 
 import os
@@ -31,16 +31,30 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.0"))
     LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "2000"))
 
+    # ========== Qdrant Configuration ==========
+    VECTOR_DB: str = os.getenv("VECTOR_DB", "qdrant")
+    QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    QDRANT_API_KEY: str = os.getenv("QDRANT_API_KEY", "")
+    QDRANT_COLLECTION: str = os.getenv("QDRANT_COLLECTION", "law_documents")
+    QDRANT_DISTANCE: str = os.getenv("QDRANT_DISTANCE", "cosine")
+
+    # ========== Embedding Configuration ==========
+    EMBED_MODE: str = os.getenv("EMBED_MODE", "remote")  # local / remote
+    EMBED_MODEL: str = os.getenv("EMBED_MODEL", "dragonkue/snowflake-arctic-embed-l-v2.0-ko")
+
+    # Remote Embedder (OpenAI 호환 API)
+    REMOTE_EMBED_BASE_URL: str = os.getenv("REMOTE_EMBED_BASE_URL", "")
+    REMOTE_EMBED_API_KEY: str = os.getenv("REMOTE_EMBED_API_KEY", "")
+
     # Paths
     BASE_DIR: Path = Path(__file__).parent.parent.parent.parent
     VECTORDB_DIR: Path = BASE_DIR / "data" / "vectordb"
-    CHROMA_DIR: Path = VECTORDB_DIR / "chroma_criminal_law"
     BM25_DIR: Path = VECTORDB_DIR / "bm25"
 
     # CORS (Django Backend만 허용)
     CORS_ORIGINS: list = [
         "http://localhost:8000",  # Django Backend (Phase 2)
-        "http://localhost:8000",  # FastAPI Backend (Phase 1)
+        "http://localhost:3000",  # Frontend (Next.js)
     ]
 
     class Config:

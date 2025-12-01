@@ -16,24 +16,110 @@ Phase 4 - Week 11: RAG 워크플로우 노드 함수
 
 헬퍼 함수:
 - extract_sources: 문서에서 출처 추출
+
+성능 최적화:
+- 글로벌 싱글톤 패턴으로 BM25/Retriever 재사용
+- 매 요청마다 BM25 로드하지 않음 (~40초 절약)
 """
 
 import time
 import json
-from typing import Dict, Any, List, Literal
+from typing import Dict, Any, List, Literal, Optional
 from loguru import logger
 
 from apps.ai_service.states.rag_state import RAGState
 
 
+# ===== Global Component Cache (Singleton Pattern) =====
+# 매 요청마다 BM25 인덱스를 로드하지 않도록 캐싱
+_global_retriever: Optional["HybridRetriever"] = None
+_global_bm25: Optional["BM25Index"] = None
+
+
 # ===== Node Functions =====
+
+def _get_global_retriever(state_retriever=None):
+    """
+    글로벌 HybridRetriever 인스턴스 반환
+
+    우선순위:
+    1. state에서 전달된 retriever (라우터 → workflow → state)
+    2. 글로벌 캐시된 인스턴스
+    3. 싱글톤 패턴으로 직접 초기화 (fallback)
+
+    성능: state.retriever 사용 시 BM25 재로드 없음 → 첫 요청도 ~15초
+    """
+    global _global_retriever, _global_bm25
+
+    # 1. state에서 전달된 retriever 사용 (권장)
+    if state_retriever is not None:
+        _global_retriever = state_retriever
+        logger.info("[retrieve_node] Using state.retriever (injected from app.state)")
+        return _global_retriever
+
+    # 2. 이미 캐시된 인스턴스가 있으면 반환
+    if _global_retriever is not None:
+        logger.debug("[retrieve_node] Using cached HybridRetriever")
+        return _global_retriever
+
+    # 3. Fallback: 직접 초기화 (state.retriever 없는 경우)
+    logger.info("[retrieve_node] Fallback: Initializing HybridRetriever...")
+
+    from libs.rag_core.retrieval.hybrid_retriever import HybridRetriever
+    from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
+    from libs.rag_core.retrieval.bm25_index import BM25Index
+    from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
+    from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
+    from apps.ai_service.config.settings import settings
+
+    embedder = RemoteEmbedder(
+        base_url=settings.REMOTE_EMBED_BASE_URL,
+        api_key=settings.REMOTE_EMBED_API_KEY,
+        model=settings.EMBED_MODEL
+    )
+
+    vectordb = QdrantVectorDB(
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY or None,
+        collection_name=settings.QDRANT_COLLECTION,
+        embedding_dim=1024
+    )
+
+    semantic_retriever = LegalDocumentRetriever(
+        vectordb=vectordb,
+        embedder=embedder
+    )
+
+    _global_bm25 = BM25Index()
+    _global_bm25.load(str(settings.BM25_DIR))
+    logger.info(f"[retrieve_node] BM25 index loaded: {_global_bm25.get_count()} documents")
+
+    _global_retriever = HybridRetriever(
+        semantic_retriever=semantic_retriever,
+        bm25_index=_global_bm25,
+        fusion_method='rrf',
+        semantic_weight=0.5,
+        rrf_k=60,
+        enable_adaptive_weighting=True
+    )
+
+    logger.info("[retrieve_node] HybridRetriever initialized (fallback)")
+    return _global_retriever
+
 
 def retrieve_node(state: RAGState) -> Dict[str, Any]:
     """
-    문서 검색 노드
+    문서 검색 노드 (v2 - HybridRetriever)
 
-    기존 서비스 직접 호출:
-    - libs/rag_core/retrieval/retriever.py (LegalDocumentRetriever)
+    v2 핵심 구성:
+    - HybridRetriever: Semantic + BM25 RRF Fusion
+    - QdrantVectorDB: 벡터 검색
+    - RemoteEmbedder: 원격 임베딩 API
+    - BM25Index: 키워드 검색 (싱글톤 캐싱으로 재사용)
+
+    성능 최적화:
+    - 글로벌 싱글톤 패턴으로 BM25/Retriever 재사용
+    - 첫 요청에만 ~40초, 이후 요청은 즉시 검색
 
     Returns:
         업데이트된 상태 필드 (documents, context, iteration_count)
@@ -47,27 +133,19 @@ def retrieve_node(state: RAGState) -> Dict[str, Any]:
     start_time = time.time()
 
     try:
-        from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
-        from libs.rag_core.embeddings.vectordb import ChromaVectorDB
-        from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
-        from apps.ai_service.config.settings import settings
+        # state에서 retriever 가져오기 (app.state에서 주입됨)
+        state_retriever = state.get("retriever")
+        logger.info(f"[retrieve_node] state.retriever: {type(state_retriever).__name__ if state_retriever else 'None'}")
+        retriever = _get_global_retriever(state_retriever=state_retriever)
 
-        # v1과 동일한 ChromaDB + KoreanLegalEmbedder 사용
-        embedder = KoreanLegalEmbedder()
-        vectordb = ChromaVectorDB(
-            collection_name="criminal_law_docs",
-            persist_directory=str(settings.CHROMA_DIR)
-        )
-        retriever = LegalDocumentRetriever(vectordb=vectordb, embedder=embedder)
-
-        # 검색 수행
+        # 검색 수행 (Semantic + BM25 융합)
         documents = retriever.retrieve(query, top_k=top_k)
 
         # 컨텍스트 생성
         context = retriever.format_context(documents)
 
         elapsed = time.time() - start_time
-        logger.info(f"[retrieve_node] Retrieved {len(documents)} documents in {elapsed:.2f}s")
+        logger.info(f"[retrieve_node] Retrieved {len(documents)} documents in {elapsed:.2f}s (Hybrid Search)")
 
         return {
             "documents": documents,
@@ -422,6 +500,10 @@ def finalize_node(state: RAGState) -> Dict[str, Any]:
     sources = state.get("sources") or extract_sources(documents)
 
     logger.info("[finalize_node] Finalizing response")
+    logger.debug(f"[finalize_node] Documents count: {len(documents)}")
+    for i, doc in enumerate(documents[:5]):
+        metadata = doc.get("metadata", {})
+        logger.debug(f"[finalize_node] Doc {i}: doc_type={metadata.get('doc_type')}, keys={list(metadata.keys())[:10]}")
 
     return {
         "final_answer": final_answer,
@@ -468,16 +550,147 @@ def route_after_confidence(state: RAGState) -> Literal["critique", "retrieve", "
 # ===== Helper Functions =====
 
 def extract_sources(documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """문서에서 출처 정보 추출"""
+    """
+    문서에서 출처 정보 추출
+
+    doc_type별 메타데이터 매핑 (청킹_메타데이터_구현_명세서.md 기준):
+
+    원천데이터:
+    - 판결문: case_name, case_num, court_name, sentence_date
+    - 결정례: case_name, case_num, court_code, final_date
+    - 법령: law_title, article_num, ministry, promulg_date
+    - 해석례: agenda, agenda_num, interp_ministry, interp_date
+
+    라벨링 데이터 (QA/SUM):
+    - 라벨링_판결문: case_name, case_num, court_name, sentence_date, label_type
+    - 라벨링_결정례: case_name, case_num, court_code, final_date, label_type
+    - 라벨링_법령: title, law_id, ministry, promulg_date, label_type
+    - 라벨링_해석례: agenda, agenda_num, interp_ministry, interp_date, label_type
+
+    Fallback:
+    - 메타데이터가 없는 경우 text 일부를 title로 사용
+    - precedent_id, decision_id 등 대체 ID 필드 시도
+    """
     sources = []
     for doc in documents:
         metadata = doc.get("metadata", {})
-        source = {
-            "case_number": metadata.get("case_number", ""),
-            "title": metadata.get("title", ""),
-            "court": metadata.get("court", ""),
-            "date": metadata.get("date", ""),
-            "relevance_score": doc.get("score", 0),
-        }
+        text = doc.get("text", "")
+        doc_type = metadata.get("doc_type", "")
+        source_type = metadata.get("source", "")  # 원천_판결문, 라벨링_판결문_QA 등
+        label_type = metadata.get("label_type", "")  # QA 또는 SUM
+
+        # Fallback: text에서 title 생성 (앞 50자)
+        def get_text_preview(text: str, max_len: int = 50) -> str:
+            if not text:
+                return ""
+            preview = text[:max_len].replace("\n", " ").strip()
+            if len(text) > max_len:
+                preview += "..."
+            return preview
+
+        # text_snippet: 문서 내용 미리보기 (앞 200자)
+        text_snippet = text[:200].replace("\n", " ").strip() + "..." if len(text) > 200 else text.replace("\n", " ").strip()
+
+        # doc_type별 필드 매핑
+        if doc_type == "판결문":
+            # 판결문: precedent_id도 fallback으로 시도
+            case_num = metadata.get("case_num") or metadata.get("precedent_id", "")
+            case_name = metadata.get("case_name", "")
+            court_name = metadata.get("court_name") or metadata.get("court_code", "")
+
+            source = {
+                "case_number": case_num,
+                "title": case_name or get_text_preview(text),
+                "court": court_name,
+                "date": metadata.get("sentence_date", ""),
+                "doc_type": f"{doc_type} ({label_type})" if label_type else doc_type,
+                "relevance_score": doc.get("score", 0),
+                "text_snippet": text_snippet,
+                "full_text": text,
+            }
+        elif doc_type == "결정례":
+            # 결정례: decision_id도 fallback으로 시도
+            case_num = metadata.get("case_num") or metadata.get("decision_id", "")
+            case_name = metadata.get("case_name", "")
+            court_code = metadata.get("court_code", "")
+
+            source = {
+                "case_number": case_num,
+                "title": case_name or get_text_preview(text),
+                "court": court_code,
+                "date": metadata.get("final_date", ""),
+                "doc_type": f"{doc_type} ({label_type})" if label_type else doc_type,
+                "relevance_score": doc.get("score", 0),
+                "text_snippet": text_snippet,
+                "full_text": text,
+            }
+        elif doc_type == "법령":
+            # 법령: law_title (원천) 또는 title (라벨링)
+            title = metadata.get("law_title") or metadata.get("title", "")
+            article = metadata.get("article_num") or metadata.get("sm_class", "")
+            if article and title:
+                title = f"{title} {article}"
+
+            source = {
+                "case_number": metadata.get("law_id", ""),  # 법령 ID
+                "title": title or get_text_preview(text),
+                "court": metadata.get("ministry", ""),  # 담당 부처
+                "date": metadata.get("promulg_date") or metadata.get("effect_date", ""),
+                "doc_type": f"{doc_type} ({label_type})" if label_type else doc_type,
+                "relevance_score": doc.get("score", 0),
+                "text_snippet": text_snippet,
+                "full_text": text,
+            }
+        elif doc_type == "해석례":
+            # 해석례: agenda (의제), interp_ministry (해석부처)
+            agenda = metadata.get("agenda", "")
+            agenda_num = metadata.get("agenda_num", "")
+            title = f"{agenda} ({agenda_num})" if agenda and agenda_num else agenda or agenda_num
+
+            source = {
+                "case_number": metadata.get("interpretation_id", ""),
+                "title": title or metadata.get("case_name", "") or get_text_preview(text),
+                "court": metadata.get("interp_ministry") or metadata.get("question_ministry", ""),
+                "date": metadata.get("interp_date", ""),
+                "doc_type": f"{doc_type} ({label_type})" if label_type else doc_type,
+                "relevance_score": doc.get("score", 0),
+                "text_snippet": text_snippet,
+                "full_text": text,
+            }
+        else:
+            # 기타: 공통 필드 시도
+            source = {
+                "case_number": (
+                    metadata.get("case_num") or
+                    metadata.get("law_id") or
+                    metadata.get("interpretation_id") or
+                    metadata.get("decision_id") or
+                    metadata.get("precedent_id", "")
+                ),
+                "title": (
+                    metadata.get("case_name") or
+                    metadata.get("title") or
+                    metadata.get("law_title") or
+                    metadata.get("agenda", "") or
+                    get_text_preview(text)
+                ),
+                "court": (
+                    metadata.get("court_name") or
+                    metadata.get("court_code") or
+                    metadata.get("ministry") or
+                    metadata.get("interp_ministry", "")
+                ),
+                "date": (
+                    metadata.get("sentence_date") or
+                    metadata.get("final_date") or
+                    metadata.get("promulg_date") or
+                    metadata.get("interp_date", "")
+                ),
+                "doc_type": doc_type or source_type or "unknown",
+                "relevance_score": doc.get("score", 0),
+                "text_snippet": text_snippet,
+                "full_text": text,
+            }
+
         sources.append(source)
     return sources

@@ -79,6 +79,9 @@ class RAGState(TypedDict, total=False):
     error: Optional[str]
     metadata: Dict[str, Any]
 
+    # 의존성 주입 (옵션)
+    retriever: Optional[Any]  # HybridRetriever (None이면 fallback 사용)
+
 
 def create_initial_rag_state(
     query: str,
@@ -86,7 +89,8 @@ def create_initial_rag_state(
     top_k: int = 5,
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
-    include_critique_log: bool = False
+    include_critique_log: bool = False,
+    retriever: Optional[Any] = None
 ) -> RAGState:
     """
     RAG 상태 초기화 헬퍼 함수
@@ -98,6 +102,7 @@ def create_initial_rag_state(
         session_id: 세션 ID (없으면 자동 생성)
         user_id: 사용자 ID
         include_critique_log: Critique 로그 포함 여부
+        retriever: 미리 초기화된 HybridRetriever (optional)
 
     Returns:
         초기화된 RAGState
@@ -129,5 +134,6 @@ def create_initial_rag_state(
         metadata={
             "created_at": datetime.utcnow().isoformat(),
             "workflow_version": "2.0.0"
-        }
+        },
+        retriever=retriever
     )

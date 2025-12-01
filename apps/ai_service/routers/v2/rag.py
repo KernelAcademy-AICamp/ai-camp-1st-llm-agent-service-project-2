@@ -14,7 +14,7 @@ Phase 4 - Week 11: LangGraph 기반 RAG API
 - GET /v2/rag/health - 헬스체크
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
@@ -52,7 +52,10 @@ class SourceV2(BaseModel):
     title: str = ""
     court: str = ""
     date: str = ""
+    doc_type: str = ""  # 판결문, 결정례, 법령, 해석례
     relevance_score: float = 0.0
+    text_snippet: str = ""  # 문서 내용 미리보기 (200자)
+    full_text: str = ""  # 전체 문서 내용
 
 
 class RAGv2Response(BaseModel):
@@ -81,7 +84,7 @@ class RAGv2ErrorResponse(BaseModel):
 # ===== API Endpoints =====
 
 @router.post("/chat", response_model=RAGv2Response)
-async def rag_chat_v2(request: RAGv2Request):
+async def rag_chat_v2(request: RAGv2Request, http_request: Request):
     """
     LangGraph 기반 RAG Chatbot (v2)
 
@@ -94,6 +97,7 @@ async def rag_chat_v2(request: RAGv2Request):
 
     Args:
         request: RAG v2 요청
+        http_request: FastAPI Request (app.state 접근용)
 
     Returns:
         RAG v2 응답
@@ -108,12 +112,16 @@ async def rag_chat_v2(request: RAGv2Request):
         # 스트리밍 요청
         if request.stream:
             return StreamingResponse(
-                _stream_rag_response(request),
+                _stream_rag_response(request, http_request),
                 media_type="text/event-stream"
             )
 
+        # app.state에서 retriever 가져오기 (이미 BM25가 로드됨)
+        retriever = getattr(http_request.app.state, 'retriever', None)
+        logger.info(f"[v2/rag/chat] retriever from app.state: {type(retriever).__name__ if retriever else 'None'}")
+
         # 일반 요청
-        workflow = RAGWorkflow()
+        workflow = RAGWorkflow(retriever=retriever)
         result = await workflow.arun(
             query=request.query,
             mode=request.mode or "standard",
@@ -131,7 +139,10 @@ async def rag_chat_v2(request: RAGv2Request):
                     title=src.get("title", ""),
                     court=src.get("court", ""),
                     date=src.get("date", ""),
-                    relevance_score=src.get("relevance_score", 0.0)
+                    doc_type=src.get("doc_type", ""),
+                    relevance_score=src.get("relevance_score", 0.0),
+                    text_snippet=src.get("text_snippet", ""),
+                    full_text=src.get("full_text", "")
                 ))
 
         return RAGv2Response(
@@ -156,7 +167,7 @@ async def rag_chat_v2(request: RAGv2Request):
         )
 
 
-async def _stream_rag_response(request: RAGv2Request):
+async def _stream_rag_response(request: RAGv2Request, http_request: Request):
     """
     스트리밍 응답 생성기
 
@@ -166,7 +177,9 @@ async def _stream_rag_response(request: RAGv2Request):
         # 시작 이벤트
         yield f"data: {json.dumps({'event': 'start', 'query': request.query})}\n\n"
 
-        workflow = RAGWorkflow()
+        # app.state에서 retriever 가져오기
+        retriever = getattr(http_request.app.state, 'retriever', None)
+        workflow = RAGWorkflow(retriever=retriever)
 
         # 검색 중 이벤트
         yield f"data: {json.dumps({'event': 'retrieving', 'status': 'searching documents'})}\n\n"
@@ -276,6 +289,103 @@ async def compare_v1_v2(request: RAGv2Request):
 
     except Exception as e:
         logger.error(f"[compare] Error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ===== Full Document Endpoint =====
+
+class FullDocumentRequest(BaseModel):
+    """전체 문서 조회 요청"""
+    filter_field: str = Field(..., description="필터 필드 (case_number, title, source)")
+    filter_value: str = Field(..., description="필터 값")
+
+
+class FullDocumentResponse(BaseModel):
+    """전체 문서 응답"""
+    full_text: str
+    chunk_count: int
+    metadata: Dict[str, Any]
+    timestamp: str
+
+
+@router.post("/document/full", response_model=FullDocumentResponse)
+async def get_full_document(request: FullDocumentRequest, http_request: Request):
+    """
+    문서의 전체 텍스트 조회 (모든 청크 합침)
+
+    같은 문서의 모든 청크를 Qdrant에서 가져와서 합쳐서 반환합니다.
+    메타데이터 필터(case_number, title, source 등)로 문서를 식별합니다.
+
+    Args:
+        request: 필터 필드와 값
+        http_request: FastAPI Request (app.state 접근용)
+
+    Returns:
+        전체 문서 텍스트
+    """
+    try:
+        logger.info(f"[document/full] {request.filter_field}='{request.filter_value}'")
+
+        # app.state에서 vectordb 가져오기
+        vectordb = getattr(http_request.app.state, 'vectordb', None)
+
+        if not vectordb:
+            raise HTTPException(
+                status_code=503,
+                detail="VectorDB not initialized"
+            )
+
+        # 필드명 매핑: API 필드명 → Qdrant 메타데이터 필드명
+        field_mapping = {
+            "case_number": "case_num",  # 판결문/결정례의 사건번호
+            "title": "case_name",       # 사건명/제목
+            "court": "court_name",      # 법원명
+            "date": "sentence_date",    # 판결일
+        }
+        qdrant_field = field_mapping.get(request.filter_field, request.filter_field)
+        logger.info(f"[document/full] Mapped field: {request.filter_field} -> {qdrant_field}")
+
+        # 전체 문서 조회
+        chunks = vectordb.get_full_document(
+            filter_field=qdrant_field,
+            filter_value=request.filter_value,
+            limit=200  # 최대 200개 청크
+        )
+
+        if not chunks:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document not found: {request.filter_field}={request.filter_value}"
+            )
+
+        # 텍스트 합치기
+        texts = [chunk['text'] for chunk in chunks]
+        full_text = '\n\n'.join(texts)
+
+        # 첫 번째 청크의 메타데이터 사용
+        first_meta = chunks[0].get('metadata', {})
+
+        return FullDocumentResponse(
+            full_text=full_text,
+            chunk_count=len(chunks),
+            metadata={
+                "title": first_meta.get("case_name", "") or first_meta.get("title", ""),
+                "case_number": first_meta.get("case_num", "") or first_meta.get("case_number", ""),
+                "court": first_meta.get("court_name", "") or first_meta.get("court", ""),
+                "date": first_meta.get("sentence_date", "") or first_meta.get("final_date", "") or first_meta.get("date", ""),
+                "doc_type": first_meta.get("doc_type", ""),
+                "source": first_meta.get("source", "")
+            },
+            timestamp=datetime.now().isoformat()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[document/full] Error: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=str(e)

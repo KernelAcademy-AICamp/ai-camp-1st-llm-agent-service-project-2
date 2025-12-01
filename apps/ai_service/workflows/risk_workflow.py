@@ -71,9 +71,17 @@ async def risk_identifier_agent(state: RiskAnalysisState) -> Dict[str, Any]:
     logger.info("[risk_identifier_agent] Identifying risks")
 
     try:
-        from libs.rag_core.llm.llm_client import get_llm_client
+        from libs.rag_core.llm.llm_client import create_llm_client
+        from apps.ai_service.config.settings import settings
 
-        llm_client = get_llm_client()
+        llm_client = create_llm_client(
+            provider=settings.LLM_PROVIDER,
+            api_key=settings.LLM_API_KEY,
+            model=settings.LLM_MODEL,
+            base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=settings.LLM_MAX_TOKENS
+        )
         text = state.get("text", "")
         doc_type = state.get("doc_type", "CONTRACT")
 
@@ -127,12 +135,12 @@ async def risk_identifier_agent(state: RiskAnalysisState) -> Dict[str, Any]:
 - LOW: 참고 수준 (경미한 리스크)
 - INFO: 정보성 (특이사항)
 
-최대 10개의 리스크를 식별하세요. 반드시 유효한 JSON 형식으로만 응답해주세요."""
+최대 5개의 주요 리스크만 식별하세요. 반드시 유효한 JSON 형식으로만 응답해주세요."""
 
         response = llm_client.generate(
             prompt=prompt,
             temperature=0.3,
-            max_tokens=3000
+            max_tokens=1500
         )
 
         # JSON 파싱
@@ -347,48 +355,32 @@ def should_refine(state: RiskAnalysisState) -> str:
 
 async def mitigation_planner_agent(state: RiskAnalysisState) -> Dict[str, Any]:
     """
-    완화 전략 수립 에이전트: 각 리스크별 완화 전략 수립
+    완화 전략 수립 에이전트: 리스크의 recommendation을 사용 (LLM 호출 없음)
+
+    Note: risk_identifier_agent가 이미 각 리스크에 recommendation을 생성하므로
+          별도 LLM 호출 없이 해당 정보를 mitigation_strategies로 변환
     """
-    logger.info("[mitigation_planner_agent] Planning mitigation strategies")
+    logger.info("[mitigation_planner_agent] Extracting strategies from risk recommendations (no LLM)")
 
     try:
-        from libs.rag_core.llm.llm_client import get_llm_client
-
-        llm_client = get_llm_client()
-
         risks = state.get("identified_risks", [])
         human_review = state.get("human_review")
-        doc_type = state.get("doc_type", "CONTRACT")
 
         # 전문가 검토 결과 반영
         if human_review and human_review.get("modified_risks"):
             risks = human_review.get("modified_risks")
 
-        # 완화 전략 수립 프롬프트
-        prompt = f"""다음 {doc_type} 문서의 리스크에 대한 완화 전략을 수립하세요.
+        # 리스크의 recommendation을 전략으로 변환 (LLM 호출 없음)
+        strategies = []
+        for i, risk in enumerate(risks, 1):
+            risk_type = risk.get("risk_type", "OTHER")
+            severity = risk.get("severity", "MEDIUM")
+            recommendation = risk.get("recommendation", "")
 
-리스크 항목:
-{json.dumps(risks, ensure_ascii=False, indent=2)}
+            if recommendation:
+                strategies.append(f"{i}. [{severity}] {risk_type}: {recommendation}")
 
-각 리스크별 완화 전략을 우선순위 순으로 제시하세요.
-
-형식:
-1. [리스크 유형] 리스크 설명
-   - 완화 전략 1
-   - 완화 전략 2
-
-완화 전략:"""
-
-        response = llm_client.generate(
-            prompt=prompt,
-            temperature=0.3,
-            max_tokens=2000
-        )
-
-        # 전략 리스트로 분할
-        strategies = [s.strip() for s in response.split("\n") if s.strip()]
-
-        logger.info(f"[mitigation_planner_agent] Generated {len(strategies)} strategies")
+        logger.info(f"[mitigation_planner_agent] Extracted {len(strategies)} strategies (no LLM)")
 
         return {
             "mitigation_strategies": strategies,
@@ -405,15 +397,18 @@ async def mitigation_planner_agent(state: RiskAnalysisState) -> Dict[str, Any]:
 
 async def generate_report_node(state: RiskAnalysisState) -> Dict[str, Any]:
     """
-    보고서 생성 노드: 최종 리스크 분석 보고서 생성
+    보고서 생성 노드: 템플릿 기반 보고서 생성 (LLM 호출 없음)
+
+    Note: LLM 호출 없이 템플릿을 사용하여 빠르게 보고서 생성
+          리스크 정보와 권장사항은 risk_identifier_agent에서 이미 생성됨
+
+    Returns:
+        - summary: 프론트엔드에 표시될 간결한 요약 (3-5줄)
+        - report: 상세 보고서 (전체 분석)
     """
-    logger.info("[generate_report_node] Generating risk report")
+    logger.info("[generate_report_node] Generating risk report (template-based, no LLM)")
 
     try:
-        from libs.rag_core.llm.llm_client import get_llm_client
-
-        llm_client = get_llm_client()
-
         risks = state.get("identified_risks", [])
         human_review = state.get("human_review")
         doc_type = state.get("doc_type", "CONTRACT")
@@ -432,56 +427,91 @@ async def generate_report_node(state: RiskAnalysisState) -> Dict[str, Any]:
                 risks = human_review.get("modified_risks")
 
         # 리스크 통계
-        severity_counts = {}
+        severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
         for risk in risks:
             sev = risk.get("severity", "MEDIUM")
-            severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            if sev in severity_counts:
+                severity_counts[sev] += 1
 
-        # 보고서 생성 프롬프트
-        prompt = f"""다음 리스크 분석 결과를 바탕으로 {doc_type} 문서의 리스크 분석 보고서를 작성해주세요.
+        # 위험 수준 평가
+        overall_score = assessment.get("overall_score", 0)
+        if overall_score >= 70:
+            risk_level = "높음"
+            risk_conclusion = "전문가 검토가 강력히 권장됩니다."
+        elif overall_score >= 40:
+            risk_level = "중간"
+            risk_conclusion = "주요 조항에 대한 검토가 권장됩니다."
+        else:
+            risk_level = "낮음"
+            risk_conclusion = "일반적인 주의를 기울여 진행하시면 됩니다."
 
-식별된 리스크:
-{json.dumps(risks, ensure_ascii=False, indent=2)}
+        # ============================================
+        # 간결한 Summary 생성 (프론트엔드 표시용)
+        # 통계는 프론트엔드에서 별도 카드로 표시하므로 여기서는 내용 분석만
+        # ============================================
 
-심각도별 통계:
-- CRITICAL: {severity_counts.get('CRITICAL', 0)}건
-- HIGH: {severity_counts.get('HIGH', 0)}건
-- MEDIUM: {severity_counts.get('MEDIUM', 0)}건
-- LOW: {severity_counts.get('LOW', 0)}건
-- INFO: {severity_counts.get('INFO', 0)}건
+        # 주요 리스크 설명 (CRITICAL/HIGH 우선)
+        high_priority_risks = [r for r in risks if r.get("severity") in ["CRITICAL", "HIGH"]]
+        other_risks = [r for r in risks if r.get("severity") not in ["CRITICAL", "HIGH"]]
 
-전체 위험 점수: {assessment.get('overall_score', 0):.1f}점
+        summary_parts = []
 
-완화 전략:
-{chr(10).join(strategies[:10]) if strategies else "없음"}
+        # 주요 리스크 설명
+        if high_priority_risks:
+            summary_parts.append("### 주요 위험 요소")
+            for risk in high_priority_risks[:3]:
+                risk_type = risk.get('risk_type', 'OTHER')
+                desc = risk.get('description', '')[:100]
+                summary_parts.append(f"- **{risk_type}**: {desc}")
 
-다음 형식으로 보고서를 작성해주세요:
+        # 기타 리스크 요약
+        if other_risks:
+            summary_parts.append("\n### 추가 검토 사항")
+            for risk in other_risks[:2]:
+                risk_type = risk.get('risk_type', 'OTHER')
+                desc = risk.get('description', '')[:80]
+                summary_parts.append(f"- {risk_type}: {desc}")
 
-## 리스크 분석 보고서
+        # 결론
+        summary_parts.append(f"\n### 결론\n{risk_conclusion}")
 
-### 1. 요약
-(전반적인 리스크 수준 및 주요 발견사항)
+        summary = "\n".join(summary_parts) if summary_parts else "분석된 리스크가 없습니다."
 
-### 2. 주요 리스크
-(CRITICAL/HIGH 리스크 상세 설명)
+        # ============================================
+        # 상세 Report 생성 (전체 분석)
+        # ============================================
+        report = f"""## 리스크 분석 보고서
 
-### 3. 권장 조치
-(리스크 완화를 위한 구체적 조치사항)
+### 요약
+- 문서 유형: {doc_type}
+- 전체 위험 점수: {overall_score:.1f}점 ({risk_level})
+- 식별된 리스크: 총 {len(risks)}건 (CRITICAL: {severity_counts['CRITICAL']}, HIGH: {severity_counts['HIGH']}, MEDIUM: {severity_counts['MEDIUM']})
 
-### 4. 결론
-(종합 의견 및 다음 단계){review_notes}
+### 주요 리스크
+"""
+        # CRITICAL/HIGH 리스크만 상세 표시
+        critical_high = [r for r in risks if r.get("severity") in ["CRITICAL", "HIGH"]]
+        if critical_high:
+            for i, risk in enumerate(critical_high[:3], 1):  # 최대 3개만
+                report += f"""
+**{i}. [{risk.get('severity')}] {risk.get('risk_type', 'OTHER')}**
+- {risk.get('description', '')}
+"""
+        else:
+            report += "> 고위험 리스크가 발견되지 않았습니다.\n"
 
-보고서:"""
+        # 권장 조치 (최대 3개)
+        if strategies:
+            report += "\n### 권장 조치\n"
+            for strategy in strategies[:3]:
+                report += f"- {strategy}\n"
 
-        report = llm_client.generate(
-            prompt=prompt,
-            temperature=0.3,
-            max_tokens=2000
-        )
+        report += f"\n### 결론\n{risk_conclusion}{review_notes}"
 
-        logger.info(f"[generate_report_node] Report generated: {len(report)} chars")
+        logger.info(f"[generate_report_node] Generated summary ({len(summary)} chars) + report ({len(report)} chars)")
 
         return {
+            "summary": summary,
             "report": report,
             "completed_tasks": state.get("completed_tasks", []) + ["generate_report"]
         }
@@ -503,9 +533,15 @@ def route_human_review(state: RiskAnalysisState) -> str:
     전문가 검토 라우팅 함수
 
     Returns:
-        "human_review" if review needed, "mitigate" otherwise
+        "human_review" if review needed AND skip_human_review is False, "mitigate" otherwise
+
+    Note:
+        Django backend에서 호출 시 자동 진행을 위해 skip_human_review=True로 설정
+        Human-in-the-Loop가 필요한 경우 skip_human_review=False로 설정
     """
-    if state.get("requires_human_review", False) and not state.get("human_review"):
+    skip_review = state.get("skip_human_review", True)  # 기본값: 자동 진행
+
+    if state.get("requires_human_review", False) and not state.get("human_review") and not skip_review:
         return "human_review"
     return "mitigate"
 
@@ -694,6 +730,7 @@ class RiskWorkflow(BaseWorkflow[RiskAnalysisState]):
         text: str,
         doc_type: str = "CONTRACT",
         document_id: Optional[str] = None,
+        skip_human_review: bool = True,
         **kwargs
     ) -> RiskAnalysisState:
         """
@@ -703,6 +740,7 @@ class RiskWorkflow(BaseWorkflow[RiskAnalysisState]):
             text: 분석할 텍스트
             doc_type: 문서 타입
             document_id: 문서 ID
+            skip_human_review: Human-in-the-Loop 스킵 여부 (기본: True)
 
         Returns:
             초기 RiskAnalysisState
@@ -718,9 +756,11 @@ class RiskWorkflow(BaseWorkflow[RiskAnalysisState]):
             human_review=None,
             review_feedback=None,
             refinement_iteration=0,
+            summary=None,
             report=None,
             completed_tasks=[],
             iteration_count=0,
+            skip_human_review=skip_human_review,
             error=None,
         )
 
@@ -841,6 +881,7 @@ class RiskWorkflow(BaseWorkflow[RiskAnalysisState]):
             "requires_human_review": result.get("requires_human_review", False),
             "human_review": result.get("human_review"),
             "refinement_iteration": result.get("refinement_iteration", 0),
+            "summary": result.get("summary"),
             "report": result.get("report"),
             "awaiting_review": awaiting_review,
             "completed_tasks": result.get("completed_tasks", []),

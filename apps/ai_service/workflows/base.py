@@ -43,12 +43,14 @@ class BaseWorkflow(ABC, Generic[StateType]):
     def __init__(
         self,
         name: str = "base_workflow",
-        use_checkpointing: bool = False
+        use_checkpointing: bool = False,
+        recursion_limit: int = 25
     ):
         self.name = name
         self.use_checkpointing = use_checkpointing
+        self.recursion_limit = recursion_limit
         self.graph = self._build_and_compile()
-        logger.info(f"{self.name} initialized (checkpointing={use_checkpointing})")
+        logger.info(f"{self.name} initialized (checkpointing={use_checkpointing}, recursion_limit={recursion_limit})")
 
     @abstractmethod
     def create_graph(self) -> StateGraph:
@@ -84,6 +86,7 @@ class BaseWorkflow(ABC, Generic[StateType]):
         #     from langgraph.checkpoint.memory import MemorySaver
         #     return graph.compile(checkpointer=MemorySaver())
 
+        # recursion_limit은 invoke() 시점에 전달 (LangGraph 1.0+)
         return graph.compile()
 
     def run(self, **kwargs) -> Dict[str, Any]:
@@ -103,7 +106,11 @@ class BaseWorkflow(ABC, Generic[StateType]):
 
         try:
             initial_state = self.create_initial_state(**kwargs)
-            result = self.graph.invoke(initial_state)
+            # LangGraph 1.0+: recursion_limit은 invoke() config로 전달
+            result = self.graph.invoke(
+                initial_state,
+                {"recursion_limit": self.recursion_limit}
+            )
 
             processing_time = time.time() - start_time
             logger.info(f"[{self.name}] Completed in {processing_time:.2f}s")
@@ -132,7 +139,11 @@ class BaseWorkflow(ABC, Generic[StateType]):
 
         try:
             initial_state = self.create_initial_state(**kwargs)
-            result = await self.graph.ainvoke(initial_state)
+            # LangGraph 1.0+: recursion_limit은 ainvoke() config로 전달
+            result = await self.graph.ainvoke(
+                initial_state,
+                {"recursion_limit": self.recursion_limit}
+            )
 
             processing_time = time.time() - start_time
             logger.info(f"[{self.name}] Completed in {processing_time:.2f}s")

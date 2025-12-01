@@ -81,6 +81,13 @@ async def extract_text_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             chunk_overlap=200
         )
 
+        # 먼저 텍스트가 이미 제공되었는지 확인
+        if state.get("text"):
+            logger.info("[extract_text_node] Text already provided, skipping extraction")
+            return {
+                "completed_tasks": state.get("completed_tasks", []) + ["extract_text"]
+            }
+
         file_path = state.get("file_path")
         document_id = state.get("document_id")
 
@@ -124,11 +131,7 @@ async def extract_text_node(state: DocumentAnalysisState) -> Dict[str, Any]:
                     "completed_tasks": state.get("completed_tasks", []) + ["extract_text_failed"]
                 }
         else:
-            # 이미 텍스트가 있는 경우
-            if state.get("text"):
-                return {
-                    "completed_tasks": state.get("completed_tasks", []) + ["extract_text"]
-                }
+            # 텍스트도 없고, file_path도 없고, document_id도 없는 경우
             return {
                 "error": "No file_path, document_id, or text provided",
                 "completed_tasks": state.get("completed_tasks", []) + ["extract_text_failed"]
@@ -151,29 +154,38 @@ async def planning_agent_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     - STATUTE: summary
     - CASE/PRECEDENT: summary, clauses
     - OTHER: summary
+
+    Note: 첫 번째 호출에서만 analysis_plan을 설정합니다.
+          이후 호출에서는 기존 plan을 유지합니다.
     """
     logger.info("[planning_agent_node] Planning analysis tasks")
 
     try:
         # 이미 완료된 작업 확인
-        completed = set(state.get("completed_tasks", []))
+        completed_tasks = state.get("completed_tasks", [])
+        completed = set(completed_tasks)
         doc_type = state.get("doc_type", "OTHER")
-
-        # 문서 타입별 권장 분석
-        recommended = DOC_TYPE_ANALYSIS.get(doc_type, ["summary"])
-
-        # 남은 작업 계산
-        remaining = [task for task in recommended if task not in completed]
+        current_plan = state.get("analysis_plan", [])
 
         logger.info(
             f"[planning_agent_node] doc_type={doc_type}, "
-            f"completed={list(completed)}, remaining={remaining}"
+            f"completed_tasks={completed_tasks}, current_plan={current_plan}"
         )
 
-        return {
-            "analysis_plan": remaining,
-            "completed_tasks": list(completed) + (["plan"] if "plan" not in completed else [])
-        }
+        # 첫 호출인 경우에만 권장 분석 작업 설정
+        if "plan" not in completed:
+            # 문서 타입별 권장 분석
+            recommended = DOC_TYPE_ANALYSIS.get(doc_type, ["summary"])
+            logger.info(f"[planning_agent_node] Initial plan: {recommended}")
+            return {
+                "analysis_plan": recommended,
+                "completed_tasks": completed_tasks + ["plan"]
+            }
+
+        # 이미 plan이 완료된 경우, analysis_plan은 각 노드에서 업데이트됨
+        # current_plan이 비어있으면 all_done으로 라우팅됨
+        logger.info(f"[planning_agent_node] Continuing with plan: {current_plan}")
+        return {}
 
     except Exception as e:
         logger.error(f"[planning_agent_node] Error: {e}")
@@ -217,10 +229,18 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     logger.info("[summarize_node] Generating summary")
 
     try:
-        from libs.rag_core.llm.llm_client import get_llm_client
+        from libs.rag_core.llm.llm_client import create_llm_client
         from apps.ai_service.services.summarizer import Summarizer
+        from apps.ai_service.config.settings import settings
 
-        llm_client = get_llm_client()
+        llm_client = create_llm_client(
+            provider=settings.LLM_PROVIDER,
+            api_key=settings.LLM_API_KEY,
+            model=settings.LLM_MODEL,
+            base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=settings.LLM_MAX_TOKENS
+        )
         summarizer = Summarizer(llm_client)
 
         text = state.get("text", "")
@@ -273,10 +293,18 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     logger.info("[extract_clauses_node] Extracting key clauses")
 
     try:
-        from libs.rag_core.llm.llm_client import get_llm_client
+        from libs.rag_core.llm.llm_client import create_llm_client
         from apps.ai_service.services.clause_extractor import ClauseExtractor
+        from apps.ai_service.config.settings import settings
 
-        llm_client = get_llm_client()
+        llm_client = create_llm_client(
+            provider=settings.LLM_PROVIDER,
+            api_key=settings.LLM_API_KEY,
+            model=settings.LLM_MODEL,
+            base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=settings.LLM_MAX_TOKENS
+        )
         extractor = ClauseExtractor(llm_client)
 
         text = state.get("text", "")
@@ -332,9 +360,17 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     logger.info("[analyze_risk_node] Analyzing risks")
 
     try:
-        from libs.rag_core.llm.llm_client import get_llm_client
+        from libs.rag_core.llm.llm_client import create_llm_client
+        from apps.ai_service.config.settings import settings
 
-        llm_client = get_llm_client()
+        llm_client = create_llm_client(
+            provider=settings.LLM_PROVIDER,
+            api_key=settings.LLM_API_KEY,
+            model=settings.LLM_MODEL,
+            base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=settings.LLM_MAX_TOKENS
+        )
 
         text = state.get("text", "")
         doc_type = state.get("doc_type", "CONTRACT")
@@ -512,6 +548,7 @@ def create_document_workflow() -> StateGraph:
     workflow.add_edge("aggregate", END)
 
     # 컴파일 (Checkpointing 없음)
+    # recursion_limit은 invoke() 시점에 BaseWorkflow에서 전달 (LangGraph 1.0+)
     return workflow.compile()
 
 
@@ -536,11 +573,12 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
     def __init__(self):
         super().__init__(
             name="document_analysis_workflow",
-            use_checkpointing=False  # Checkpointing 불필요
+            use_checkpointing=False,  # Checkpointing 불필요
+            recursion_limit=50  # Planning Agent 패턴 (cyclic): 충분한 recursion 허용
         )
 
     def create_graph(self) -> StateGraph:
-        """StateGraph 생성 (compile 전)"""
+        """StateGraph 생성 (compile 전) - 순차 실행 방식"""
         workflow = StateGraph(DocumentAnalysisState)
 
         # 노드 추가
@@ -551,27 +589,14 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
         workflow.add_node("analyze_risk", analyze_risk_node)
         workflow.add_node("aggregate", aggregate_node)
 
-        # 엣지 정의
+        # 순차 실행 방식 (Cyclic 패턴 제거)
+        # START -> extract_text -> plan -> summarize -> clauses -> risk -> aggregate -> END
         workflow.add_edge(START, "extract_text")
         workflow.add_edge("extract_text", "plan")
-
-        # plan -> [조건부]
-        workflow.add_conditional_edges(
-            "plan",
-            route_analysis_tasks,
-            {
-                "summary": "summarize",
-                "clauses": "extract_clauses",
-                "risk": "analyze_risk",
-                "all_done": "aggregate"
-            }
-        )
-
-        # Cyclic edges
-        workflow.add_edge("summarize", "plan")
-        workflow.add_edge("extract_clauses", "plan")
-        workflow.add_edge("analyze_risk", "plan")
-
+        workflow.add_edge("plan", "summarize")
+        workflow.add_edge("summarize", "extract_clauses")
+        workflow.add_edge("extract_clauses", "analyze_risk")
+        workflow.add_edge("analyze_risk", "aggregate")
         workflow.add_edge("aggregate", END)
 
         return workflow

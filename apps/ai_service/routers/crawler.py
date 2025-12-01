@@ -383,7 +383,7 @@ async def run_pipeline(request: PipelineRunRequest, req: Request):
     """
     전체 파이프라인 실행
 
-    크롤링 → Precedent DB 저장 → ChromaDB/BM25 인덱싱
+    크롤링 → Precedent DB 저장 → Qdrant/BM25 인덱싱
 
     - **keyword/keywords**: 검색 키워드
     - **page**: 페이지 번호

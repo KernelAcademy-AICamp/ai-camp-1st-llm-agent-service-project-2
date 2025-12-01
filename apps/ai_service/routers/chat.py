@@ -86,7 +86,7 @@ def apply_document_filters(
     """
     Session 13-C: 문서 필터 적용
 
-    ChromaDB 메타데이터 스키마:
+    VectorDB 메타데이터 스키마:
     - doc_title: 문서 제목
     - doc_doc_type: 문서 타입 (CONTRACT, CASE, STATUTE, PRECEDENT, OTHER)
     - doc_language: 언어
