@@ -29,7 +29,7 @@ class EmbeddingConfig(BaseModel):
 
 class VectorDBConfig(BaseModel):
     """Vector database configuration"""
-    db_type: str = "chroma"
+    db_type: str = "qdrant"
     qdrant_url: Optional[str] = None
     qdrant_api_key: Optional[str] = None
 
@@ -70,7 +70,7 @@ config = Config(
         device=os.getenv("DEVICE", "cpu")
     ),
     vectordb=VectorDBConfig(
-        db_type=os.getenv("VECTOR_DB", "chroma"),
+        db_type=os.getenv("VECTOR_DB", "qdrant"),
         qdrant_url=os.getenv("QDRANT_URL"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY")
     ),
