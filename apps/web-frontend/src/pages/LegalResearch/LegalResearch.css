@@ -386,6 +386,8 @@
   gap: 16px;
   padding-top: 16px;
   border-top: 1px solid #e5e5e5;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .filter-label {
@@ -395,6 +397,8 @@
   font-size: 14px;
   font-weight: 600;
   color: #666666;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filter-checkbox {
@@ -414,6 +418,38 @@
 
 .filter-checkbox:hover {
   color: #333333;
+}
+
+/* Top-K Select & Search Info - No wrap */
+.top-k-select {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border, #e5e5e5);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--color-text-primary, #1f2937);
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.top-k-select:hover {
+  border-color: var(--color-primary, #4338ca);
+}
+
+.top-k-select:focus {
+  outline: none;
+  border-color: var(--color-primary, #4338ca);
+  box-shadow: 0 0 0 2px rgba(67, 56, 202, 0.1);
+}
+
+.search-info {
+  font-size: 13px;
+  color: #6b7280;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: auto;
 }
 
 /* Search Results */
@@ -972,6 +1008,8 @@
   background-color: white;
   cursor: pointer;
   transition: border-color 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .response-mode-select:hover {
@@ -1074,7 +1112,7 @@
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-left: 4px solid #e5e7eb;
+  border-left: 4px solid var(--color-primary, #1e40af);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1105,7 +1143,7 @@
 }
 
 .source-card.score-low {
-  border-left-color: #6b7280;
+  border-left-color: var(--color-primary, #1e40af);
   background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
 }
 
@@ -1218,6 +1256,12 @@
   padding-top: 12px;
   border-top: 1px solid #f0f0f0;
   flex-wrap: wrap;
+}
+
+.source-court {
+  font-size: 12px;
+  color: #2563eb;
+  font-weight: 500;
 }
 
 .source-date {

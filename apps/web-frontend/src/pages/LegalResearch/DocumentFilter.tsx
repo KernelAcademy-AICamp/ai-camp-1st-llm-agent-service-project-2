@@ -3,17 +3,18 @@
  *
  * RAG 검색 필터 패널 컴포넌트
  * - 문서 타입 필터 (계약서, 사건, 법령, 기타)
- * - 업로드 날짜 범위 필터
- * - 키워드 검색 (문서 제목만 검색)
+ * - 검색 기록
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { FiFilter, FiChevronLeft, FiChevronRight, FiX } from 'react-icons/fi';
+import React, { useCallback, useMemo } from 'react';
+import { FiFilter, FiChevronLeft, FiChevronRight, FiX, FiClock, FiTrash2 } from 'react-icons/fi';
 import {
   RAGFilterOptions,
   UserDocumentType,
   UserDocumentStatus,
+  SearchHistoryItem,
 } from '../../types';
+import { formatSearchDate } from '../../utils/searchHistory';
 import './DocumentFilter.css';
 
 interface DocumentFilterProps {
@@ -22,6 +23,11 @@ interface DocumentFilterProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   isAdmin?: boolean;  // Admin-only features flag
+  // Search history props
+  searchHistory?: SearchHistoryItem[];
+  onHistoryItemClick?: (item: SearchHistoryItem) => void;
+  onHistoryItemDelete?: (itemId: string) => void;
+  onClearHistory?: () => void;
 }
 
 // Document type options
@@ -46,28 +52,11 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
   isCollapsed = false,
   onToggleCollapse,
   isAdmin = false,
+  searchHistory = [],
+  onHistoryItemClick,
+  onHistoryItemDelete,
+  onClearHistory,
 }) => {
-  // Local state for keyword input (debounced)
-  const [keywordInput, setKeywordInput] = useState(filters.keyword || '');
-
-  // Sync keyword input with filters
-  useEffect(() => {
-    setKeywordInput(filters.keyword || '');
-  }, [filters.keyword]);
-
-  // Debounced keyword update
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (keywordInput !== filters.keyword) {
-        onFilterChange({
-          ...filters,
-          keyword: keywordInput || undefined,
-        });
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [keywordInput, filters, onFilterChange]);
 
   // Handle document type checkbox change
   const handleDocTypeChange = useCallback(
@@ -109,20 +98,8 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
     [filters, onFilterChange]
   );
 
-  // Handle date change
-  const handleDateChange = useCallback(
-    (field: 'date_from' | 'date_to', value: string) => {
-      onFilterChange({
-        ...filters,
-        [field]: value || undefined,
-      });
-    },
-    [filters, onFilterChange]
-  );
-
   // Clear all filters
   const handleClearAll = useCallback(() => {
-    setKeywordInput('');
     onFilterChange(
       isAdmin
         ? { statuses: ['EMBEDDED'] } // Admin: keep default status
@@ -134,10 +111,7 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
   const hasActiveFilters =
     (filters.doc_types && filters.doc_types.length > 0) ||
     (isAdmin && filters.statuses &&
-      !(filters.statuses.length === 1 && filters.statuses[0] === 'EMBEDDED')) ||
-    filters.date_from ||
-    filters.date_to ||
-    filters.keyword;
+      !(filters.statuses.length === 1 && filters.statuses[0] === 'EMBEDDED'));
 
   // Count active filters for badge display
   const activeFilterCount = useMemo(() => {
@@ -154,8 +128,6 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
         count = filters.statuses.length;
       }
     }
-    if (filters.keyword) count += 1;
-    if (filters.date_from || filters.date_to) count += 1;
     return count;
   }, [filters, isAdmin]);
 
@@ -167,12 +139,21 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
           onClick={onToggleCollapse}
           title="필터 패널 열기"
         >
-          <FiFilter className="document-filter__toggle-icon" />
-          <span className="document-filter__toggle-label">필터</span>
+          <div className="document-filter__toggle-section">
+            <FiFilter className="document-filter__toggle-icon" />
+            <span className="document-filter__toggle-label">필터</span>
+            {activeFilterCount > 0 && (
+              <span className="document-filter__badge document-filter__badge--inline">{activeFilterCount}</span>
+            )}
+          </div>
+          <div className="document-filter__toggle-section">
+            <FiClock className="document-filter__toggle-icon" />
+            <span className="document-filter__toggle-label">검색 기록</span>
+            {searchHistory.length > 0 && (
+              <span className="document-filter__badge document-filter__badge--inline document-filter__badge--history">{searchHistory.length}</span>
+            )}
+          </div>
           <FiChevronRight className="document-filter__toggle-arrow" />
-          {activeFilterCount > 0 && (
-            <span className="document-filter__badge">{activeFilterCount}</span>
-          )}
         </button>
       </div>
     );
@@ -203,19 +184,6 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
             </button>
           )}
         </div>
-      </div>
-
-      {/* Keyword Search */}
-      <div className="document-filter__section">
-        <label className="document-filter__label">키워드 검색</label>
-        <input
-          type="text"
-          className="document-filter__input"
-          placeholder="문서 제목 검색..."
-          value={keywordInput}
-          onChange={(e) => setKeywordInput(e.target.value)}
-        />
-        <span className="document-filter__hint">문서 제목에서만 검색됩니다</span>
       </div>
 
       {/* Document Type Filter */}
@@ -264,32 +232,6 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
         </div>
       )}
 
-      {/* Date Range Filter */}
-      <div className="document-filter__section">
-        <label className="document-filter__label">업로드 날짜</label>
-        <div className="document-filter__date-range">
-          <div className="document-filter__date-field">
-            <label className="document-filter__date-label">시작일</label>
-            <input
-              type="date"
-              className="document-filter__date-input"
-              value={filters.date_from || ''}
-              onChange={(e) => handleDateChange('date_from', e.target.value)}
-            />
-          </div>
-          <span className="document-filter__date-separator">~</span>
-          <div className="document-filter__date-field">
-            <label className="document-filter__date-label">종료일</label>
-            <input
-              type="date"
-              className="document-filter__date-input"
-              value={filters.date_to || ''}
-              onChange={(e) => handleDateChange('date_to', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Active Filters Summary */}
       {hasActiveFilters && (
         <div className="document-filter__summary">
@@ -325,37 +267,59 @@ const DocumentFilter: React.FC<DocumentFilterProps> = ({
                   </span>
                 );
               })}
-            {filters.keyword && (
-              <span className="document-filter__tag document-filter__tag--keyword">
-                "{filters.keyword}"
-                <button
-                  className="document-filter__tag-remove"
-                  onClick={() => {
-                    setKeywordInput('');
-                    onFilterChange({ ...filters, keyword: undefined });
-                  }}
-                >
-                  ×
-                </button>
-              </span>
+          </div>
+        </div>
+      )}
+
+      {/* Search History Section */}
+      {searchHistory.length > 0 && (
+        <div className="document-filter__history">
+          <div className="document-filter__history-header">
+            <span className="document-filter__history-title">
+              <FiClock className="document-filter__history-icon" />
+              검색 기록
+            </span>
+            {onClearHistory && (
+              <button
+                className="document-filter__history-clear"
+                onClick={onClearHistory}
+                title="검색 기록 전체 삭제"
+              >
+                <FiTrash2 />
+              </button>
             )}
-            {(filters.date_from || filters.date_to) && (
-              <span className="document-filter__tag document-filter__tag--date">
-                {filters.date_from || '시작'} ~ {filters.date_to || '종료'}
-                <button
-                  className="document-filter__tag-remove"
-                  onClick={() =>
-                    onFilterChange({
-                      ...filters,
-                      date_from: undefined,
-                      date_to: undefined,
-                    })
-                  }
-                >
-                  ×
-                </button>
-              </span>
-            )}
+          </div>
+          <div className="document-filter__history-list-container">
+            <ul className="document-filter__history-list">
+              {searchHistory.map((item) => (
+                <li key={item.id} className="document-filter__history-item">
+                  <button
+                    className="document-filter__history-query"
+                    onClick={() => onHistoryItemClick?.(item)}
+                    title={`${item.query}\n${formatSearchDate(item.timestamp)}`}
+                  >
+                    <span className="document-filter__history-text">
+                      {item.query.length > 25 ? item.query.slice(0, 25) + '...' : item.query}
+                    </span>
+                    <span className="document-filter__history-time">
+                      {formatSearchDate(item.timestamp)}
+                    </span>
+                  </button>
+                  {onHistoryItemDelete && (
+                    <button
+                      className="document-filter__history-delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onHistoryItemDelete(item.id);
+                      }}
+                      title="삭제"
+                    >
+                      <FiX />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

@@ -1,31 +1,79 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown, FiMenu } from 'react-icons/fi';
 import './LegalResearch.css';
 import './DocumentFilter.css';
 import { apiClient } from '../../api/client';
-import type { RAGChatResponse, RAGFilterOptions } from '../../types';
+import type { RAGChatResponse, RAGFilterOptions, RAGSource, SearchHistoryItem } from '../../types';
 import PrecedentModal from '../../components/PrecedentModal/PrecedentModal';
+import SourceDetailModal from '../../components/SourceDetailModal/SourceDetailModal';
 import { useAuth } from '../../contexts/AuthContext';
 import DocumentFilter from './DocumentFilter';
+import {
+  getSearchHistory as getLocalSearchHistory,
+  addSearchHistoryItem as addLocalSearchHistoryItem,
+  removeSearchHistoryItem as removeLocalSearchHistoryItem,
+  clearSearchHistory as clearLocalSearchHistory,
+} from '../../utils/searchHistory';
+
+// sessionStorage 키
+const RESEARCH_STATE_KEY = 'legalResearchState';
+
+// 세션 상태 타입
+interface ResearchSessionState {
+  searchQuery: string;
+  topK: number;
+  responseMode: 'auto' | 'concise' | 'standard' | 'detailed';
+  ragResponse: RAGChatResponse | null;
+  hasSearched: boolean;
+  filters: RAGFilterOptions;
+}
+
+// 세션 상태 저장
+const saveSessionState = (state: ResearchSessionState) => {
+  try {
+    sessionStorage.setItem(RESEARCH_STATE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error('Failed to save session state:', e);
+  }
+};
+
+// 세션 상태 로드
+const loadSessionState = (): ResearchSessionState | null => {
+  try {
+    const saved = sessionStorage.getItem(RESEARCH_STATE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) {
+    console.error('Failed to load session state:', e);
+    return null;
+  }
+};
 
 const LegalResearch: React.FC = () => {
   const { token, user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [topK, setTopK] = useState(3);  // Phase 1: 기본값 5 → 3
-  const [responseMode, setResponseMode] = useState<'auto' | 'concise' | 'standard' | 'detailed'>('auto');  // Phase 2: 응답 모드
-  const [ragResponse, setRagResponse] = useState<RAGChatResponse | null>(null);
+
+  // 세션 상태 초기화
+  const savedState = loadSessionState();
+
+  const [searchQuery, setSearchQuery] = useState(savedState?.searchQuery || '');
+  const [topK, setTopK] = useState(savedState?.topK || 3);  // Phase 1: 기본값 5 → 3
+  const [responseMode, setResponseMode] = useState<'auto' | 'concise' | 'standard' | 'detailed'>(savedState?.responseMode || 'auto');  // Phase 2: 응답 모드
+  const [ragResponse, setRagResponse] = useState<RAGChatResponse | null>(savedState?.ragResponse || null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(savedState?.hasSearched || false);
   const [copied, setCopied] = useState(false);
 
   // Loading step state
   const [currentStep, setCurrentStep] = useState(0);
 
-  // Modal states
+  // Modal states (기존 판례 모달)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPrecedent, setSelectedPrecedent] = useState<any>(null);
   const [isLoadingPrecedent, setIsLoadingPrecedent] = useState(false);
+
+  // Source detail modal states (새 소스 상세 모달)
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<RAGSource | null>(null);
 
   // Feedback states
   const [feedbackState, setFeedbackState] = useState<Record<string, 'like' | 'dislike' | null>>({});
@@ -36,10 +84,110 @@ const LegalResearch: React.FC = () => {
   // Filter panel state (Session 13-C)
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
   const [filters, setFilters] = useState<RAGFilterOptions>(() => {
+    // 세션 상태에서 복원
+    if (savedState?.filters) {
+      return savedState.filters;
+    }
     // Admin users: default to EMBEDDED status filter
     // Regular users: no default filter (EMBEDDED is always searched in backend)
     return isAdmin ? { statuses: ['EMBEDDED'] } : {};
   });
+
+  // 세션 상태 저장 (검색 결과/설정 변경 시)
+  useEffect(() => {
+    saveSessionState({
+      searchQuery,
+      topK,
+      responseMode,
+      ragResponse,
+      hasSearched,
+      filters,
+    });
+  }, [searchQuery, topK, responseMode, ragResponse, hasSearched, filters]);
+
+  // Search history state
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+
+  // Load search history on mount and when user/token changes
+  useEffect(() => {
+    const loadSearchHistory = async () => {
+      if (token) {
+        // 로그인 사용자: 백엔드에서 검색 기록 로드
+        try {
+          const history = await apiClient.getSearchHistory(token);
+          setSearchHistory(history);
+        } catch (err) {
+          console.error('Failed to load search history from backend:', err);
+          // 백엔드 로드 실패 시 localStorage fallback
+          const localHistory = getLocalSearchHistory(user?.id);
+          setSearchHistory(localHistory);
+        }
+      } else {
+        // 비로그인 사용자: localStorage에서 로드
+        const history = getLocalSearchHistory();
+        setSearchHistory(history);
+      }
+    };
+
+    loadSearchHistory();
+  }, [token, user?.id]);
+
+  // Handle search history item click - 저장된 답변 복원
+  const handleHistoryItemClick = useCallback((item: SearchHistoryItem) => {
+    setSearchQuery(item.query);
+    if (item.filters) {
+      setFilters(item.filters);
+    }
+    setTopK(item.topK);
+    setResponseMode(item.responseMode);
+
+    // 저장된 답변이 있으면 복원
+    if (item.answer && item.sources) {
+      setRagResponse({
+        answer: item.answer,
+        sources: item.sources,
+        query: item.query,
+        model: item.model || 'unknown',
+        timestamp: item.timestamp,
+        revised: item.revised || false,
+        response_mode: item.responseMode === 'auto' ? undefined : item.responseMode,
+      });
+      setHasSearched(true);
+      setError(null);
+    }
+  }, []);
+
+  // Handle search history item delete
+  const handleHistoryItemDelete = useCallback(async (itemId: string) => {
+    if (token) {
+      // 로그인 사용자: 백엔드에서 삭제
+      try {
+        await apiClient.deleteSearchHistoryItem(itemId, token);
+      } catch (err) {
+        console.error('Failed to delete search history from backend:', err);
+      }
+    } else {
+      // 비로그인 사용자: localStorage에서 삭제
+      removeLocalSearchHistoryItem(itemId);
+    }
+    setSearchHistory(prev => prev.filter(item => item.id !== itemId));
+  }, [token]);
+
+  // Handle clear all history
+  const handleClearHistory = useCallback(async () => {
+    if (token) {
+      // 로그인 사용자: 백엔드에서 전체 삭제
+      try {
+        await apiClient.clearSearchHistory(token);
+      } catch (err) {
+        console.error('Failed to clear search history from backend:', err);
+      }
+    } else {
+      // 비로그인 사용자: localStorage에서 삭제
+      clearLocalSearchHistory();
+    }
+    setSearchHistory([]);
+  }, [token]);
 
   // Handle filter changes
   const handleFilterChange = useCallback((newFilters: RAGFilterOptions) => {
@@ -117,6 +265,38 @@ const LegalResearch: React.FC = () => {
       clearTimeout(step3Timer);
 
       setRagResponse(response);
+
+      // 검색 기록 저장 (답변 포함)
+      if (token) {
+        // 로그인 사용자: 백엔드에 저장 (답변 포함)
+        try {
+          const newHistoryItem = await apiClient.saveSearchHistory({
+            query: searchQuery,
+            top_k: topK,
+            response_mode: responseMode,
+            filters: filters,
+            source_count: response.sources?.length,
+            answer: response.answer,
+            sources: response.sources,
+            model: response.model,
+            revised: response.revised,
+          }, token);
+          setSearchHistory(prev => [newHistoryItem, ...prev.filter(item => item.id !== newHistoryItem.id)].slice(0, 50));
+        } catch (err) {
+          console.error('Failed to save search history to backend:', err);
+        }
+      } else {
+        // 비로그인 사용자: localStorage에 저장
+        const newHistoryItem = addLocalSearchHistoryItem(
+          searchQuery,
+          topK,
+          responseMode,
+          filters,
+          response.sources?.length
+        );
+        // localStorage 버전은 answer/sources 저장하지 않음 (용량 제한)
+        setSearchHistory(prev => [newHistoryItem, ...prev.filter(item => item.id !== newHistoryItem.id)].slice(0, 50));
+      }
     } catch (err) {
       console.error('RAG chat error:', err);
       setError(err instanceof Error ? err.message : 'AI 답변 생성 중 오류가 발생했습니다.');
@@ -171,6 +351,17 @@ const LegalResearch: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedPrecedent(null);
+  };
+
+  // 소스 상세 모달 핸들러
+  const handleSourceClick = (source: RAGSource) => {
+    setSelectedSource(source);
+    setIsSourceModalOpen(true);
+  };
+
+  const handleCloseSourceModal = () => {
+    setIsSourceModalOpen(false);
+    setSelectedSource(null);
   };
 
   const handleFeedback = async (precedentId: string, feedbackType: 'like' | 'dislike') => {
@@ -237,6 +428,38 @@ const LegalResearch: React.FC = () => {
       clearTimeout(step3Timer);
 
       setRagResponse(response);
+
+      // 검색 기록 저장 (답변 포함)
+      if (token) {
+        // 로그인 사용자: 백엔드에 저장 (답변 포함)
+        try {
+          const newHistoryItem = await apiClient.saveSearchHistory({
+            query: exampleQuery,
+            top_k: topK,
+            response_mode: responseMode,
+            filters: filters,
+            source_count: response.sources?.length,
+            answer: response.answer,
+            sources: response.sources,
+            model: response.model,
+            revised: response.revised,
+          }, token);
+          setSearchHistory(prev => [newHistoryItem, ...prev.filter(item => item.id !== newHistoryItem.id)].slice(0, 50));
+        } catch (err) {
+          console.error('Failed to save search history to backend:', err);
+        }
+      } else {
+        // 비로그인 사용자: localStorage에 저장
+        const newHistoryItem = addLocalSearchHistoryItem(
+          exampleQuery,
+          topK,
+          responseMode,
+          filters,
+          response.sources?.length
+        );
+        // localStorage 버전은 answer/sources 저장하지 않음 (용량 제한)
+        setSearchHistory(prev => [newHistoryItem, ...prev.filter(item => item.id !== newHistoryItem.id)].slice(0, 50));
+      }
     } catch (err) {
       console.error('RAG chat error:', err);
       setError(err instanceof Error ? err.message : 'AI 답변 생성 중 오류가 발생했습니다.');
@@ -256,6 +479,10 @@ const LegalResearch: React.FC = () => {
         isCollapsed={isFilterCollapsed}
         onToggleCollapse={handleToggleFilterPanel}
         isAdmin={isAdmin}
+        searchHistory={searchHistory}
+        onHistoryItemClick={handleHistoryItemClick}
+        onHistoryItemDelete={handleHistoryItemDelete}
+        onClearHistory={handleClearHistory}
       />
 
       {/* Center Panel: Chat Area */}
@@ -311,10 +538,10 @@ const LegalResearch: React.FC = () => {
             onChange={(e) => setResponseMode(e.target.value as 'auto' | 'concise' | 'standard' | 'detailed')}
             title="AI 응답 상세도를 선택하세요"
           >
-            <option value="auto">🤖 자동 (AI 판단)</option>
-            <option value="concise">⚡ 간결 (핵심만)</option>
-            <option value="standard">📝 표준 (권장)</option>
-            <option value="detailed">📚 상세 (분석 포함)</option>
+            <option value="auto">자동 (AI 판단)</option>
+            <option value="concise">간결 (핵심만)</option>
+            <option value="standard">표준 (권장)</option>
+            <option value="detailed">상세 (분석 포함)</option>
           </select>
           <span className="filter-label">
             검색 문서:
@@ -443,10 +670,12 @@ const LegalResearch: React.FC = () => {
                 {ragResponse.sources.map((source, index) => {
                   const currentFeedback = feedbackState[source.source];
                   // Extract info from metadata if available
+                  // v2 API returns doc_type at source level, v1 uses metadata.type
                   const docId = source.metadata?.doc_id || `문서 #${index + 1}`;
-                  const docType = source.metadata?.type || source.type || '기타';
+                  const docType = source.doc_type || source.metadata?.type || source.type || '기타';
                   const fileName = source.metadata?.file || '';
                   const docSource = source.metadata?.source || source.source || '';
+                  const court = source.court || source.metadata?.court_name || source.metadata?.court || '';
 
                   return (
                     <div
@@ -454,8 +683,8 @@ const LegalResearch: React.FC = () => {
                       className={`source-card ${getScoreColor(source.score)}`}
                     >
                       <div
-                        onClick={() => handlePrecedentClick(source.source)}
-                        style={{ cursor: source.source ? 'pointer' : 'default', flex: 1 }}
+                        onClick={() => handleSourceClick(source)}
+                        style={{ cursor: 'pointer', flex: 1 }}
                       >
                         <div className="source-header">
                           <div className="source-rank">#{index + 1}</div>
@@ -474,6 +703,9 @@ const LegalResearch: React.FC = () => {
                           {source.text_snippet || source.content || '내용이 제공되지 않았습니다.'}
                         </p>
                         <div className="source-footer">
+                          {court && (
+                            <span className="source-court">{court}</span>
+                          )}
                           <span className="source-date">{source.date || ''}</span>
                           {source.case_number && (
                             <span className="source-case-number">{source.case_number}</span>
@@ -867,81 +1099,19 @@ const LegalResearch: React.FC = () => {
       )}
       </div>{/* End of center panel */}
 
-      {/* Right Panel: Sources (Session 13-C) - Only shown when ragResponse exists */}
-      {ragResponse && ragResponse.sources.length > 0 && (
-        <div className="legal-research__right-panel">
-          <div className="sources-panel">
-            <div className="sources-panel__header">
-              <h3>참고 자료 ({ragResponse.sources.length}건)</h3>
-              <p className="sources-panel__description">
-                Hybrid Search로 검색된 문서
-              </p>
-            </div>
-            <div className="sources-panel__list">
-              {ragResponse.sources.map((source, index) => {
-                const currentFeedback = feedbackState[source.source];
-                const docId = source.metadata?.doc_id || `문서 #${index + 1}`;
-                const docType = source.metadata?.type || source.type || '기타';
-                const fileName = source.metadata?.file || '';
-
-                return (
-                  <div
-                    key={index}
-                    className={`sources-panel__card ${getScoreColor(source.score)}`}
-                    onClick={() => handlePrecedentClick(source.source)}
-                    style={{ cursor: source.source ? 'pointer' : 'default' }}
-                  >
-                    <div className="sources-panel__card-header">
-                      <div className="sources-panel__rank">#{index + 1}</div>
-                      <span className="sources-panel__type-icon">{getTypeIcon(docType)}</span>
-                      <span className="sources-panel__type-label">{getTypeLabel(docType)}</span>
-                    </div>
-                    <h4 className="sources-panel__title">{source.title || docId}</h4>
-                    <p className="sources-panel__snippet">
-                      {(source.text_snippet || source.content || '').slice(0, 100)}
-                      {(source.text_snippet || source.content || '').length > 100 ? '...' : ''}
-                    </p>
-                    <div className="sources-panel__footer">
-                      <span className={`sources-panel__score ${getScoreColor(source.score)}`}>
-                        {getScoreLabel(source.score, index + 1)}
-                      </span>
-                      <div className="sources-panel__feedback">
-                        <button
-                          className={`feedback-btn-small ${currentFeedback === 'like' ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFeedback(source.source, 'like');
-                          }}
-                          title="도움이 되었습니다"
-                        >
-                          <FiThumbsUp />
-                        </button>
-                        <button
-                          className={`feedback-btn-small ${currentFeedback === 'dislike' ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFeedback(source.source, 'dislike');
-                          }}
-                          title="도움이 되지 않았습니다"
-                        >
-                          <FiThumbsDown />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Precedent Modal */}
       <PrecedentModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         precedentData={selectedPrecedent}
         isLoading={isLoadingPrecedent}
+      />
+
+      {/* Source Detail Modal - 참고자료 상세 보기 */}
+      <SourceDetailModal
+        isOpen={isSourceModalOpen}
+        onClose={handleCloseSourceModal}
+        source={selectedSource}
       />
     </div>
   );

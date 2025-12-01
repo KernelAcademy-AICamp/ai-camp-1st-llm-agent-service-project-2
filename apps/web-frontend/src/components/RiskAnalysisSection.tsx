@@ -9,13 +9,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   RiskAnalysis,
   RiskItem,
   RiskSeverity,
   RiskCategory,
   RiskAnalysisResponse,
-  AnalyzeRiskResponse
+  AnalyzeRiskResponse,
+  AnalysisStatus
 } from '../types';
 import { apiClient } from '../api/client';
 import '../styles/RiskAnalysisSection.css';
@@ -24,12 +26,14 @@ interface RiskAnalysisSectionProps {
   documentId: string;
   token?: string;
   documentTitle?: string;
+  analysisStatus?: AnalysisStatus;
 }
 
 const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
   documentId,
   token,
-  documentTitle
+  documentTitle,
+  analysisStatus
 }) => {
   const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
@@ -170,12 +174,45 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
     return grouped as Record<RiskCategory, RiskItem[]>;
   };
 
+  // 심각도별 리스크 개수 계산
+  const countBySeverity = (items: RiskItem[]) => {
+    const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+    items.forEach(item => {
+      if (counts.hasOwnProperty(item.severity)) {
+        counts[item.severity as keyof typeof counts]++;
+      }
+    });
+    return counts;
+  };
+
+  // Check if risk analysis is currently in progress
+  const isAnalyzingRisk = analysisStatus === 'analyzing_risk';
+
   if (loading) {
     return (
       <div className="risk-analysis-section">
         <div className="loading-container">
           <div className="spinner"></div>
           <p>리스크 분석 정보를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show analysis in progress banner when analyzing_risk
+  if (isAnalyzingRisk) {
+    return (
+      <div className="risk-analysis-section">
+        <div className="risk-analysis-header">
+          <h3>리스크 분석</h3>
+        </div>
+        <div className="analysis-in-progress-banner">
+          <div className="analysis-spinner"></div>
+          <div className="analysis-info">
+            <span className="analysis-step-badge">3/3</span>
+            <span className="analysis-label">리스크 분석 중...</span>
+          </div>
+          <p className="analysis-hint">문서의 법적 리스크를 분석하고 있습니다. 잠시만 기다려 주세요.</p>
         </div>
       </div>
     );
@@ -217,6 +254,7 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
   if (!riskAnalysis) return null;
 
   const groupedRisks = groupRiskItemsByCategory(riskAnalysis.risk_items);
+  const severityCounts = countBySeverity(riskAnalysis.risk_items);
 
   return (
     <div className="risk-analysis-section">
@@ -227,11 +265,14 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
         </span>
       </div>
 
-      {/* Overall Risk Score */}
-      <div className="risk-overview">
-        <div className="risk-score-container">
-          {renderRiskScore(riskAnalysis.overall_risk_score)}
-          <div className="risk-severity">
+      {/* Risk Statistics Cards */}
+      <div className="risk-stats-grid">
+        <div className="risk-stat-card risk-stat-score">
+          <div className="stat-icon">
+            {renderRiskScore(riskAnalysis.overall_risk_score)}
+          </div>
+          <div className="stat-info">
+            <span className="stat-label">위험 점수</span>
             <span
               className="severity-badge"
               style={{ backgroundColor: getSeverityColor(riskAnalysis.severity) }}
@@ -240,9 +281,38 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
             </span>
           </div>
         </div>
-        <div className="risk-summary">
-          <h4>리스크 요약</h4>
-          <p>{riskAnalysis.summary}</p>
+
+        <div className="risk-stat-card">
+          <div className="stat-number">{riskAnalysis.risk_items.length}</div>
+          <div className="stat-label">총 리스크</div>
+        </div>
+
+        <div className="risk-stat-card risk-stat-critical">
+          <div className="stat-number" style={{ color: '#dc2626' }}>{severityCounts.CRITICAL}</div>
+          <div className="stat-label">심각</div>
+        </div>
+
+        <div className="risk-stat-card risk-stat-high">
+          <div className="stat-number" style={{ color: '#ea580c' }}>{severityCounts.HIGH}</div>
+          <div className="stat-label">높음</div>
+        </div>
+
+        <div className="risk-stat-card risk-stat-medium">
+          <div className="stat-number" style={{ color: '#ca8a04' }}>{severityCounts.MEDIUM}</div>
+          <div className="stat-label">중간</div>
+        </div>
+
+        <div className="risk-stat-card risk-stat-low">
+          <div className="stat-number" style={{ color: '#65a30d' }}>{severityCounts.LOW}</div>
+          <div className="stat-label">낮음</div>
+        </div>
+      </div>
+
+      {/* Risk Summary */}
+      <div className="risk-summary-section">
+        <h4>분석 요약</h4>
+        <div className="risk-summary-content">
+          <ReactMarkdown>{riskAnalysis.summary || '요약 정보가 없습니다.'}</ReactMarkdown>
         </div>
       </div>
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
-import { UserDocumentDetail, Summary, KeyClause, RiskAnalysis } from '../types';
+import { UserDocumentDetail, Summary, KeyClause, RiskAnalysis, AnalysisStatus, ANALYSIS_STATUS_LABELS } from '../types';
 import DocumentDetailLayout from '../components/DocumentDetailLayout';
 import '../styles/DocumentDetail.css';
 
@@ -30,9 +30,28 @@ const DocumentDetail: React.FC = () => {
   const [clausesError, setClausesError] = useState<string | null>(null);
   const [extractingClauses, setExtractingClauses] = useState(false);
 
+  // Preview clauses state (for selective addition)
+  const [previewClauses, setPreviewClauses] = useState<KeyClause[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [savingSelected, setSavingSelected] = useState(false);
+
   // Risk analysis state (for left panel summary)
   const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
+
+  // Analysis status polling state
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('none');
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const loadDocument = useCallback(async () => {
     if (!documentId || !token) return;
@@ -100,12 +119,65 @@ const DocumentDetail: React.FC = () => {
     }
   }, [documentId, token]);
 
+  // Start polling for analysis status
+  const startPollingAnalysisStatus = useCallback(() => {
+    if (!documentId || !token) return;
+
+    // Don't start if already polling
+    if (pollingIntervalRef.current) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await apiClient.getAnalysisStatus(documentId, token);
+        setAnalysisStatus(status.analysis_status);
+
+        // Reload data when each step completes
+        if (status.has_summary && !summary) {
+          loadSummary();
+        }
+        if (status.has_clauses && clauses.length === 0) {
+          loadClauses();
+        }
+        if (status.has_risk_analysis && !riskAnalysis) {
+          loadRiskAnalysis();
+        }
+
+        // Stop polling if analysis is complete or failed
+        if (status.analysis_status === 'completed' || status.analysis_status === 'failed') {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          // Final reload to get all data
+          loadDocument();
+        }
+      } catch (err) {
+        console.error('Failed to poll analysis status:', err);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    pollingIntervalRef.current = pollInterval;
+  }, [documentId, token, summary, clauses.length, riskAnalysis, loadSummary, loadClauses, loadRiskAnalysis, loadDocument]);
+
   useEffect(() => {
     loadDocument();
     loadSummary();
     loadClauses();
     loadRiskAnalysis();
   }, [loadDocument, loadSummary, loadClauses, loadRiskAnalysis]);
+
+  // Start polling if document is being analyzed
+  useEffect(() => {
+    if (document?.analysis_status) {
+      setAnalysisStatus(document.analysis_status);
+
+      // Start polling if analysis is in progress
+      const inProgress = ['pending', 'summarizing', 'extracting_clauses', 'analyzing_risk'].includes(document.analysis_status);
+      if (inProgress) {
+        startPollingAnalysisStatus();
+      }
+    }
+  }, [document?.analysis_status, startPollingAnalysisStatus]);
 
   const handleGenerateSummary = async () => {
     if (!documentId || !token) return;
@@ -114,9 +186,9 @@ const DocumentDetail: React.FC = () => {
     setSummaryError(null);
 
     try {
-      const response = await apiClient.analyzeDocument(documentId, token);
+      // 요약만 생성 (선택적 분석)
+      const response = await apiClient.analyzeDocument(documentId, token, 'summary');
       setSummary(response.summary);
-      // 성공 시 팝업 없이 바로 결과 표시
     } catch (err: any) {
       setSummaryError(err.message || 'Failed to generate summary');
     } finally {
@@ -131,14 +203,56 @@ const DocumentDetail: React.FC = () => {
     setClausesError(null);
 
     try {
-      const response = await apiClient.analyzeDocument(documentId, token);
+      // 조항만 추출 (선택적 분석)
+      const response = await apiClient.analyzeDocument(documentId, token, 'clauses');
       setClauses(response.clauses);
-      // 성공 시 팝업 없이 바로 결과 표시
     } catch (err: any) {
       setClausesError(err.message || 'Failed to extract clauses');
     } finally {
       setExtractingClauses(false);
     }
+  };
+
+  const handleExtractPreview = async () => {
+    if (!documentId || !token) return;
+
+    setPreviewLoading(true);
+    setClausesError(null);
+
+    try {
+      // 미리보기용 조항 추출 (DB 저장 없음)
+      const response = await apiClient.extractClausesPreview(documentId, token);
+      setPreviewClauses(response.clauses);
+    } catch (err: any) {
+      setClausesError(err.message || 'Failed to extract clauses');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleSaveSelected = async (selectedClauses: KeyClause[]) => {
+    if (!documentId || !token) return;
+
+    setSavingSelected(true);
+
+    try {
+      // 선택된 조항만 저장
+      const response = await apiClient.saveSelectedClauses(documentId, selectedClauses, token);
+
+      // 기존 조항에 새 조항 추가
+      setClauses(prev => [...prev, ...response.clauses]);
+
+      // 미리보기 초기화
+      setPreviewClauses([]);
+    } catch (err: any) {
+      setClausesError(err.message || 'Failed to save clauses');
+    } finally {
+      setSavingSelected(false);
+    }
+  };
+
+  const handleCancelPreview = () => {
+    setPreviewClauses([]);
   };
 
   const handleDelete = async () => {
@@ -220,8 +334,15 @@ const DocumentDetail: React.FC = () => {
         clausesError={clausesError}
         onExtractClauses={handleExtractClauses}
         extractingClauses={extractingClauses}
+        previewClauses={previewClauses}
+        previewLoading={previewLoading}
+        onExtractPreview={handleExtractPreview}
+        onSaveSelected={handleSaveSelected}
+        savingSelected={savingSelected}
+        onCancelPreview={handleCancelPreview}
         riskAnalysis={riskAnalysis}
         riskLoading={riskLoading}
+        analysisStatus={analysisStatus}
       />
     </div>
   );

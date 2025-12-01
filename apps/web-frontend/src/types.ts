@@ -99,14 +99,20 @@ export interface RAGSource {
   title?: string;
   case_number?: string;
   date?: string;
+  court?: string;         // v2 API: 법원명
+  doc_type?: string;      // v2 API: 문서 유형 (판결문, 결정례, 법령, 해석례)
   citation?: string;
-  text_snippet?: string;
+  text_snippet?: string;  // v2 API: 문서 미리보기 (200자)
+  full_text?: string;     // v2 API: 전체 문서 내용
   score: number;
+  relevance_score?: number;  // v2 API: 관련성 점수
   metadata?: {
     doc_id?: string;
     type?: string;
     file?: string;
     source?: string;
+    court_name?: string;
+    court?: string;
     [key: string]: any;
   };
 }
@@ -414,6 +420,26 @@ export type UserDocumentType = 'CASE' | 'CONTRACT' | 'STATUTE' | 'PRECEDENT' | '
 export type UserDocumentStatus = 'UPLOADED' | 'OCR_DONE' | 'PREPROCESSED' | 'EMBEDDED' | 'FAILED';
 export type UserDocumentLanguage = 'ko' | 'en';
 
+// Analysis pipeline status (for auto-analysis flow)
+export type AnalysisStatus =
+  | 'none'              // 분석 시작 전
+  | 'pending'           // 분석 대기 중
+  | 'summarizing'       // 요약 생성 중
+  | 'extracting_clauses' // 조항 추출 중
+  | 'analyzing_risk'    // 리스크 분석 중
+  | 'completed'         // 분석 완료
+  | 'failed';           // 분석 실패
+
+export const ANALYSIS_STATUS_LABELS: Record<AnalysisStatus, string> = {
+  none: '분석 전',
+  pending: '대기 중',
+  summarizing: '요약 생성 중',
+  extracting_clauses: '조항 추출 중',
+  analyzing_risk: '리스크 분석 중',
+  completed: '분석 완료',
+  failed: '분석 실패',
+};
+
 export interface UserDocument {
   id: string;
   user: string;
@@ -424,6 +450,10 @@ export interface UserDocument {
   original_file: string | null;
   language: UserDocumentLanguage;
   status: UserDocumentStatus;
+  // Analysis pipeline status
+  analysis_status: AnalysisStatus;
+  analysis_status_display?: string;
+  analysis_error?: string | null;
   file_size: number | null;
   file_type: string | null;
   page_count: number | null;
@@ -900,4 +930,55 @@ export interface RiskDocumentsListResponse {
   page_size: number;
   total_pages: number;
   results: RiskDocumentListItem[];
+}
+
+// ============================================
+// Search History Types
+// ============================================
+
+export interface SearchHistoryItem {
+  id: string;
+  query: string;
+  timestamp: string;
+  topK: number;
+  responseMode: 'auto' | 'concise' | 'standard' | 'detailed';
+  filters?: RAGFilterOptions;
+  sourceCount?: number;
+  // 답변 저장 (검색 기록 클릭 시 복원용)
+  answer?: string;
+  sources?: RAGSource[];
+  model?: string;
+  revised?: boolean;
+}
+
+// ============================================
+// Analysis Pipeline Types (Auto-Analysis Flow)
+// ============================================
+
+export interface UploadAndAnalyzeRequest {
+  title: string;
+  doc_type: UserDocumentType;
+  language?: UserDocumentLanguage;
+  original_file: File;
+}
+
+export interface UploadAndAnalyzeResponse {
+  message: string;
+  document: UserDocument;
+}
+
+export interface AnalysisStatusResponse {
+  document_id: string;
+  analysis_status: AnalysisStatus;
+  analysis_status_display: string;
+  analysis_error: string | null;
+  has_summary: boolean;
+  has_clauses: boolean;
+  has_risk_analysis: boolean;
+}
+
+export interface StartAnalysisResponse {
+  message: string;
+  document_id: string;
+  analysis_status: AnalysisStatus;
 }

@@ -73,7 +73,14 @@ import {
   LLMUsageStats,
   RiskOverview,
   RiskDocumentsListResponse,
-  RiskSeverity
+  RiskSeverity,
+  SearchHistoryItem,
+  RAGFilterOptions,
+  RAGSource,
+  // Analysis Pipeline Types
+  UploadAndAnalyzeResponse,
+  AnalysisStatusResponse,
+  StartAnalysisResponse,
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -662,12 +669,61 @@ class APIClient {
 
   /**
    * Trigger document analysis
-   * Generates both summary and clauses for the document
+   * @param analysisType - 'summary' | 'clauses' | 'both' (default: 'both')
    */
-  async analyzeDocument(documentId: string, token?: string): Promise<AnalyzeDocumentResponse> {
+  async analyzeDocument(
+    documentId: string,
+    token?: string,
+    analysisType: 'summary' | 'clauses' | 'both' = 'both'
+  ): Promise<AnalyzeDocumentResponse> {
     return this.fetch<AnalyzeDocumentResponse>(
       `/api/v1/documents/${documentId}/analyze/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ analysis_type: analysisType }),
+      },
+      token
+    );
+  }
+
+  /**
+   * Extract clauses preview (without saving to DB)
+   * Returns extracted clauses for user to select which ones to save
+   */
+  async extractClausesPreview(documentId: string, token?: string): Promise<{
+    success: boolean;
+    document_id: string;
+    document_title: string;
+    clauses: KeyClause[];
+    clause_count: number;
+  }> {
+    return this.fetch(
+      `/api/v1/documents/${documentId}/extract_clauses_preview/`,
       { method: 'POST' },
+      token
+    );
+  }
+
+  /**
+   * Save selected clauses to database
+   * Only saves the clauses user has selected
+   */
+  async saveSelectedClauses(
+    documentId: string,
+    clauses: KeyClause[],
+    token?: string
+  ): Promise<{
+    success: boolean;
+    document_id: string;
+    saved_count: number;
+    clauses: KeyClause[];
+  }> {
+    return this.fetch(
+      `/api/v1/documents/${documentId}/save_selected_clauses/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ clauses }),
+      },
       token
     );
   }
@@ -1068,6 +1124,54 @@ class APIClient {
   }
 
   // ============================================
+  // Full Document Retrieval (Qdrant) - v2 API
+  // ============================================
+
+  /**
+   * Get full document text from Qdrant (all chunks combined)
+   * Used for source detail modal to show complete document
+   */
+  async getFullDocument(
+    filterField: string,
+    filterValue: string
+  ): Promise<{
+    full_text: string;
+    chunk_count: number;
+    metadata: {
+      title: string;
+      case_number: string;
+      court: string;
+      date: string;
+      doc_type: string;
+      source: string;
+    };
+    timestamp: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/rag/document/full`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        filter_field: filterField,
+        filter_value: filterValue,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to fetch full document');
+    }
+
+    return response.json();
+  }
+
+  // ============================================
   // Risk Dashboard - Phase 3-7
   // ============================================
 
@@ -1113,6 +1217,187 @@ class APIClient {
     const endpoint = `/api/v1/documents/with-risk/${queryString ? '?' + queryString : ''}`;
 
     return this.fetch<RiskDocumentsListResponse>(endpoint, {}, token);
+  }
+
+  // ============================================
+  // Search History - User Search History API
+  // ============================================
+
+  /**
+   * Get search history for current user
+   * Returns up to 50 most recent search history items
+   */
+  async getSearchHistory(token: string): Promise<SearchHistoryItem[]> {
+    const response = await this.fetch<Array<{
+      id: string;
+      query: string;
+      top_k: number;
+      response_mode: 'auto' | 'concise' | 'standard' | 'detailed';
+      filters: RAGFilterOptions;
+      source_count: number | null;
+      answer: string | null;
+      sources: RAGSource[] | null;
+      model: string | null;
+      revised: boolean;
+      created_at: string;
+    }>>('/api/v1/users/search-history/', {}, token);
+
+    // Transform backend response to frontend SearchHistoryItem format
+    // DRF may return array directly or wrap in { results: [...] }
+    const items = Array.isArray(response) ? response : (response as { results: typeof response }).results || [];
+    return items.map(item => ({
+      id: item.id,
+      query: item.query,
+      timestamp: item.created_at,
+      topK: item.top_k,
+      responseMode: item.response_mode,
+      filters: item.filters,
+      sourceCount: item.source_count || undefined,
+      answer: item.answer || undefined,
+      sources: item.sources || undefined,
+      model: item.model || undefined,
+      revised: item.revised,
+    }));
+  }
+
+  /**
+   * Save search history item with answer and sources
+   */
+  async saveSearchHistory(
+    data: {
+      query: string;
+      top_k: number;
+      response_mode: 'auto' | 'concise' | 'standard' | 'detailed';
+      filters?: RAGFilterOptions;
+      source_count?: number;
+      answer?: string;
+      sources?: RAGSource[];
+      model?: string;
+      revised?: boolean;
+    },
+    token: string
+  ): Promise<SearchHistoryItem> {
+    const response = await this.fetch<{
+      id: string;
+      query: string;
+      top_k: number;
+      response_mode: 'auto' | 'concise' | 'standard' | 'detailed';
+      filters: RAGFilterOptions;
+      source_count: number | null;
+      answer: string | null;
+      sources: RAGSource[] | null;
+      model: string | null;
+      revised: boolean;
+      created_at: string;
+    }>('/api/v1/users/search-history/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token);
+
+    return {
+      id: response.id,
+      query: response.query,
+      timestamp: response.created_at,
+      topK: response.top_k,
+      responseMode: response.response_mode,
+      filters: response.filters,
+      sourceCount: response.source_count || undefined,
+      answer: response.answer || undefined,
+      sources: response.sources || undefined,
+      model: response.model || undefined,
+      revised: response.revised,
+    };
+  }
+
+  /**
+   * Delete a search history item
+   */
+  async deleteSearchHistoryItem(itemId: string, token: string): Promise<void> {
+    await this.fetch<void>(
+      `/api/v1/users/search-history/${itemId}/`,
+      { method: 'DELETE' },
+      token
+    );
+  }
+
+  /**
+   * Clear all search history for current user
+   */
+  async clearSearchHistory(token: string): Promise<{ message: string }> {
+    return this.fetch<{ message: string }>(
+      '/api/v1/users/search-history/clear/',
+      { method: 'DELETE' },
+      token
+    );
+  }
+
+  // ============================================
+  // Analysis Pipeline - Auto Analysis Flow
+  // ============================================
+
+  /**
+   * Upload document and start auto-analysis pipeline
+   * Analysis runs sequentially: Summary → Clauses → Risk Analysis
+   * Returns immediately with document info; analysis runs in background
+   */
+  async uploadAndAnalyze(
+    file: File,
+    title: string,
+    docType: UserDocumentType,
+    language: UserDocumentLanguage = 'ko',
+    token?: string
+  ): Promise<UploadAndAnalyzeResponse> {
+    const formData = new FormData();
+    formData.append('original_file', file);
+    formData.append('title', title);
+    formData.append('doc_type', docType);
+    formData.append('language', language);
+
+    const url = `${this.baseURL}/api/v1/documents/upload-and-analyze/`;
+    const headers: Record<string, string> = {};
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || error.error || 'Upload and analyze failed');
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Get current analysis status for polling
+   * Returns which analyses are completed
+   */
+  async getAnalysisStatus(documentId: string, token?: string): Promise<AnalysisStatusResponse> {
+    return this.fetch<AnalysisStatusResponse>(
+      `/api/v1/documents/${documentId}/analysis-status/`,
+      {},
+      token
+    );
+  }
+
+  /**
+   * Start analysis for an existing preprocessed document
+   * Useful for re-analyzing or starting analysis manually
+   */
+  async startAnalysis(documentId: string, token?: string): Promise<StartAnalysisResponse> {
+    return this.fetch<StartAnalysisResponse>(
+      `/api/v1/documents/${documentId}/start-analysis/`,
+      { method: 'POST' },
+      token
+    );
   }
 }
 
