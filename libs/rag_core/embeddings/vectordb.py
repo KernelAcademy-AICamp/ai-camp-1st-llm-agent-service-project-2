@@ -5,8 +5,6 @@ from pathlib import Path
 import pickle
 from loguru import logger
 
-import chromadb
-from chromadb.config import Settings
 import faiss
 
 
@@ -32,132 +30,6 @@ class VectorDB(ABC):
     def load(self) -> None:
         """데이터베이스 로드"""
         pass
-
-
-class ChromaVectorDB(VectorDB):
-    """ChromaDB 기반 벡터 데이터베이스"""
-
-    def __init__(self, persist_directory: str, collection_name: str = "law_documents"):
-        self.persist_directory = Path(persist_directory)
-        self.persist_directory.mkdir(parents=True, exist_ok=True)
-        self.collection_name = collection_name
-
-        logger.info(f"Initializing ChromaDB at {self.persist_directory}")
-
-        self.client = chromadb.PersistentClient(
-            path=str(self.persist_directory),
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
-            )
-        )
-
-        # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name=self.collection_name,
-            embedding_function=None,  # We provide embeddings externally
-            metadata={"hnsw:space": "cosine"}  # Use cosine similarity
-        )
-
-        logger.info(f"ChromaDB initialized. Collection: {self.collection_name}")
-
-    def add_documents(
-        self,
-        texts: List[str],
-        embeddings: np.ndarray,
-        metadatas: List[Dict[str, Any]]
-    ) -> None:
-        """
-        문서 추가
-
-        Args:
-            texts: 텍스트 리스트
-            embeddings: 임베딩 배열
-            metadatas: 메타데이터 리스트
-        """
-        # Convert numpy array to list
-        embeddings_list = embeddings.tolist()
-
-        # Generate IDs
-        start_id = self.collection.count()
-        ids = [f"doc_{start_id + i}" for i in range(len(texts))]
-
-        # Clean metadatas (Chroma doesn't support nested dicts)
-        cleaned_metadatas = []
-        for meta in metadatas:
-            cleaned_meta = {}
-            for key, value in meta.items():
-                if isinstance(value, (str, int, float, bool)):
-                    cleaned_meta[key] = value
-                elif value is not None:
-                    cleaned_meta[key] = str(value)
-            cleaned_metadatas.append(cleaned_meta)
-
-        # Add to collection in batches (ChromaDB limit: ~5000)
-        batch_size = 5000
-        total_docs = len(texts)
-
-        for i in range(0, total_docs, batch_size):
-            end_idx = min(i + batch_size, total_docs)
-
-            self.collection.add(
-                ids=ids[i:end_idx],
-                embeddings=embeddings_list[i:end_idx],
-                documents=texts[i:end_idx],
-                metadatas=cleaned_metadatas[i:end_idx]
-            )
-
-            logger.info(f"Added batch {i//batch_size + 1}/{(total_docs + batch_size - 1)//batch_size}: {end_idx - i} documents ({end_idx}/{total_docs})")
-
-        logger.info(f"Added {len(texts)} documents to ChromaDB")
-
-    def search(self, query_embedding: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        유사 문서 검색
-
-        Args:
-            query_embedding: 쿼리 임베딩
-            top_k: 반환할 문서 수
-
-        Returns:
-            검색 결과 리스트
-        """
-        query_embedding_list = query_embedding.tolist()
-
-        results = self.collection.query(
-            query_embeddings=[query_embedding_list],
-            n_results=top_k,
-            include=["documents", "metadatas", "distances"]
-        )
-
-        # Format results
-        formatted_results = []
-        for i in range(len(results['ids'][0])):
-            formatted_results.append({
-                'id': results['ids'][0][i],
-                'text': results['documents'][0][i],
-                'metadata': results['metadatas'][0][i],
-                'score': 1 - results['distances'][0][i]  # Convert distance to similarity
-            })
-
-        return formatted_results
-
-    def save(self) -> None:
-        """데이터베이스 저장 (자동 저장됨)"""
-        logger.info("ChromaDB auto-persisted")
-
-    def load(self) -> None:
-        """데이터베이스 로드 (자동 로드됨)"""
-        logger.info(f"ChromaDB loaded from {self.persist_directory}")
-
-    def get_count(self) -> int:
-        """문서 개수 반환"""
-        return self.collection.count()
-
-    def delete_collection(self) -> None:
-        """컬렉션 삭제"""
-        self.client.delete_collection(self.collection_name)
-        logger.info(f"Deleted collection: {self.collection_name}")
 
 
 class FAISSVectorDB(VectorDB):
@@ -276,18 +148,13 @@ def create_vector_db(db_type: str, **kwargs) -> VectorDB:
     벡터 데이터베이스 팩토리 함수
 
     Args:
-        db_type: 'chroma', 'faiss', or 'qdrant'
+        db_type: 'faiss' or 'qdrant'
         **kwargs: 데이터베이스별 파라미터
 
     Returns:
         VectorDB 인스턴스
     """
-    if db_type.lower() == "chroma":
-        return ChromaVectorDB(
-            persist_directory=kwargs.get("persist_directory", "./data/vectordb/chroma"),
-            collection_name=kwargs.get("collection_name", "law_documents")
-        )
-    elif db_type.lower() == "faiss":
+    if db_type.lower() == "faiss":
         return FAISSVectorDB(
             index_path=kwargs.get("index_path", "./data/vectordb/faiss"),
             dimension=kwargs.get("dimension", 768)
@@ -302,4 +169,4 @@ def create_vector_db(db_type: str, **kwargs) -> VectorDB:
             distance=kwargs.get("distance", "cosine")
         )
     else:
-        raise ValueError(f"Unknown vector DB type: {db_type}")
+        raise ValueError(f"Unknown vector DB type: {db_type}. Supported: 'faiss', 'qdrant'")

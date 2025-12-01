@@ -222,3 +222,108 @@ class QdrantVectorDB(VectorDB):
         except Exception as e:
             logger.error(f"Error deleting collection: {e}")
             raise
+
+    def get_full_document(
+        self,
+        filter_field: str,
+        filter_value: str,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        메타데이터 필터로 같은 문서의 모든 청크를 가져와서 합침
+
+        Args:
+            filter_field: 필터링할 메타데이터 필드 (예: 'case_number', 'title', 'source')
+            filter_value: 필터 값
+            limit: 최대 청크 수
+
+        Returns:
+            청크 리스트 (chunk_id 순 정렬)
+        """
+        from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+        try:
+            # 필터 조건으로 모든 청크 검색
+            results = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key=filter_field,
+                            match=MatchValue(value=filter_value)
+                        )
+                    ]
+                ),
+                limit=limit,
+                with_payload=True,
+                with_vectors=False  # 벡터 불필요
+            )
+
+            points = results[0]  # (points, next_page_offset)
+
+            if not points:
+                logger.warning(f"No chunks found for {filter_field}={filter_value}")
+                return []
+
+            # 청크 추출 및 정렬
+            chunks = []
+            for point in points:
+                payload = dict(point.payload) if point.payload else {}
+                text = payload.get('text', '')
+                chunk_id = payload.get('chunk_id', 0)
+
+                # chunk_id가 문자열일 수 있음 (예: "0_1")
+                if isinstance(chunk_id, str):
+                    try:
+                        # "0_1" -> 0.1로 변환하여 정렬 가능하게
+                        parts = chunk_id.split('_')
+                        sort_key = float(parts[0]) + float(parts[1]) / 1000 if len(parts) > 1 else float(parts[0])
+                    except:
+                        sort_key = 0
+                else:
+                    sort_key = float(chunk_id)
+
+                chunks.append({
+                    "text": text,
+                    "chunk_id": chunk_id,
+                    "sort_key": sort_key,
+                    "metadata": payload
+                })
+
+            # chunk_id 순으로 정렬
+            chunks.sort(key=lambda x: x['sort_key'])
+
+            logger.info(f"Found {len(chunks)} chunks for {filter_field}={filter_value}")
+            return chunks
+
+        except Exception as e:
+            logger.error(f"Error getting full document: {e}")
+            return []
+
+    def get_full_document_text(
+        self,
+        filter_field: str,
+        filter_value: str,
+        limit: int = 100
+    ) -> str:
+        """
+        같은 문서의 모든 청크를 가져와서 전체 텍스트로 합침
+
+        Args:
+            filter_field: 필터링할 메타데이터 필드
+            filter_value: 필터 값
+            limit: 최대 청크 수
+
+        Returns:
+            합쳐진 전체 텍스트
+        """
+        chunks = self.get_full_document(filter_field, filter_value, limit)
+
+        if not chunks:
+            return ""
+
+        # 텍스트 합치기 (중복 제거를 위해 overlap 부분 처리 가능)
+        texts = [chunk['text'] for chunk in chunks]
+        full_text = '\n\n'.join(texts)
+
+        return full_text
