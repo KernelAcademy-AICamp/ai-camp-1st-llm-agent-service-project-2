@@ -1,5 +1,11 @@
 /* LawLaw Design System - Main Entry Point */
 
+/* Import Tailwind CSS for Agent Hub components */
+@import './tailwind.css';
+
+/* Import Agent Hub global styles (CSS variables, dark mode, scrollbar) */
+@import './globals.css';
+
 /* Import design tokens first */
 @import './variables.css';
 

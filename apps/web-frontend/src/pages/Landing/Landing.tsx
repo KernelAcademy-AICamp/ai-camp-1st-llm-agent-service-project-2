@@ -5,10 +5,12 @@
 
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import './Landing.css';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user, logout, isLoading } = useAuth();
 
   useEffect(() => {
     // Smooth scroll for anchor links
@@ -94,8 +96,20 @@ const Landing: React.FC = () => {
             </nav>
 
             <div className="landing-header-actions">
-              <button className="landing-btn-login" onClick={() => navigate('/login')}>로그인</button>
-              <button className="landing-btn-trial" onClick={() => navigate('/app')}>무료체험 시작</button>
+              {isLoading ? (
+                <span className="landing-loading">로딩 중...</span>
+              ) : isAuthenticated && user ? (
+                <>
+                  <span className="landing-user-name">{user.full_name || user.email}님</span>
+                  <button className="landing-btn-app" onClick={() => navigate('/app')}>서비스 이용</button>
+                  <button className="landing-btn-logout" onClick={logout}>로그아웃</button>
+                </>
+              ) : (
+                <>
+                  <button className="landing-btn-login" onClick={() => navigate('/login')}>로그인</button>
+                  <button className="landing-btn-trial" onClick={() => navigate('/app')}>무료체험 시작</button>
+                </>
+              )}
             </div>
           </div>
         </div>

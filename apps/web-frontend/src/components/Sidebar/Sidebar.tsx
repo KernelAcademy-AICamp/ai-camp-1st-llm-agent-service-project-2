@@ -17,7 +17,9 @@ import {
   FiBriefcase,
   FiGrid,
   FiLogOut,
-  FiMenu
+  FiMenu,
+  FiMessageSquare,
+  FiClock
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -44,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, isAuthenticated } = useAuth();
-  const [expandedSections, setExpandedSections] = useState<string[]>(['documents', 'analysis']);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['documents', 'analysis', 'ai-assistant']);
 
   // Auto-expand section when navigating to a page within it
   useEffect(() => {
@@ -65,6 +67,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         setExpandedSections(prev => [...prev, 'organization']);
       }
     }
+    if (currentPath.startsWith('/agent-hub')) {
+      if (!expandedSections.includes('ai-assistant')) {
+        setExpandedSections(prev => [...prev, 'ai-assistant']);
+      }
+    }
   }, [location.pathname]);
 
   const menuSections: MenuSection[] = [
@@ -73,6 +80,15 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       title: '대시보드',
       icon: <FiHome />,
       path: '/app'
+    },
+    {
+      id: 'ai-assistant',
+      title: 'AI 어시스턴트',
+      icon: <FiMessageSquare />,
+      items: [
+        { label: 'Agent Hub', path: '/agent-hub', icon: <FiMessageSquare /> },
+        { label: '검색 기록', path: '/agent-hub/history', icon: <FiClock /> },
+      ]
     },
     {
       id: 'documents',
@@ -147,6 +163,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
 
   const isSectionActive = (section: MenuSection) => {
     if (section.path) {
+      // Special case for /agent-hub to match all subpaths
+      if (section.path === '/agent-hub') {
+        return location.pathname.startsWith('/agent-hub');
+      }
       return location.pathname === section.path || location.pathname.startsWith(section.path + '/');
     }
     return section.items?.some(item => {

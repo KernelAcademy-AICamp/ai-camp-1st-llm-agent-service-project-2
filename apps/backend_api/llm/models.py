@@ -8,6 +8,104 @@ from django.db import models
 from django.conf import settings
 
 
+class AgentHubSession(models.Model):
+    """Persistent Agent Hub chat session"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session_id = models.UUIDField(unique=True, db_index=True, help_text="External session identifier")
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='agent_hub_sessions',
+        verbose_name='사용자'
+    )
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='agent_hub_sessions',
+        verbose_name='조직'
+    )
+    project = models.ForeignKey(
+        'organizations.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='agent_hub_sessions',
+        verbose_name='프로젝트'
+    )
+
+    title = models.CharField(max_length=255, blank=True, verbose_name='세션 제목')
+    last_message_preview = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='마지막 메시지 요약'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+    last_activity = models.DateTimeField(auto_now=True, verbose_name='마지막 활동')
+    closed_at = models.DateTimeField(null=True, blank=True, verbose_name='종료일시')
+
+    total_messages = models.PositiveIntegerField(default=0, verbose_name='메시지 수')
+    total_workflows_executed = models.PositiveIntegerField(
+        default=0,
+        verbose_name='워크플로우 실행 수'
+    )
+
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='추가 메타데이터')
+
+    class Meta:
+        db_table = 'agent_hub_sessions'
+        verbose_name = 'Agent Hub 세션'
+        verbose_name_plural = 'Agent Hub 세션'
+        ordering = ['-last_activity']
+        indexes = [
+            models.Index(fields=['session_id']),
+            models.Index(fields=['user', '-last_activity']),
+            models.Index(fields=['organization', '-last_activity']),
+        ]
+
+    def __str__(self):
+        return f"Session {self.session_id} ({self.user.email})"
+
+
+class AgentHubMessage(models.Model):
+    """Persistent Agent Hub chat message"""
+
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('assistant', 'Assistant'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(
+        AgentHubSession,
+        to_field='session_id',
+        db_column='session_id',
+        on_delete=models.CASCADE,
+        related_name='messages',
+        verbose_name='세션'
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, verbose_name='역할')
+    content = models.TextField(verbose_name='내용')
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='메타데이터')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+
+    class Meta:
+        db_table = 'agent_hub_messages'
+        verbose_name = 'Agent Hub 메시지'
+        verbose_name_plural = 'Agent Hub 메시지'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['session', 'created_at']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.role} message ({self.created_at:%Y-%m-%d %H:%M})"
+
+
 class LLMModelConfig(models.Model):
     """
     LLM 모델 설정

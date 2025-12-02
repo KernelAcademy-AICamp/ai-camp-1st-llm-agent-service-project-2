@@ -6,6 +6,7 @@
  * - Individual risk items by category
  * - Recommendations
  * - Summary
+ * - Model selection and comparison
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,7 +21,19 @@ import {
   AnalysisStatus
 } from '../types';
 import { apiClient } from '../api/client';
+import ModelSelector from './ModelSelector';
 import '../styles/RiskAnalysisSection.css';
+
+// 모델별 리스크 분석 결과를 저장하는 타입
+interface ModelRiskResult {
+  modelId: string;
+  modelName: string;
+  provider: string;
+  riskAnalysis: RiskAnalysis;
+  timestamp: string;
+  processingTime?: number;
+  isLatest?: boolean;
+}
 
 interface RiskAnalysisSectionProps {
   documentId: string;
@@ -39,6 +52,26 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Model selection state
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [selectedModelName, setSelectedModelName] = useState<string>('');
+  const [analyzingWithModel, setAnalyzingWithModel] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  // Comparison results - store multiple model results
+  const [comparisonResults, setComparisonResults] = useState<ModelRiskResult[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
+
+  // Helper to guess provider from model name
+  const getProviderFromModel = (modelName: string): string => {
+    const name = modelName.toLowerCase();
+    if (name.includes('gpt') || name.includes('openai')) return 'openai';
+    if (name.includes('claude') || name.includes('anthropic')) return 'anthropic';
+    if (name.includes('gemini') || name.includes('google')) return 'google';
+    if (name.includes('ollama') || name.includes('local')) return 'ollama';
+    return 'openai';
+  };
 
   // Fetch existing risk analysis on mount
   useEffect(() => {
@@ -75,6 +108,8 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
       const response = await apiClient.analyzeDocumentRisk(documentId, token);
       if (response.success && response.risk_analysis) {
         setRiskAnalysis(response.risk_analysis);
+        // Add to comparison results
+        addToComparisonResults(response.risk_analysis, 'default');
       } else if (response.error) {
         setError(response.error);
       }
@@ -83,6 +118,89 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  // Add result to comparison list
+  const addToComparisonResults = (analysis: RiskAnalysis, modelId: string, modelName?: string, processingTime?: number) => {
+    const newResult: ModelRiskResult = {
+      modelId,
+      modelName: modelName || modelId,
+      provider: getProviderFromModel(modelName || modelId),
+      riskAnalysis: analysis,
+      timestamp: analysis.created_at,
+      processingTime,
+      isLatest: true,
+    };
+
+    setComparisonResults(prev => {
+      // Check if this model already has a result
+      const existingIndex = prev.findIndex(r => r.modelId === modelId);
+      if (existingIndex !== -1) {
+        // Update existing result
+        const updated = [...prev];
+        updated[existingIndex] = { ...newResult, isLatest: true };
+        return updated.map((r, i) => ({ ...r, isLatest: i === existingIndex }));
+      }
+      // Add new result and mark as latest
+      return [
+        ...prev.map(r => ({ ...r, isLatest: false })),
+        newResult,
+      ];
+    });
+  };
+
+  const handleModelSelect = (modelId: string, modelName: string) => {
+    setSelectedModelId(modelId);
+    setSelectedModelName(modelName);
+    setModelError(null);
+  };
+
+  const handleAnalyzeWithModel = async () => {
+    if (!documentId || !token || !selectedModelId) return;
+
+    setAnalyzingWithModel(true);
+    setModelError(null);
+
+    try {
+      const response = await apiClient.analyzeRiskWithModel(
+        documentId,
+        selectedModelId,
+        token
+      );
+
+      if (response.success && response.risk_analysis) {
+        // Add to comparison results
+        addToComparisonResults(
+          response.risk_analysis,
+          selectedModelId,
+          response.model_used || selectedModelName,
+          response.processing_time_ms
+        );
+        setShowComparison(true);
+      } else if (response.error) {
+        setModelError(response.error);
+      }
+    } catch (err: any) {
+      console.error('Failed to analyze risk with model:', err);
+      setModelError(err.message || '리스크 분석에 실패했습니다.');
+    } finally {
+      setAnalyzingWithModel(false);
+    }
+  };
+
+  const handleRemoveComparisonResult = (modelId: string) => {
+    setComparisonResults(prev => prev.filter(r => r.modelId !== modelId));
+    if (comparisonResults.length <= 2) {
+      setShowComparison(false);
+    }
+  };
+
+  const handleClearComparison = () => {
+    const latestResult = comparisonResults.find(r => r.isLatest);
+    if (latestResult) {
+      setComparisonResults([latestResult]);
+    }
+    setShowComparison(false);
   };
 
   const getSeverityColor = (severity: RiskSeverity): string => {
@@ -361,18 +479,121 @@ const RiskAnalysisSection: React.FC<RiskAnalysisSectionProps> = ({
         </div>
       )}
 
-      {/* Refresh Analysis Button */}
+      {/* Refresh Analysis Button and Model Selection */}
       <div className="risk-actions">
         <button
           onClick={handleAnalyzeRisk}
           className="refresh-analysis-button"
-          disabled={analyzing}
+          disabled={analyzing || analyzingWithModel}
         >
           리스크 재분석
         </button>
+
+        <div className="model-select-row">
+          <ModelSelector
+            selectedModel={selectedModelId}
+            onModelSelect={handleModelSelect}
+            token={token}
+            disabled={analyzing || analyzingWithModel}
+            label="다른 모델로 분석:"
+          />
+          <button
+            className="btn-model-analyze"
+            onClick={handleAnalyzeWithModel}
+            disabled={!selectedModelId || analyzing || analyzingWithModel}
+          >
+            {analyzingWithModel ? '분석 중...' : '분석'}
+          </button>
+        </div>
       </div>
 
+      {modelError && (
+        <div className="model-error">
+          <span>⚠️ {modelError}</span>
+        </div>
+      )}
+
       {error && <div className="error-message">{error}</div>}
+
+      {/* Model Comparison Results */}
+      {showComparison && comparisonResults.length > 1 && (
+        <div className="risk-comparison-section">
+          <div className="comparison-header">
+            <h4>모델별 리스크 분석 비교</h4>
+            <div className="comparison-controls">
+              <span className="result-count">{comparisonResults.length}개 모델 비교 중</span>
+              <button className="btn-clear-comparison" onClick={handleClearComparison}>
+                비교 초기화
+              </button>
+            </div>
+          </div>
+
+          <div className="comparison-grid">
+            {comparisonResults.map((result, index) => {
+              const groupedRisks = groupRiskItemsByCategory(result.riskAnalysis.risk_items);
+              const severityCounts = countBySeverity(result.riskAnalysis.risk_items);
+
+              return (
+                <div key={result.modelId} className={`comparison-card ${result.isLatest ? 'latest' : ''}`}>
+                  <div className="comparison-card-header">
+                    <div className="model-info">
+                      <span className="model-name">{result.modelName}</span>
+                      {result.isLatest && <span className="latest-badge">최신</span>}
+                    </div>
+                    {comparisonResults.length > 1 && (
+                      <button
+                        className="remove-btn"
+                        onClick={() => handleRemoveComparisonResult(result.modelId)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="comparison-card-stats">
+                    <div className="stat-row">
+                      <span className="stat-label">위험 점수:</span>
+                      <span className="stat-value score">{result.riskAnalysis.overall_risk_score}점</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">심각도:</span>
+                      <span
+                        className="severity-badge-small"
+                        style={{ backgroundColor: getSeverityColor(result.riskAnalysis.severity) }}
+                      >
+                        {getSeverityLabel(result.riskAnalysis.severity)}
+                      </span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">발견된 리스크:</span>
+                      <span className="stat-value">{result.riskAnalysis.risk_items.length}개</span>
+                    </div>
+                    <div className="stat-row severity-breakdown">
+                      <span className="severity-count critical">{severityCounts.CRITICAL}</span>
+                      <span className="severity-count high">{severityCounts.HIGH}</span>
+                      <span className="severity-count medium">{severityCounts.MEDIUM}</span>
+                      <span className="severity-count low">{severityCounts.LOW}</span>
+                    </div>
+                  </div>
+
+                  <div className="comparison-card-summary">
+                    <h5>요약</h5>
+                    <div className="summary-content">
+                      <ReactMarkdown>{result.riskAnalysis.summary || '요약 없음'}</ReactMarkdown>
+                    </div>
+                  </div>
+
+                  {result.processingTime && (
+                    <div className="processing-time">
+                      소요 시간: {(result.processingTime / 1000).toFixed(2)}s
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

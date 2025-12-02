@@ -55,6 +55,7 @@ class DocumentAnalysisState(TypedDict):
         document_id: 문서 ID (DB 저장용)
         file_path: 파일 경로 (파일 처리용)
         doc_type: 문서 타입 (CONTRACT, STATUTE, PRECEDENT, OTHER)
+        query: 사용자 질문 (문서에 대한 구체적인 질문)
         text: 추출된 전체 텍스트
         chunks: 청킹된 텍스트 리스트
         summary: 요약 결과
@@ -68,6 +69,7 @@ class DocumentAnalysisState(TypedDict):
     document_id: Optional[str]
     file_path: Optional[str]
     doc_type: str
+    query: Optional[str]
     text: str
     chunks: List[ChunkData]
     summary: Optional[SummaryResult]

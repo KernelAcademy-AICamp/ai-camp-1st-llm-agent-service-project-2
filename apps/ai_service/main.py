@@ -74,6 +74,7 @@ from routers.v2 import (
     llm_compare_router as llm_compare_v2_router,
     crawler_router as crawler_v2_router,
     analytics_router as analytics_v2_router,
+    agent_hub_router as agent_hub_v2_router,
 )
 
 app.include_router(rag_v2_router)
@@ -83,6 +84,7 @@ app.include_router(risk_v2_router)
 app.include_router(llm_compare_v2_router)
 app.include_router(crawler_v2_router)
 app.include_router(analytics_v2_router)
+app.include_router(agent_hub_v2_router)
 
 # ===== Startup Event =====
 
@@ -156,6 +158,11 @@ async def startup_event():
         app.state.retriever = retriever
         logger.info("✅ v2 Hybrid Retriever initialized")
 
+        # 6.1. RAG 노드에 전역 retriever 설정 (LangGraph checkpointing 직렬화 문제 방지)
+        from apps.ai_service.workflows.nodes.rag_nodes import set_global_retriever
+        set_global_retriever(retriever)
+        logger.info("✅ Global retriever set for RAG nodes")
+
         # 7. LLM Client 초기화
         if settings.LLM_API_KEY:
             logger.info(f"🤖 Initializing LLM client (provider={settings.LLM_PROVIDER})...")
@@ -201,6 +208,13 @@ async def startup_event():
         crawler_scheduler.start()
         app.state.crawler_scheduler = crawler_scheduler
         logger.info("✅ Crawler Scheduler initialized")
+
+        # 11. WorkflowExecutor 초기화 (retriever 주입)
+        logger.info("🔧 Initializing WorkflowExecutor...")
+        from apps.ai_service.agents.workflow_executor import init_workflow_executor
+        workflow_executor = init_workflow_executor(retriever=retriever)
+        app.state.workflow_executor = workflow_executor
+        logger.info("✅ WorkflowExecutor initialized with retriever")
 
         logger.info("=" * 60)
         logger.info("🚀 AI Service startup complete!")

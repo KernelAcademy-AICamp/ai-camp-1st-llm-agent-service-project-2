@@ -57,6 +57,28 @@ class Settings(BaseSettings):
         "http://localhost:3000",  # Frontend (Next.js)
     ]
 
+    # ========== Backend API Integration ==========
+    BACKEND_API_URL: str = os.getenv("BACKEND_API_URL", "http://localhost:8000")
+
+    # ========== JWT Configuration ==========
+    # Django SECRET_KEY와 동일하게 설정해야 함
+    JWT_SECRET_KEY: str = os.getenv(
+        "JWT_SECRET_KEY",
+        os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-in-production")
+    )
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+
+    # ========== Redis Configuration ==========
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    REDIS_URI: str = os.getenv("REDIS_URI", "redis://localhost:6379/0")
+
+    # ========== Session Configuration ==========
+    SESSION_EXPIRE_HOURS: int = int(os.getenv("SESSION_EXPIRE_HOURS", "12"))
+    MAX_CONVERSATION_LENGTH: int = int(os.getenv("MAX_CONVERSATION_LENGTH", "50"))
+
     class Config:
         # 프로젝트 루트의 .env 파일을 명시적으로 지정
         # 배포 환경에서는 환경변수로 직접 주입되므로 .env 파일이 없어도 동작

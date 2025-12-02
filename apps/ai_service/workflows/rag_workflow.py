@@ -254,3 +254,22 @@ class RAGWorkflow:
                 "error": str(e),
                 "processing_time": processing_time,
             }
+
+
+# ===== Factory Function =====
+
+def get_rag_workflow(retriever=None) -> RAGWorkflow:
+    """
+    RAGWorkflow 인스턴스 생성 팩토리 함수
+
+    Agent Hub의 WorkflowRouter에서 동적으로 호출됩니다.
+    WORKFLOW_REGISTRY의 factory_function으로 등록되어 있습니다.
+
+    Args:
+        retriever: HybridRetriever 인스턴스 (optional)
+                   None이면 워크플로우 내부에서 새로 생성
+
+    Returns:
+        RAGWorkflow 인스턴스
+    """
+    return RAGWorkflow(retriever=retriever)

@@ -338,27 +338,43 @@ async def get_full_document(request: FullDocumentRequest, http_request: Request)
                 detail="VectorDB not initialized"
             )
 
-        # 필드명 매핑: API 필드명 → Qdrant 메타데이터 필드명
+        # 필드명 매핑: API 필드명 → Qdrant 메타데이터 필드명 (여러 후보 지원)
+        # 문서 유형에 따라 필드명이 다를 수 있어서 여러 후보 필드 지정
         field_mapping = {
-            "case_number": "case_num",  # 판결문/결정례의 사건번호
-            "title": "case_name",       # 사건명/제목
-            "court": "court_name",      # 법원명
-            "date": "sentence_date",    # 판결일
+            "case_number": ["case_num", "case_number"],  # 판결문/결정례의 사건번호
+            "title": ["case_name", "title", "law_name"],  # 사건명/제목/법령명
+            "court": ["court_name", "court"],  # 법원명
+            "date": ["sentence_date", "date", "final_date"],  # 판결일/날짜
+            "source": ["source"],  # 소스 파일명
         }
-        qdrant_field = field_mapping.get(request.filter_field, request.filter_field)
-        logger.info(f"[document/full] Mapped field: {request.filter_field} -> {qdrant_field}")
 
-        # 전체 문서 조회
-        chunks = vectordb.get_full_document(
-            filter_field=qdrant_field,
-            filter_value=request.filter_value,
-            limit=200  # 최대 200개 청크
-        )
+        # 후보 필드 목록 (첫 번째 필드를 기본으로, 나머지는 fallback)
+        candidate_fields = field_mapping.get(request.filter_field, [request.filter_field])
+        if isinstance(candidate_fields, str):
+            candidate_fields = [candidate_fields]
+
+        logger.info(f"[document/full] Candidate fields for '{request.filter_field}': {candidate_fields}")
+
+        # 전체 문서 조회 (여러 후보 필드로 시도)
+        chunks = []
+        used_field = None
+
+        for qdrant_field in candidate_fields:
+            logger.info(f"[document/full] Trying field: {qdrant_field}")
+            chunks = vectordb.get_full_document(
+                filter_field=qdrant_field,
+                filter_value=request.filter_value,
+                limit=200  # 최대 200개 청크
+            )
+            if chunks:
+                used_field = qdrant_field
+                logger.info(f"[document/full] Found {len(chunks)} chunks with field: {qdrant_field}")
+                break
 
         if not chunks:
             raise HTTPException(
                 status_code=404,
-                detail=f"Document not found: {request.filter_field}={request.filter_value}"
+                detail=f"Document not found: {request.filter_field}={request.filter_value} (tried fields: {candidate_fields})"
             )
 
         # 텍스트 합치기

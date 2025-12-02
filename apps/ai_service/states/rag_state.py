@@ -79,8 +79,9 @@ class RAGState(TypedDict, total=False):
     error: Optional[str]
     metadata: Dict[str, Any]
 
-    # 의존성 주입 (옵션)
-    retriever: Optional[Any]  # HybridRetriever (None이면 fallback 사용)
+    # NOTE: retriever는 state에 포함하지 않음 (직렬화 불가)
+    # 대신 _get_global_retriever() 또는 app.state.retriever 사용
+    # retriever: Optional[Any]  # REMOVED - causes msgpack serialization error
 
 
 def create_initial_rag_state(
@@ -90,7 +91,7 @@ def create_initial_rag_state(
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
     include_critique_log: bool = False,
-    retriever: Optional[Any] = None
+    retriever: Optional[Any] = None  # 하위 호환성 유지, 실제로는 무시됨
 ) -> RAGState:
     """
     RAG 상태 초기화 헬퍼 함수
@@ -102,10 +103,16 @@ def create_initial_rag_state(
         session_id: 세션 ID (없으면 자동 생성)
         user_id: 사용자 ID
         include_critique_log: Critique 로그 포함 여부
-        retriever: 미리 초기화된 HybridRetriever (optional)
+        retriever: DEPRECATED - 무시됨. _get_global_retriever() 사용
 
     Returns:
         초기화된 RAGState
+
+    Note:
+        retriever는 state에 포함하면 LangGraph checkpointing에서
+        msgpack 직렬화 에러가 발생합니다 (HybridRetriever는 직렬화 불가).
+        대신 workflows/nodes/rag_nodes.py의 _get_global_retriever() 함수가
+        main.py 시작 시 초기화된 전역 retriever를 사용합니다.
     """
     import uuid
     from datetime import datetime
@@ -134,6 +141,6 @@ def create_initial_rag_state(
         metadata={
             "created_at": datetime.utcnow().isoformat(),
             "workflow_version": "2.0.0"
-        },
-        retriever=retriever
+        }
+        # retriever는 state에 포함하지 않음 - msgpack 직렬화 불가
     )

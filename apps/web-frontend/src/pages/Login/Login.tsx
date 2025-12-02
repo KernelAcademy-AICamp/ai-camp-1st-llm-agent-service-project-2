@@ -24,7 +24,7 @@ const Login: React.FC = () => {
 
     try {
       await login({ username: email, password });
-      navigate('/app'); // 로그인 성공 후 앱으로 이동
+      navigate('/agent-hub'); // 로그인 성공 후 Agent Hub로 이동
     } catch (err: any) {
       setError(err.message || '로그인에 실패했습니다');
     } finally {

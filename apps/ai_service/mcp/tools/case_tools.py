@@ -248,23 +248,39 @@ async def search_related_cases(
 
     try:
         from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
+        from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
+        from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
+        from apps.ai_service.config.settings import settings
 
-        retriever = LegalDocumentRetriever()
+        # embedder 및 vectordb 초기화
+        embedder = RemoteEmbedder(
+            base_url=settings.REMOTE_EMBED_BASE_URL,
+            timeout=30
+        )
+        vectordb = QdrantVectorDB(
+            collection_name=settings.QDRANT_COLLECTION,
+            url=settings.QDRANT_URL,
+            embedding_dim=embedder.get_embedding_dimension()
+        )
 
-        # 검색 실행
-        results = await retriever.aretrieve(
+        retriever = LegalDocumentRetriever(
+            vectordb=vectordb,
+            embedder=embedder
+        )
+
+        # 검색 실행 (동기 메서드 사용)
+        results = retriever.retrieve(
             query=query,
-            top_k=top_k,
-            doc_type=case_type
+            top_k=top_k
         )
 
         # 결과 포맷팅
         related_cases = []
         for i, doc in enumerate(results):
             related_cases.append({
-                "case_number": doc.get("case_number", f"unknown-{i}"),
-                "title": doc.get("title", "제목 없음"),
-                "summary": doc.get("content", "")[:200],
+                "case_number": doc.get("case_number", doc.get("metadata", {}).get("case_number", f"unknown-{i}")),
+                "title": doc.get("title", doc.get("metadata", {}).get("title", "제목 없음")),
+                "summary": doc.get("text", doc.get("content", ""))[:200],
                 "relevance_score": doc.get("score", 0.5)
             })
 

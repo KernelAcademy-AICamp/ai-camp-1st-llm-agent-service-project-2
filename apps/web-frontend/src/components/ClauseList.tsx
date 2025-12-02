@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { KeyClause, ClauseType, AnalysisStatus } from '../types';
 import { analyzeClauseSimilarity, getSimilarityLevel } from '../utils/similarity';
+import { apiClient } from '../api/client';
+import ModelSelector from './ModelSelector';
 import './ClauseList.css';
 
 interface PreviewClause {
@@ -27,6 +29,9 @@ interface ClauseListProps {
   onCancelPreview?: () => void;
   // Analysis status prop
   analysisStatus?: AnalysisStatus;
+  // New props for model selection
+  documentId?: string;
+  token?: string;
 }
 
 // Success message state
@@ -48,6 +53,8 @@ const ClauseList: React.FC<ClauseListProps> = ({
   savingSelected,
   onCancelPreview,
   analysisStatus,
+  documentId,
+  token,
 }) => {
   // Preview mode state
   const [previewData, setPreviewData] = useState<PreviewClause[]>([]);
@@ -55,6 +62,55 @@ const ClauseList: React.FC<ClauseListProps> = ({
 
   // Success message state
   const [successMessage, setSuccessMessage] = useState<SuccessMessage | null>(null);
+
+  // Model selection state
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [selectedModelName, setSelectedModelName] = useState<string>('');
+  const [extractingWithModel, setExtractingWithModel] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  // Track which model was used for preview
+  const [previewModelName, setPreviewModelName] = useState<string>('');
+
+  const handleModelSelect = (modelId: string, modelName: string) => {
+    setSelectedModelId(modelId);
+    setSelectedModelName(modelName);
+    setModelError(null);
+  };
+
+  // 모델 선택으로 추출 시 프리뷰 모드로 전환
+  const handleExtractWithModel = async () => {
+    if (!documentId || !selectedModelId) return;
+
+    setExtractingWithModel(true);
+    setModelError(null);
+
+    try {
+      const response = await apiClient.extractClausesWithModel(
+        documentId,
+        selectedModelId,
+        token
+      );
+
+      if (response.success && response.clauses) {
+        // 기존 조항과 비교하여 프리뷰 데이터 생성
+        const analyzed = analyzeClauseSimilarity(response.clauses, clauses);
+        const withSelection = analyzed.map(item => ({
+          ...item,
+          selected: item.isRecommendedToAdd, // 추천 조항만 자동 선택
+        }));
+
+        setPreviewData(withSelection);
+        setPreviewModelName(response.model_used || selectedModelName);
+        setShowPreview(true);
+      }
+    } catch (err: any) {
+      console.error('Failed to extract clauses with model:', err);
+      setModelError(err.message || '조항 추출에 실패했습니다.');
+    } finally {
+      setExtractingWithModel(false);
+    }
+  };
 
   // Clause type labels in Korean
   const clauseTypeLabels: Record<ClauseType, string> = {
@@ -130,6 +186,7 @@ const ClauseList: React.FC<ClauseListProps> = ({
     setShowPreview(false);
     setPreviewData([]);
     setSuccessMessage(null);
+    setPreviewModelName('');
     if (onCancelPreview) {
       onCancelPreview();
     }
@@ -144,6 +201,7 @@ const ClauseList: React.FC<ClauseListProps> = ({
   const handleCancelPreview = () => {
     setShowPreview(false);
     setPreviewData([]);
+    setPreviewModelName('');
     if (onCancelPreview) {
       onCancelPreview();
     }
@@ -175,6 +233,9 @@ const ClauseList: React.FC<ClauseListProps> = ({
 
         <div className="preview-info">
           <p>
+            {previewModelName && (
+              <span className="preview-model-badge">{previewModelName}</span>
+            )}
             <strong>{previewData.length}개</strong>의 새 조항이 추출되었습니다.
             추가할 조항을 선택하세요.
           </p>
@@ -342,19 +403,30 @@ const ClauseList: React.FC<ClauseListProps> = ({
 
       {clauses.length > 0 && !loading && !previewLoading && (
         <>
-          <div className="clause-summary">
-            <p>
-              총 <strong>{clauses.length}개</strong>의 핵심 조항이 추출되었습니다.
-            </p>
-            {onExtractPreview && (
-              <button
-                className="btn-secondary"
-                onClick={onExtractPreview}
-                disabled={extracting || previewLoading}
-              >
-                {previewLoading ? '추출 중...' : '새 조항 추출'}
-              </button>
+          {/* Model selection for new extraction */}
+          <div className="clause-extract-section">
+            <div className="clause-extract-info">
+              <span className="clause-count-text">
+                총 <strong>{clauses.length}개</strong>의 핵심 조항이 추출되었습니다.
+              </span>
+            </div>
+            {documentId && (
+              <div className="clause-extract-row">
+                <ModelSelector
+                  selectedModel={selectedModelId}
+                  onModelSelect={handleModelSelect}
+                  token={token}
+                />
+                <button
+                  className="btn-model-extract"
+                  onClick={handleExtractWithModel}
+                  disabled={!selectedModelId || extractingWithModel}
+                >
+                  {extractingWithModel ? '추출 중...' : '새 조항 추출'}
+                </button>
+              </div>
             )}
+            {modelError && <div className="model-error">{modelError}</div>}
           </div>
 
           <div className="clauses-grid">

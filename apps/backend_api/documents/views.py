@@ -1789,6 +1789,250 @@ class DocumentViewSet(viewsets.ModelViewSet):
             logger.error(f"Error analyzing case: {e}", exc_info=True)
             raise
 
+    @action(detail=False, methods=['post'], url_path='create-from-text', parser_classes=[JSONParser])
+    def create_from_text(self, request):
+        """
+        POST /api/v1/documents/create-from-text/
+        Create a document from text content (no file upload)
+
+        Used by Agent Hub to save analysis results.
+
+        Request body:
+        {
+            "title": "Document Title",
+            "doc_type": "CONTRACT",
+            "text_content": "Full document text...",
+            "source_type": "AGENT_HUB",
+            "metadata": {...}
+        }
+
+        Response:
+        {
+            "message": "Document created successfully",
+            "document": {...}
+        }
+        """
+        # 서비스 인증 또는 사용자 인증 확인
+        service_auth = request.headers.get('X-Service-Auth')
+        user_id = request.headers.get('X-User-Id')
+
+        if service_auth == 'agent-hub-internal' and user_id:
+            # 내부 서비스 호출 - user_id로 사용자 조회
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response(
+                    {'error': f'User not found: {user_id}'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        elif request.user.is_authenticated:
+            user = request.user
+        else:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        title = request.data.get('title')
+        doc_type = request.data.get('doc_type', 'OTHER')
+        text_content = request.data.get('text_content')
+        source_type = request.data.get('source_type', 'API')
+        metadata = request.data.get('metadata', {})
+
+        if not title or not text_content:
+            return Response(
+                {'error': 'title and text_content are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # 문서 생성
+            document = Document.objects.create(
+                user=user,
+                title=title,
+                doc_type=doc_type,
+                source_type=source_type,
+                status=Document.STATUS_PREPROCESSED,  # 텍스트가 이미 있으므로 PREPROCESSED
+                analysis_status=Document.ANALYSIS_COMPLETED if metadata.get('created_from') == 'agent_hub_save' else Document.ANALYSIS_NONE
+            )
+
+            # 텍스트를 청크로 저장 (단일 청크로 저장)
+            # 필요시 청킹 로직 추가 가능
+            chunk = DocumentChunk.objects.create(
+                document=document,
+                chunk_index=0,
+                text=text_content,
+                token_count=len(text_content.split())  # 대략적인 토큰 수
+            )
+
+            logger.info(
+                f"Document created from text: {document.id}, "
+                f"title='{title}', user={user.id}"
+            )
+
+            serializer = DocumentSerializer(document)
+            return Response(
+                {
+                    'message': 'Document created successfully',
+                    'document': serializer.data
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            logger.error(f"Error creating document from text: {e}", exc_info=True)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], url_path='save-summary', parser_classes=[JSONParser])
+    def save_summary(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/save-summary/
+        Save a summary for a document (from Agent Hub)
+
+        Request body:
+        {
+            "content": "Summary text...",
+            "summary_type": "GLOBAL",
+            "llm_model": "agent-hub",
+            "source": "agent_hub"
+        }
+        """
+        # 서비스 인증 또는 사용자 인증 확인
+        service_auth = request.headers.get('X-Service-Auth')
+        user_id = request.headers.get('X-User-Id')
+
+        if service_auth == 'agent-hub-internal' and user_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                document = Document.objects.get(pk=pk, user_id=user_id)
+            except Document.DoesNotExist:
+                return Response(
+                    {'error': 'Document not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            try:
+                document = self.get_queryset().get(pk=pk)
+            except Document.DoesNotExist:
+                return Response(
+                    {'error': 'Document not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        content = request.data.get('content')
+        summary_type = request.data.get('summary_type', 'GLOBAL')
+        llm_model = request.data.get('llm_model', 'agent-hub')
+
+        if not content:
+            return Response(
+                {'error': 'content is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            summary = Summary.objects.create(
+                document=document,
+                content=content,
+                summary_type=summary_type,
+                llm_model=llm_model,
+                meta={
+                    'source': request.data.get('source', 'agent_hub')
+                }
+            )
+
+            logger.info(f"Summary saved for document {document.id}")
+
+            return Response(
+                {
+                    'success': True,
+                    'summary_id': str(summary.id)
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            logger.error(f"Error saving summary: {e}", exc_info=True)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], url_path='save-risk-analysis', parser_classes=[JSONParser])
+    def save_risk_analysis(self, request, pk=None):
+        """
+        POST /api/v1/documents/{id}/save-risk-analysis/
+        Save risk analysis for a document (from Agent Hub)
+
+        Request body:
+        {
+            "overall_risk_score": 65,
+            "severity": "MEDIUM",
+            "risk_items": [...],
+            "recommendations": [...],
+            "summary": "Risk analysis summary...",
+            "llm_model": "agent-hub"
+        }
+        """
+        # 서비스 인증 또는 사용자 인증 확인
+        service_auth = request.headers.get('X-Service-Auth')
+        user_id = request.headers.get('X-User-Id')
+
+        if service_auth == 'agent-hub-internal' and user_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                document = Document.objects.get(pk=pk, user_id=user_id)
+            except Document.DoesNotExist:
+                return Response(
+                    {'error': 'Document not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            try:
+                document = self.get_queryset().get(pk=pk)
+            except Document.DoesNotExist:
+                return Response(
+                    {'error': 'Document not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        try:
+            risk_analysis = RiskAnalysisResult.objects.create(
+                document=document,
+                overall_risk_score=request.data.get('overall_risk_score', 50),
+                severity=request.data.get('severity', 'MEDIUM'),
+                risk_items=request.data.get('risk_items', []),
+                recommendations=request.data.get('recommendations', []),
+                summary=request.data.get('summary', ''),
+                llm_model=request.data.get('llm_model', 'agent-hub'),
+                meta={
+                    'source': request.data.get('source', 'agent_hub')
+                }
+            )
+
+            logger.info(f"Risk analysis saved for document {document.id}")
+
+            return Response(
+                {
+                    'success': True,
+                    'risk_analysis_id': str(risk_analysis.id)
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            logger.error(f"Error saving risk analysis: {e}", exc_info=True)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def _extract_clauses_preview(self, document: Document) -> list:
         """
         Extract key clauses from a document via AI Service WITHOUT saving to DB

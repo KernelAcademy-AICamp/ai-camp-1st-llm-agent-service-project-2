@@ -16,6 +16,8 @@ import RiskAnalysisDashboard from './pages/RiskAnalysisDashboard';
 import Login from './pages/Login/Login';
 import Signup from './pages/Signup/Signup';
 import ModelComparison from './pages/ModelComparison/ModelComparison';
+import AgentHub from './pages/AgentHub';
+import AgentHubHistory from './pages/AgentHubHistory';
 import './App.css';
 
 // Analysis Landing Page Component
@@ -121,6 +123,24 @@ function App() {
               <ModelComparison />
             </Layout>
           } />
+
+          {/* Agent Hub - AI 채팅 인터페이스 */}
+          <Route
+            path="/agent-hub"
+            element={
+              <Layout>
+                <AgentHub />
+              </Layout>
+            }
+          />
+          <Route
+            path="/agent-hub/history"
+            element={
+              <Layout>
+                <AgentHubHistory />
+              </Layout>
+            }
+          />
 
           {/* Legacy redirect: /settings/model-comparison -> /analysis/model-comparison */}
           <Route path="/settings/model-comparison" element={<Navigate to="/analysis/model-comparison" replace />} />

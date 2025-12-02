@@ -131,6 +131,11 @@ class APIClient {
         throw new Error(error.detail || 'API request failed');
       }
 
+      // Handle 204 No Content response (e.g., DELETE requests)
+      if (response.status === 204) {
+        return {} as T;
+      }
+
       return await response.json();
     } catch (error) {
       console.error(`API Error (${endpoint}):`, error);
@@ -723,6 +728,105 @@ class APIClient {
       {
         method: 'POST',
         body: JSON.stringify({ clauses }),
+      },
+      token
+    );
+  }
+
+  // ============================================
+  // Document Analysis with Model Selection
+  // ============================================
+
+  /**
+   * Generate document summary with specific model
+   * @param documentId - Document ID
+   * @param modelId - Optional model ID to use
+   * @param token - Auth token
+   */
+  async generateSummaryWithModel(
+    documentId: string,
+    modelId?: string,
+    token?: string
+  ): Promise<{
+    success: boolean;
+    summary: {
+      id: string;
+      content: string;
+      summary_type: string;
+      llm_model: string;
+      created_at: string;
+      meta?: Record<string, any>;
+    };
+    model_used: string;
+    processing_time_ms?: number;
+  }> {
+    const body: Record<string, any> = { analysis_type: 'summary' };
+    if (modelId) {
+      body.model_id = modelId;
+    }
+    return this.fetch(
+      `/api/v1/documents/${documentId}/analyze/`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+      token
+    );
+  }
+
+  /**
+   * Extract clauses with specific model
+   * @param documentId - Document ID
+   * @param modelId - Optional model ID to use
+   * @param token - Auth token
+   */
+  async extractClausesWithModel(
+    documentId: string,
+    modelId?: string,
+    token?: string
+  ): Promise<{
+    success: boolean;
+    document_id: string;
+    document_title: string;
+    clauses: KeyClause[];
+    clause_count: number;
+    model_used: string;
+    processing_time_ms?: number;
+  }> {
+    const body: Record<string, any> = {};
+    if (modelId) {
+      body.model_id = modelId;
+    }
+    return this.fetch(
+      `/api/v1/documents/${documentId}/extract_clauses_preview/`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+      token
+    );
+  }
+
+  /**
+   * Analyze document risk with specific model
+   * @param documentId - Document ID
+   * @param modelId - Optional model ID to use
+   * @param token - Auth token
+   */
+  async analyzeRiskWithModel(
+    documentId: string,
+    modelId?: string,
+    token?: string
+  ): Promise<AnalyzeRiskResponse & { model_used?: string; processing_time_ms?: number }> {
+    const body: Record<string, any> = {};
+    if (modelId) {
+      body.model_id = modelId;
+    }
+    return this.fetch<AnalyzeRiskResponse & { model_used?: string; processing_time_ms?: number }>(
+      `/api/v1/documents/${documentId}/analyze_risk/`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
       },
       token
     );
