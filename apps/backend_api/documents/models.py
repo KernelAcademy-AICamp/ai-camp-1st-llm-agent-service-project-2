@@ -29,11 +29,13 @@ class Document(models.Model):
     SOURCE_UPLOAD = 'UPLOAD'
     SOURCE_CRAWLED = 'CRAWLED'
     SOURCE_API = 'API'
+    SOURCE_AGENT_HUB = 'AGENT_HUB'
 
     SOURCE_TYPE_CHOICES = [
         (SOURCE_UPLOAD, 'User Upload'),
         (SOURCE_CRAWLED, 'Web Crawled'),
         (SOURCE_API, 'External API'),
+        (SOURCE_AGENT_HUB, 'Agent Hub'),
     ]
 
     # Processing status

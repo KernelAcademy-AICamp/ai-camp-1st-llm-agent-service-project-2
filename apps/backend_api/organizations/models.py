@@ -112,7 +112,7 @@ class Membership(models.Model):
     role = models.CharField(
         max_length=20,
         choices=ROLE_CHOICES,
-        default=ROLE_VIEWER,
+        default=ROLE_ADMIN,  # 모든 사용자가 ADMIN 권한 (임시 설정)
         verbose_name='역할',
         help_text='User role in organization'
     )

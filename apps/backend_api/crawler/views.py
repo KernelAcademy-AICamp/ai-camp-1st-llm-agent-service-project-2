@@ -10,7 +10,15 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
-from django_filters.rest_framework import DjangoFilterBackend
+
+try:
+    from django_filters.rest_framework import DjangoFilterBackend
+except ImportError:  # pragma: no cover - optional dependency for local management commands
+    class DjangoFilterBackend:  # type: ignore
+        """Fallback backend when django-filter isn't installed."""
+
+        def filter_queryset(self, request, queryset, view):
+            return queryset
 
 from .models import DataSource, CrawlJob, CrawlLog
 from .serializers import (
