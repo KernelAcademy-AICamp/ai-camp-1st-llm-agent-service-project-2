@@ -36,6 +36,22 @@ _global_retriever: Optional["HybridRetriever"] = None
 _global_bm25: Optional["BM25Index"] = None
 
 
+def set_global_retriever(retriever) -> None:
+    """
+    전역 retriever 설정 (main.py 시작 시 호출)
+
+    main.py에서 app.state.retriever 초기화 후 호출:
+        from apps.ai_service.workflows.nodes.rag_nodes import set_global_retriever
+        set_global_retriever(retriever)
+
+    이렇게 하면 RAGState에 retriever를 포함하지 않아도 됨
+    (LangGraph checkpointing msgpack 직렬화 에러 방지)
+    """
+    global _global_retriever
+    _global_retriever = retriever
+    logger.info(f"[rag_nodes] Global retriever set: {type(retriever).__name__}")
+
+
 # ===== Node Functions =====
 
 def _get_global_retriever(state_retriever=None):
@@ -133,10 +149,9 @@ def retrieve_node(state: RAGState) -> Dict[str, Any]:
     start_time = time.time()
 
     try:
-        # state에서 retriever 가져오기 (app.state에서 주입됨)
-        state_retriever = state.get("retriever")
-        logger.info(f"[retrieve_node] state.retriever: {type(state_retriever).__name__ if state_retriever else 'None'}")
-        retriever = _get_global_retriever(state_retriever=state_retriever)
+        # 전역 retriever 사용 (main.py 시작 시 set_global_retriever()로 설정됨)
+        # NOTE: state에 retriever를 포함하면 LangGraph checkpointing에서 직렬화 에러 발생
+        retriever = _get_global_retriever()
 
         # 검색 수행 (Semantic + BM25 융합)
         documents = retriever.retrieve(query, top_k=top_k)

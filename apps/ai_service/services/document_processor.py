@@ -23,6 +23,9 @@ except ImportError:
 # Text chunking
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# PII Masking
+from .pii_masker import PiiMasker
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +38,8 @@ class DocumentProcessor:
         self,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
-        separators: Optional[List[str]] = None
+        separators: Optional[List[str]] = None,
+        enable_masking: bool = True
     ):
         """
         Initialize document processor
@@ -44,9 +48,20 @@ class DocumentProcessor:
             chunk_size: Maximum size of each text chunk
             chunk_overlap: Overlap between consecutive chunks
             separators: Custom separators for text splitting
+            enable_masking: Whether to enable PII masking (default: True)
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.enable_masking = enable_masking
+        
+        if self.enable_masking:
+            try:
+                self.pii_masker = PiiMasker(use_llm=True)
+            except Exception as e:
+                logger.error(f"Failed to initialize PiiMasker: {e}")
+                self.pii_masker = None
+        else:
+            self.pii_masker = None
 
         # Default separators for Korean legal documents
         if separators is None:
@@ -305,6 +320,21 @@ class DocumentProcessor:
 
         # Chunk the text
         text = extraction_result['text']
+        
+        # Apply PII Masking if enabled
+        masked_metadata = {}
+        if self.enable_masking and self.pii_masker:
+            try:
+                logger.info(f"Masking PII for document: {file_path}")
+                masking_result = self.pii_masker.mask_document(text)
+                text = masking_result.masked_text
+                masked_metadata['pii_detected'] = masking_result.detected_entities
+                masked_metadata['pii_masking_method'] = masking_result.method
+                masked_metadata['pii_processing_time'] = masking_result.processing_time
+            except Exception as e:
+                logger.error(f"PII masking failed for {file_path}: {e}")
+                # Continue with original text if masking fails
+        
         chunks = self.chunk_text(text)
 
         return {
@@ -313,5 +343,5 @@ class DocumentProcessor:
             'chunks': chunks,
             'chunk_count': len(chunks),
             'file_type': extraction_result['file_type'],
-            'metadata': extraction_result
+            'metadata': {**extraction_result, **masked_metadata}
         }

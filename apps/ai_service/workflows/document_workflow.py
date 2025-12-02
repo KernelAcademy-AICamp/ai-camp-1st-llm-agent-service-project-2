@@ -145,18 +145,77 @@ async def extract_text_node(state: DocumentAnalysisState) -> Dict[str, Any]:
         }
 
 
+def _detect_query_intent(query: str) -> list:
+    """
+    사용자 질문에서 필요한 분석 작업 감지
+
+    Args:
+        query: 사용자 질문
+
+    Returns:
+        필요한 분석 작업 리스트 ["summary", "clauses", "risk"]
+    """
+    query_lower = query.lower()
+    tasks = []
+
+    # 조항 관련 키워드
+    clause_keywords = [
+        "조항", "조건", "약관", "항목", "규정", "내용", "계약 내용",
+        "위험조항", "핵심조항", "중요조항", "불리한 조항", "유리한 조항",
+        "어떤 조항", "무슨 조항", "조항을 알려", "조항이 뭐",
+    ]
+
+    # 리스크 관련 키워드
+    risk_keywords = [
+        "리스크", "위험", "문제점", "취약점", "주의", "조심",
+        "불리한", "손해", "위험한", "위험성", "리스크 분석", "위험 분석",
+        "문제가 될", "문제될", "위험요소", "주의사항", "주의해야",
+    ]
+
+    # 요약/일반 질문 키워드
+    summary_keywords = [
+        "요약", "정리", "알려", "설명", "뭐야", "무엇", "어떤 내용",
+        "핵심", "주요", "중요한", "어디", "뭐가", "무슨",
+    ]
+
+    # 키워드 매칭
+    for keyword in clause_keywords:
+        if keyword in query_lower:
+            if "clauses" not in tasks:
+                tasks.append("clauses")
+            break
+
+    for keyword in risk_keywords:
+        if keyword in query_lower:
+            if "risk" not in tasks:
+                tasks.append("risk")
+            break
+
+    # 아무것도 매칭 안 되면 summary (일반 질문)
+    if not tasks:
+        tasks.append("summary")
+
+    return tasks
+
+
 async def planning_agent_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     """
     Planning Agent 노드: 문서 타입에 따라 분석 작업 계획
 
-    문서 타입별 권장 분석:
-    - CONTRACT: summary, clauses, risk
-    - STATUTE: summary
-    - CASE/PRECEDENT: summary, clauses
-    - OTHER: summary
+    QA 모드 (query가 있는 경우):
+    - Agent Hub에서 사용자가 문서 + 질문을 함께 보낸 경우
+    - 질문 내용을 분석하여 필요한 노드만 실행:
+      - 조항 관련 질문 → clauses
+      - 리스크 관련 질문 → risk
+      - 일반 질문 → summary
 
-    Note: 첫 번째 호출에서만 analysis_plan을 설정합니다.
-          이후 호출에서는 기존 plan을 유지합니다.
+    전체 분석 모드 (query가 없는 경우):
+    - 문서 페이지에서 전체 분석 요청
+    - 문서 타입별 권장 분석 수행:
+      - CONTRACT: summary, clauses, risk
+      - STATUTE: summary
+      - CASE/PRECEDENT: summary, clauses
+      - OTHER: summary
     """
     logger.info("[planning_agent_node] Planning analysis tasks")
 
@@ -165,18 +224,25 @@ async def planning_agent_node(state: DocumentAnalysisState) -> Dict[str, Any]:
         completed_tasks = state.get("completed_tasks", [])
         completed = set(completed_tasks)
         doc_type = state.get("doc_type", "OTHER")
+        query = state.get("query")
         current_plan = state.get("analysis_plan", [])
 
         logger.info(
-            f"[planning_agent_node] doc_type={doc_type}, "
+            f"[planning_agent_node] doc_type={doc_type}, query={bool(query)}, "
             f"completed_tasks={completed_tasks}, current_plan={current_plan}"
         )
 
         # 첫 호출인 경우에만 권장 분석 작업 설정
         if "plan" not in completed:
-            # 문서 타입별 권장 분석
-            recommended = DOC_TYPE_ANALYSIS.get(doc_type, ["summary"])
-            logger.info(f"[planning_agent_node] Initial plan: {recommended}")
+            if query:
+                # QA 모드: 질문 의도에 따라 필요한 작업만 선택
+                recommended = _detect_query_intent(query)
+                logger.info(f"[planning_agent_node] QA mode - detected tasks: {recommended}")
+            else:
+                # 전체 분석 모드: 문서 타입별 권장 분석
+                recommended = DOC_TYPE_ANALYSIS.get(doc_type, ["summary"])
+                logger.info(f"[planning_agent_node] Full analysis mode - plan: {recommended}")
+
             return {
                 "analysis_plan": recommended,
                 "completed_tasks": completed_tasks + ["plan"]
@@ -224,13 +290,12 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     """
     요약 노드: 문서 요약 생성
 
-    기존 services/summarizer.py 직접 호출
+    사용자 질문이 있으면 질문에 맞춘 요약을 생성합니다.
     """
     logger.info("[summarize_node] Generating summary")
 
     try:
         from libs.rag_core.llm.llm_client import create_llm_client
-        from apps.ai_service.services.summarizer import Summarizer
         from apps.ai_service.config.settings import settings
 
         llm_client = create_llm_client(
@@ -241,29 +306,62 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             temperature=settings.LLM_TEMPERATURE,
             max_tokens=settings.LLM_MAX_TOKENS
         )
-        summarizer = Summarizer(llm_client)
 
         text = state.get("text", "")
+        query = state.get("query", "")
+        doc_type = state.get("doc_type", "OTHER")
+
         if not text:
             return {
                 "error": "No text to summarize",
                 "completed_tasks": state.get("completed_tasks", []) + ["summary_failed"]
             }
 
-        # 요약 생성 (GLOBAL 타입)
-        result = await summarizer.summarize(
-            text=text,
-            document_id=state.get("document_id"),
-            summary_type="GLOBAL"
+        # 사용자 질문이 있으면 질문 중심 요약, 없으면 일반 요약
+        if query:
+            prompt = f"""당신은 법률 문서 분석 전문가입니다.
+다음 {doc_type} 문서를 분석하여 사용자의 질문에 답변해주세요.
+
+## 사용자 질문
+{query}
+
+## 문서 내용
+{text[:8000]}
+
+## 응답 가이드라인
+1. 사용자의 질문에 직접적으로 답변하세요
+2. 문서에서 관련된 부분을 인용하거나 참조하세요
+3. 법률 용어는 쉽게 설명해주세요
+4. 관련 조항이나 내용이 없다면 그렇다고 명확히 알려주세요
+
+응답:"""
+        else:
+            prompt = f"""당신은 법률 문서 분석 전문가입니다.
+다음 {doc_type} 문서를 요약해주세요.
+
+## 문서 내용
+{text[:8000]}
+
+## 요약 가이드라인
+1. 문서의 핵심 내용을 간결하게 요약하세요
+2. 중요한 조항이나 조건을 포함하세요
+3. 법률 용어는 쉽게 설명해주세요
+
+요약:"""
+
+        response = llm_client.generate(
+            prompt=prompt,
+            temperature=0.3,
+            max_tokens=2000
         )
 
         summary_result: SummaryResult = {
-            "summary": result.get("summary", ""),
-            "token_count": result.get("token_count", 0),
-            "model_version": result.get("model_version", "unknown"),
+            "summary": response,
+            "token_count": len(response.split()),
+            "model_version": settings.LLM_MODEL,
         }
 
-        logger.info(f"[summarize_node] Summary generated: {len(summary_result['summary'])} chars")
+        logger.info(f"[summarize_node] Summary generated: {len(summary_result['summary'])} chars (query_based={bool(query)})")
 
         # 완료된 작업 기록 및 analysis_plan에서 제거
         completed = state.get("completed_tasks", [])
@@ -288,13 +386,13 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     """
     핵심 조항 추출 노드
 
-    기존 services/clause_extractor.py 직접 호출
+    QA 모드: query가 있으면 질문에 맞춘 조항 분석
+    전체 분석 모드: 모든 핵심 조항 추출
     """
     logger.info("[extract_clauses_node] Extracting key clauses")
 
     try:
         from libs.rag_core.llm.llm_client import create_llm_client
-        from apps.ai_service.services.clause_extractor import ClauseExtractor
         from apps.ai_service.config.settings import settings
 
         llm_client = create_llm_client(
@@ -305,43 +403,88 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             temperature=settings.LLM_TEMPERATURE,
             max_tokens=settings.LLM_MAX_TOKENS
         )
-        extractor = ClauseExtractor(llm_client)
 
         text = state.get("text", "")
+        query = state.get("query", "")
+        doc_type = state.get("doc_type", "OTHER")
+
         if not text:
             return {
                 "error": "No text to extract clauses from",
                 "completed_tasks": state.get("completed_tasks", []) + ["clauses_failed"]
             }
 
-        # 핵심 조항 추출
-        result = await extractor.extract_clauses(
-            text=text,
-            document_id=state.get("document_id"),
-            doc_type=state.get("doc_type", "OTHER")
-        )
+        # QA 모드 vs 전체 분석 모드
+        if query:
+            # QA 모드: 질문에 맞춘 조항 분석
+            prompt = f"""당신은 법률 문서 분석 전문가입니다.
+다음 {doc_type} 문서에서 사용자의 질문과 관련된 조항을 찾아 분석해주세요.
 
-        clauses: List[ClauseResult] = []
-        for clause in result.get("clauses", []):
-            clauses.append({
-                "clause_type": clause.get("clause_type", "OTHER"),
-                "title": clause.get("title", ""),
-                "content": clause.get("content", ""),
-                "importance_score": clause.get("importance_score", 50),
-            })
+## 사용자 질문
+{query}
 
-        logger.info(f"[extract_clauses_node] Extracted {len(clauses)} clauses")
+## 문서 내용
+{text[:8000]}
 
-        # 완료된 작업 기록 및 analysis_plan에서 제거
-        completed = state.get("completed_tasks", [])
-        analysis_plan = state.get("analysis_plan", [])
-        new_plan = [t for t in analysis_plan if t != "clauses"]
+## 응답 가이드라인
+1. 질문과 관련된 조항을 찾아 설명하세요
+2. 해당 조항의 의미와 영향을 분석하세요
+3. 법률 용어는 쉽게 설명해주세요
+4. 관련 조항이 없다면 그렇다고 명확히 알려주세요
 
-        return {
-            "clauses": clauses,
-            "analysis_plan": new_plan,
-            "completed_tasks": completed + ["clauses"]
-        }
+응답:"""
+            response = llm_client.generate(prompt=prompt, temperature=0.3, max_tokens=2000)
+
+            # QA 모드에서는 clauses 대신 summary에 답변 저장
+            summary_result: SummaryResult = {
+                "summary": response,
+                "token_count": len(response.split()),
+                "model_version": settings.LLM_MODEL,
+            }
+
+            completed = state.get("completed_tasks", [])
+            analysis_plan = state.get("analysis_plan", [])
+            new_plan = [t for t in analysis_plan if t != "clauses"]
+
+            logger.info(f"[extract_clauses_node] QA mode - answered clause question")
+
+            return {
+                "summary": summary_result,  # QA 답변
+                "clauses": [],  # 빈 배열 (QA 모드)
+                "analysis_plan": new_plan,
+                "completed_tasks": completed + ["clauses"]
+            }
+        else:
+            # 전체 분석 모드: 기존 ClauseExtractor 사용
+            from apps.ai_service.services.clause_extractor import ClauseExtractor
+            extractor = ClauseExtractor(llm_client)
+
+            result = await extractor.extract_clauses(
+                text=text,
+                document_id=state.get("document_id"),
+                doc_type=doc_type
+            )
+
+            clauses: List[ClauseResult] = []
+            for clause in result.get("clauses", []):
+                clauses.append({
+                    "clause_type": clause.get("clause_type", "OTHER"),
+                    "title": clause.get("title", ""),
+                    "content": clause.get("content", ""),
+                    "importance_score": clause.get("importance_score", 50),
+                })
+
+            logger.info(f"[extract_clauses_node] Full mode - extracted {len(clauses)} clauses")
+
+            completed = state.get("completed_tasks", [])
+            analysis_plan = state.get("analysis_plan", [])
+            new_plan = [t for t in analysis_plan if t != "clauses"]
+
+            return {
+                "clauses": clauses,
+                "analysis_plan": new_plan,
+                "completed_tasks": completed + ["clauses"]
+            }
 
     except Exception as e:
         logger.error(f"[extract_clauses_node] Error: {e}")
@@ -355,7 +498,8 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
     """
     리스크 분석 노드 (CONTRACT 문서용)
 
-    기존 services/risk_analyzer.py 직접 호출
+    QA 모드: query가 있으면 질문에 맞춘 리스크 분석
+    전체 분석 모드: 전체 리스크 분석 (JSON 형식)
     """
     logger.info("[analyze_risk_node] Analyzing risks")
 
@@ -373,6 +517,7 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
         )
 
         text = state.get("text", "")
+        query = state.get("query", "")
         doc_type = state.get("doc_type", "CONTRACT")
 
         if not text:
@@ -381,8 +526,51 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
                 "completed_tasks": state.get("completed_tasks", []) + ["risk_failed"]
             }
 
-        # 리스크 식별 프롬프트
-        prompt = f"""당신은 법률 리스크 분석 전문가입니다. 다음 {doc_type} 문서에서 잠재적 리스크를 식별해주세요.
+        # QA 모드 vs 전체 분석 모드
+        if query:
+            # QA 모드: 질문에 맞춘 리스크 분석
+            prompt = f"""당신은 법률 리스크 분석 전문가입니다.
+다음 {doc_type} 문서에서 사용자의 질문과 관련된 리스크를 분석해주세요.
+
+## 사용자 질문
+{query}
+
+## 문서 내용
+{text[:8000]}
+
+## 응답 가이드라인
+1. 질문과 관련된 리스크/위험 요소를 찾아 설명하세요
+2. 각 리스크의 심각도와 영향을 분석하세요
+3. 위험을 완화할 수 있는 방법을 제안하세요
+4. 법률 용어는 쉽게 설명해주세요
+5. 관련 리스크가 없다면 그렇다고 명확히 알려주세요
+
+응답:"""
+            response = llm_client.generate(prompt=prompt, temperature=0.3, max_tokens=2000)
+
+            # QA 모드에서는 summary에 답변 저장
+            summary_result: SummaryResult = {
+                "summary": response,
+                "token_count": len(response.split()),
+                "model_version": settings.LLM_MODEL,
+            }
+
+            completed = state.get("completed_tasks", [])
+            analysis_plan = state.get("analysis_plan", [])
+            new_plan = [t for t in analysis_plan if t != "risk"]
+
+            logger.info(f"[analyze_risk_node] QA mode - answered risk question")
+
+            return {
+                "summary": summary_result,  # QA 답변
+                "risks": [],  # 빈 배열 (QA 모드)
+                "needs_expert_review": False,
+                "analysis_plan": new_plan,
+                "completed_tasks": completed + ["risk"]
+            }
+        else:
+            # 전체 분석 모드: JSON 형식 리스크 분석
+            prompt = f"""당신은 법률 리스크 분석 전문가입니다. 다음 {doc_type} 문서에서 잠재적 리스크를 식별해주세요.
 
 문서 내용:
 {text[:8000]}
@@ -399,52 +587,52 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 
 최대 5개의 리스크를 식별하세요. 반드시 유효한 JSON 형식으로만 응답해주세요."""
 
-        response = llm_client.generate(
-            prompt=prompt,
-            temperature=0.3,
-            max_tokens=2000
-        )
+            response = llm_client.generate(
+                prompt=prompt,
+                temperature=0.3,
+                max_tokens=2000
+            )
 
-        # JSON 파싱
-        risks: List[RiskAnalysisResult] = []
-        needs_review = False
+            # JSON 파싱
+            risks: List[RiskAnalysisResult] = []
+            needs_review = False
 
-        try:
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group(0))
+            try:
+                json_match = re.search(r'\[.*\]', response, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group(0))
 
-                for risk_data in data:
-                    severity = risk_data.get("severity", "MEDIUM").upper()
-                    if severity not in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
-                        severity = "MEDIUM"
+                    for risk_data in data:
+                        severity = risk_data.get("severity", "MEDIUM").upper()
+                        if severity not in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
+                            severity = "MEDIUM"
 
-                    # CRITICAL/HIGH 리스크가 있으면 전문가 검토 필요
-                    if severity in ["CRITICAL", "HIGH"]:
-                        needs_review = True
+                        # CRITICAL/HIGH 리스크가 있으면 전문가 검토 필요
+                        if severity in ["CRITICAL", "HIGH"]:
+                            needs_review = True
 
-                    risks.append({
-                        "risk_type": risk_data.get("risk_type", "OTHER"),
-                        "description": risk_data.get("description", ""),
-                        "severity": severity,
-                        "recommendation": risk_data.get("recommendation"),
-                    })
-        except Exception as e:
-            logger.warning(f"Failed to parse risks: {e}")
+                        risks.append({
+                            "risk_type": risk_data.get("risk_type", "OTHER"),
+                            "description": risk_data.get("description", ""),
+                            "severity": severity,
+                            "recommendation": risk_data.get("recommendation"),
+                        })
+            except Exception as e:
+                logger.warning(f"Failed to parse risks: {e}")
 
-        logger.info(f"[analyze_risk_node] Identified {len(risks)} risks, needs_review={needs_review}")
+            logger.info(f"[analyze_risk_node] Full mode - identified {len(risks)} risks, needs_review={needs_review}")
 
-        # 완료된 작업 기록 및 analysis_plan에서 제거
-        completed = state.get("completed_tasks", [])
-        analysis_plan = state.get("analysis_plan", [])
-        new_plan = [t for t in analysis_plan if t != "risk"]
+            # 완료된 작업 기록 및 analysis_plan에서 제거
+            completed = state.get("completed_tasks", [])
+            analysis_plan = state.get("analysis_plan", [])
+            new_plan = [t for t in analysis_plan if t != "risk"]
 
-        return {
-            "risks": risks,
-            "needs_expert_review": needs_review,
-            "analysis_plan": new_plan,
-            "completed_tasks": completed + ["risk"]
-        }
+            return {
+                "risks": risks,
+                "needs_expert_review": needs_review,
+                "analysis_plan": new_plan,
+                "completed_tasks": completed + ["risk"]
+            }
 
     except Exception as e:
         logger.error(f"[analyze_risk_node] Error: {e}")
@@ -607,6 +795,7 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
         document_id: Optional[str] = None,
         text: Optional[str] = None,
         doc_type: str = "OTHER",
+        query: Optional[str] = None,
         **kwargs
     ) -> DocumentAnalysisState:
         """
@@ -617,6 +806,7 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
             document_id: 문서 ID (DB에서 조회)
             text: 직접 제공된 텍스트
             doc_type: 문서 타입 (CONTRACT, STATUTE, PRECEDENT, OTHER)
+            query: 사용자 질문 (문서에 대한 구체적인 질문)
 
         Returns:
             초기 DocumentAnalysisState
@@ -625,6 +815,7 @@ class DocumentWorkflow(BaseWorkflow[DocumentAnalysisState]):
             document_id=document_id,
             file_path=file_path,
             doc_type=doc_type,
+            query=query,
             text=text or "",
             chunks=[],
             summary=None,

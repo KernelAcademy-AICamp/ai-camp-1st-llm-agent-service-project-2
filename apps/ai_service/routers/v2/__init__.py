@@ -11,6 +11,7 @@ Phase 4 - Week 11-13: LangGraph 기반 API
 - llm_compare_router: /v2/llm/* (LLM 비교 - Checkpointing)
 - crawler_router: /v2/crawler/* (크롤러 - Checkpointing, Week 13)
 - analytics_router: /v2/analytics/* (Analytics - Checkpointing 불필요, Week 13)
+- agent_hub_router: /v2/agent-hub/* (Agent Hub - Master Agent Orchestrator)
 """
 
 from apps.ai_service.routers.v2.rag import router as rag_router
@@ -20,6 +21,7 @@ from apps.ai_service.routers.v2.risk import router as risk_router
 from apps.ai_service.routers.v2.llm_compare import router as llm_compare_router
 from apps.ai_service.routers.v2.crawler import router as crawler_router
 from apps.ai_service.routers.v2.analytics import router as analytics_router
+from apps.ai_service.routers.v2.agent_hub import router as agent_hub_router
 
 __all__ = [
     "rag_router",
@@ -29,4 +31,5 @@ __all__ = [
     "llm_compare_router",
     "crawler_router",
     "analytics_router",
+    "agent_hub_router",
 ]
