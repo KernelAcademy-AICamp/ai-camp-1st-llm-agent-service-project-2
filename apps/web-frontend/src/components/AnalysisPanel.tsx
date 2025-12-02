@@ -87,6 +87,8 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
             error={summaryError}
             onGenerate={onGenerateSummary}
             generating={generatingSummary}
+            documentId={document.id}
+            token={token}
           />
         );
 
@@ -105,6 +107,8 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
             savingSelected={savingSelected}
             onCancelPreview={onCancelPreview}
             analysisStatus={analysisStatus}
+            documentId={document.id}
+            token={token}
           />
         );
 

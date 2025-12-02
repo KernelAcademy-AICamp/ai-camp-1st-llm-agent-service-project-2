@@ -266,12 +266,12 @@ const DocumentDetail: React.FC = () => {
 
     try {
       await apiClient.deleteUserDocument(documentId, token);
-      // 삭제 후 바로 목록 페이지로 이동
-      navigate('/documents');
+      // 삭제 성공 - 목록 페이지로 이동
+      navigate('/documents', { replace: true });
     } catch (err: any) {
-      // 에러 시에만 알림 표시
+      // 에러 시 알림 표시
       console.error('삭제 실패:', err.message);
-    } finally {
+      alert('문서 삭제에 실패했습니다: ' + (err.message || '알 수 없는 오류'));
       setDeleting(false);
     }
   };

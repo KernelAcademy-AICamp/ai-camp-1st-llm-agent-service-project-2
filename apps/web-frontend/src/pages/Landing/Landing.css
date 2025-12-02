@@ -79,8 +79,7 @@
 .landing-nav {
     display: flex;
     gap: 32px;
-    flex: 1;
-    justify-content: center;
+    margin-left: 48px;
 }
 
 .landing-nav-link {
@@ -99,6 +98,8 @@
 .landing-header-actions {
     display: flex;
     gap: 12px;
+    align-items: center;
+    margin-left: auto;
 }
 
 .landing-btn-login, .landing-btn-trial {
@@ -131,6 +132,60 @@
 .landing-btn-trial:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 25px rgba(30, 64, 175, 0.35);
+}
+
+/* 로그인 상태 스타일 */
+.landing-loading {
+    color: #6b7280;
+    font-size: 14px;
+    padding: 10px 16px;
+}
+
+.landing-user-name {
+    color: #374151;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+}
+
+.landing-btn-app {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    border: none;
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-purple) 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(30, 64, 175, 0.25);
+}
+
+.landing-btn-app:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(30, 64, 175, 0.35);
+}
+
+.landing-btn-logout {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    background-color: transparent;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.landing-btn-logout:hover {
+    background-color: #fef2f2;
+    border-color: #fca5a5;
+    color: #dc2626;
 }
 
 /* Hero */
@@ -612,6 +667,27 @@
     /* Header & Nav */
     .landing-nav {
         display: none;
+    }
+
+    .landing-header-actions {
+        gap: 8px;
+    }
+
+    .landing-user-name {
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .landing-btn-app,
+    .landing-btn-logout,
+    .landing-btn-login,
+    .landing-btn-trial {
+        padding: 8px 12px;
+        font-size: 13px;
     }
 
     /* Hero */
