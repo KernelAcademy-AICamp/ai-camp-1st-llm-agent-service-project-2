@@ -1443,19 +1443,32 @@ class APIClient {
    * Upload document and start auto-analysis pipeline
    * Analysis runs sequentially: Summary → Clauses → Risk Analysis
    * Returns immediately with document info; analysis runs in background
+   *
+   * @param file - File to upload
+   * @param title - Document title
+   * @param docType - Document type
+   * @param language - Document language (default: 'ko')
+   * @param token - Auth token
+   * @param confirmedText - Pre-extracted text from OCR (optional). If provided, skips preprocessing.
    */
   async uploadAndAnalyze(
     file: File,
     title: string,
     docType: UserDocumentType,
     language: UserDocumentLanguage = 'ko',
-    token?: string
+    token?: string,
+    confirmedText?: string
   ): Promise<UploadAndAnalyzeResponse> {
     const formData = new FormData();
     formData.append('original_file', file);
     formData.append('title', title);
     formData.append('doc_type', docType);
     formData.append('language', language);
+
+    // Add confirmed text if provided (OCR workflow)
+    if (confirmedText) {
+      formData.append('confirmed_text', confirmedText);
+    }
 
     const url = `${this.baseURL}/api/v1/documents/upload-and-analyze/`;
     const headers: Record<string, string> = {};
@@ -1502,6 +1515,117 @@ class APIClient {
       { method: 'POST' },
       token
     );
+  }
+
+  // ============================================
+  // Document Extraction with OCR - Two-Phase Upload
+  // ============================================
+
+  /**
+   * Extract text from document (Phase 1 of two-phase upload)
+   * Uses OCR fallback for scanned PDFs
+   *
+   * @param file - File to extract text from
+   * @returns Extraction result with text and metadata
+   */
+  async extractDocumentText(file: File): Promise<{
+    success: boolean;
+    text: string;
+    extraction_method: string;
+    needs_review: boolean;
+    confidence: number;
+    file_type: string;
+    metadata?: {
+      page_count?: number;
+      char_count?: number;
+      avg_confidence?: number;
+      preprocessing?: string;
+    };
+    error?: string;
+    timestamp: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${AI_SERVICE_URL}/v2/documents/extract`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Text extraction failed');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Confirm extracted text and proceed to analysis (Phase 2 of two-phase upload)
+   *
+   * @param text - User-confirmed/edited text
+   * @param fileType - Original file type
+   * @param docType - Document type (CONTRACT, STATUTE, etc.)
+   * @param documentId - Optional document ID
+   * @param sessionId - Optional session ID
+   * @returns Analysis result
+   */
+  async confirmAndAnalyze(
+    text: string,
+    fileType: string,
+    docType: string = 'OTHER',
+    documentId?: string,
+    sessionId?: string
+  ): Promise<{
+    success: boolean;
+    document_id?: string;
+    doc_type: string;
+    summary?: {
+      summary: string;
+      token_count: number;
+      model_version: string;
+    };
+    clauses: Array<{
+      clause_type: string;
+      title: string;
+      content: string;
+      importance_score: number;
+    }>;
+    chunk_count: number;
+    completed_tasks: string[];
+    processing_time: number;
+    session_id?: string;
+    error?: string;
+    timestamp: string;
+    version: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+
+    const response = await fetch(`${AI_SERVICE_URL}/v2/documents/confirm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        file_type: fileType,
+        doc_type: docType,
+        document_id: documentId,
+        session_id: sessionId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Analysis failed');
+    }
+
+    return response.json();
   }
 }
 

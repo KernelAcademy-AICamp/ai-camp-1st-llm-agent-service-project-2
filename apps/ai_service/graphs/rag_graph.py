@@ -55,11 +55,16 @@ def retrieve_node(state: RAGState) -> Dict[str, Any]:
         # 기존 서비스 import 및 호출
         from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
         from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
-        from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
         from apps.ai_service.config.settings import settings
 
-        # Retriever 초기화
-        embedder = RemoteEmbedder()
+        # EMBED_MODE에 따라 로컬/원격 임베더 선택
+        if settings.EMBED_MODE == "local":
+            from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
+            embedder = KoreanLegalEmbedder()
+        else:
+            from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
+            embedder = RemoteEmbedder()
+
         vectordb = QdrantVectorDB(
             collection_name="criminal_law",
             embedder=embedder

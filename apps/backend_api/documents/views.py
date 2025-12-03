@@ -239,6 +239,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         - doc_type: Document type (required) - CASE/CONTRACT/STATUTE/PRECEDENT/OTHER
         - language: Language (optional, default: ko)
         - original_file: File to upload (required)
+        - confirmed_text: Pre-extracted text from OCR (optional). If provided, skips preprocessing.
 
         Response:
         - 201: Document uploaded, analysis started
@@ -249,9 +250,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             document = serializer.save()
 
+            # Get confirmed_text if provided (from OCR workflow)
+            confirmed_text = request.data.get('confirmed_text', None)
+
             # Start preprocessing and analysis in background thread
             # This allows immediate response to client
-            def run_analysis_pipeline(doc_id):
+            def run_analysis_pipeline(doc_id, pre_confirmed_text=None):
                 try:
                     # Need to re-fetch document in thread context
                     from django.db import connection
@@ -263,8 +267,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     doc.analysis_status = Document.ANALYSIS_PENDING
                     doc.save(update_fields=['analysis_status'])
 
-                    # Step 1: Preprocessing (required for analysis)
-                    self._trigger_preprocessing(doc)
+                    # Step 1: Preprocessing or use confirmed text
+                    if pre_confirmed_text:
+                        # Use confirmed text directly (from OCR workflow)
+                        logger.info(f"Using confirmed text for document {doc.id} (skipping preprocessing)")
+                        self._create_chunks_from_text(doc, pre_confirmed_text)
+                    else:
+                        # Standard preprocessing from file
+                        self._trigger_preprocessing(doc)
 
                     # Re-fetch after preprocessing
                     doc.refresh_from_db()
@@ -321,7 +331,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         pass
 
             # Start analysis in background thread
-            thread = threading.Thread(target=run_analysis_pipeline, args=(str(document.id),))
+            thread = threading.Thread(target=run_analysis_pipeline, args=(str(document.id), confirmed_text))
             thread.daemon = True
             thread.start()
 
@@ -1318,6 +1328,108 @@ class DocumentViewSet(viewsets.ModelViewSet):
             document.error_message = str(e)
             document.save(update_fields=['status', 'error_message'])
 
+    def _create_chunks_from_text(self, document: Document, confirmed_text: str):
+        """
+        Create chunks from confirmed text (OCR workflow).
+
+        This bypasses the preprocessing step when text is already extracted and confirmed
+        via the OCR review workflow.
+
+        Args:
+            document: Document object
+            confirmed_text: Pre-extracted and confirmed text from OCR
+        """
+        try:
+            if not confirmed_text or not confirmed_text.strip():
+                raise ValueError("Confirmed text is empty")
+
+            # Chunk parameters (same as preprocessing)
+            chunk_size = 1000
+            chunk_overlap = 200
+
+            # Simple text chunking
+            text = confirmed_text.strip()
+            chunks_data = []
+
+            if len(text) <= chunk_size:
+                # Single chunk
+                chunks_data.append({
+                    'chunk_index': 0,
+                    'text': text,
+                    'start_offset': 0,
+                    'end_offset': len(text),
+                    'token_count': len(text.split())
+                })
+            else:
+                # Multiple chunks with overlap
+                start = 0
+                chunk_index = 0
+                while start < len(text):
+                    end = start + chunk_size
+                    chunk_text = text[start:end]
+
+                    # Try to break at sentence/paragraph boundary if not at end
+                    if end < len(text):
+                        # Find last period, newline, or space
+                        last_break = max(
+                            chunk_text.rfind('. '),
+                            chunk_text.rfind('.\n'),
+                            chunk_text.rfind('\n\n'),
+                            chunk_text.rfind('\n')
+                        )
+                        if last_break > chunk_size * 0.5:  # Only if found in latter half
+                            chunk_text = chunk_text[:last_break + 1]
+                            end = start + len(chunk_text)
+
+                    chunks_data.append({
+                        'chunk_index': chunk_index,
+                        'text': chunk_text.strip(),
+                        'start_offset': start,
+                        'end_offset': end,
+                        'token_count': len(chunk_text.split())
+                    })
+
+                    # Move start with overlap
+                    start = end - chunk_overlap
+                    if start >= len(text) - chunk_overlap:
+                        break
+                    chunk_index += 1
+
+            # Save chunks to database
+            chunk_objects = []
+            for chunk_data in chunks_data:
+                chunk_obj = DocumentChunk.objects.create(
+                    document=document,
+                    chunk_index=chunk_data['chunk_index'],
+                    text=chunk_data['text'],
+                    start_offset=chunk_data.get('start_offset'),
+                    end_offset=chunk_data.get('end_offset'),
+                    token_count=chunk_data.get('token_count')
+                )
+                chunk_objects.append(chunk_obj)
+
+            # Update document status
+            document.status = Document.STATUS_PREPROCESSED
+            document.save(update_fields=['status'])
+
+            logger.info(
+                f"Document {document.id} chunks created from confirmed text: "
+                f"{len(chunk_objects)} chunks"
+            )
+
+            # Optionally trigger indexing
+            try:
+                self._trigger_indexing(document, chunk_objects)
+            except Exception as e:
+                logger.warning(f"Failed to trigger indexing for document {document.id}: {e}")
+                # Don't fail if indexing fails
+
+        except Exception as e:
+            logger.error(f"Error creating chunks from confirmed text for document {document.id}: {e}", exc_info=True)
+            document.status = Document.STATUS_FAILED
+            document.error_message = str(e)
+            document.save(update_fields=['status', 'error_message'])
+
     def _trigger_indexing(self, document: Document, chunks: list):
         """
         Trigger document indexing via AI Service
@@ -1381,24 +1493,25 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         f"{result.get('indexed_count', 0)} chunks embedded"
                     )
                 else:
-                    logger.error(f"Indexing failed for document {document.id}: {result.get('error')}")
-                    document.status = Document.STATUS_FAILED
-                    document.error_message = f"Indexing failed: {result.get('error')}"
-                    document.save(update_fields=['status', 'error_message'])
+                    # Indexing failed but don't change status - document can still be analyzed
+                    logger.warning(
+                        f"Indexing failed for document {document.id}: {result.get('error')}. "
+                        f"Document remains in PREPROCESSED state for analysis."
+                    )
             else:
-                logger.error(
+                # Indexing API error but don't change status - document can still be analyzed
+                logger.warning(
                     f"AI Service returned error for indexing document {document.id}: "
-                    f"{response.status_code} - {response.text}"
+                    f"{response.status_code} - {response.text}. "
+                    f"Document remains in PREPROCESSED state for analysis."
                 )
-                document.status = Document.STATUS_FAILED
-                document.error_message = f"Indexing error: {response.status_code}"
-                document.save(update_fields=['status', 'error_message'])
 
         except Exception as e:
-            logger.error(f"Error triggering indexing for document {document.id}: {e}", exc_info=True)
-            document.status = Document.STATUS_FAILED
-            document.error_message = str(e)
-            document.save(update_fields=['status', 'error_message'])
+            # Indexing exception but don't change status - document can still be analyzed
+            logger.warning(
+                f"Error triggering indexing for document {document.id}: {e}. "
+                f"Document remains in PREPROCESSED state for analysis."
+            )
 
     def _generate_summary(self, document: Document, llm_model: str) -> Summary:
         """
