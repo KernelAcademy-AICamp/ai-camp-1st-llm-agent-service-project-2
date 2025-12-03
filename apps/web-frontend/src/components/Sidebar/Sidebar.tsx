@@ -15,11 +15,9 @@ import {
   FiAlertTriangle,
   FiLayers,
   FiBriefcase,
-  FiGrid,
   FiLogOut,
   FiMenu,
-  FiMessageSquare,
-  FiClock
+  FiMessageSquare
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -62,11 +60,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         setExpandedSections(prev => [...prev, 'analysis']);
       }
     }
-    if (currentPath.startsWith('/organizations') || currentPath.startsWith('/projects')) {
-      if (!expandedSections.includes('organization')) {
-        setExpandedSections(prev => [...prev, 'organization']);
-      }
-    }
     if (currentPath.startsWith('/agent-hub')) {
       if (!expandedSections.includes('ai-assistant')) {
         setExpandedSections(prev => [...prev, 'ai-assistant']);
@@ -87,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       icon: <FiMessageSquare />,
       items: [
         { label: 'Agent Hub', path: '/agent-hub', icon: <FiMessageSquare /> },
-        { label: '검색 기록', path: '/agent-hub/history', icon: <FiClock /> },
+        { label: '법률 리서치', path: '/research', icon: <FiSearch /> }
       ]
     },
     {
@@ -96,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       icon: <FiFileText />,
       items: [
         { label: '문서 관리', path: '/documents', icon: <FiFile /> },
-        { label: '법률 리서치', path: '/research', icon: <FiSearch /> }
+        { label: '판례 검색', path: '/documents/research', icon: <FiBriefcase /> }
       ]
     },
     {
@@ -106,15 +99,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       items: [
         { label: '리스크 대시보드', path: '/risk-dashboard', icon: <FiAlertTriangle /> },
         { label: '모델 비교', path: '/analysis/model-comparison', icon: <FiLayers /> }
-      ]
-    },
-    {
-      id: 'organization',
-      title: '조직',
-      icon: <FiUsers />,
-      items: [
-        { label: '조직 관리', path: '/organizations', icon: <FiBriefcase /> },
-        { label: '프로젝트', path: '/projects', icon: <FiGrid /> }
       ]
     },
     {

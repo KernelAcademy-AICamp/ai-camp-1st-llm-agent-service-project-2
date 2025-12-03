@@ -25,6 +25,11 @@ export interface SessionItem {
 export interface ExecutionStatus {
   name: string;
   progress?: number;
+  // Progress 이벤트 확장 필드
+  step?: 'ANALYZING' | 'PLANNING' | 'SEARCHING' | 'EXECUTING' | 'THINKING' | 'GENERATING' | 'COMPLETED';
+  message?: string;
+  execution_path?: 'fast' | 'medium' | 'deep' | 'thinking';
+  step_details?: Record<string, any>;
 }
 
 interface AppLayoutProps {

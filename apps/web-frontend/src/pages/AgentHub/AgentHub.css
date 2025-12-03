@@ -973,6 +973,21 @@
   background: #b91c1c;
 }
 
+/* Progress Indicator Container */
+.agent-hub-input__status-wrapper {
+  margin-bottom: 12px;
+}
+
+.agent-hub-input__progress-container {
+  position: relative;
+}
+
+.agent-hub-input__stop-btn--progress {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
 /* Suggestions */
 .agent-hub-input__suggestions {
   display: flex;

@@ -10,6 +10,7 @@ import { cn } from '../../../lib/utils';
 import { ExecutionStatus } from './AppLayout';
 import { agentHubService } from '../../../services/agentHubService';
 import type { AttachmentPayload } from '../../../types/agentHub';
+import { ProgressIndicator } from '../messages/ProgressIndicator';
 
 type AttachmentStatus = 'processing' | 'ready' | 'error';
 
@@ -370,25 +371,52 @@ export const InputArea: React.FC<InputAreaProps> = ({
   return (
     <div className={cn('agent-hub-input', className)}>
       <div className="agent-hub-input__container">
-        {/* Execution Status */}
+        {/* Execution Status with Progress Indicator */}
         {executionStatus && (
-          <div className="agent-hub-input__status">
-            <div className="agent-hub-input__status-content">
-              <LoadingSpinner />
-              <span>{executionStatus.name}</span>
-              {executionStatus.progress !== undefined && (
-                <span className="agent-hub-input__status-progress">
-                  {executionStatus.progress}%
-                </span>
-              )}
-            </div>
-            {onStopStreaming && (
-              <button
-                onClick={onStopStreaming}
-                className="agent-hub-input__stop-btn"
-              >
-                중지
-              </button>
+          <div className="agent-hub-input__status-wrapper">
+            {executionStatus.step ? (
+              /* 새로운 Progress 이벤트가 있는 경우 ProgressIndicator 사용 */
+              <div className="agent-hub-input__progress-container">
+                <ProgressIndicator
+                  progress={{
+                    step: executionStatus.step,
+                    percentage: executionStatus.progress ?? 0,
+                    message: executionStatus.message || executionStatus.name,
+                    execution_path: executionStatus.execution_path,
+                    step_details: executionStatus.step_details,
+                  }}
+                  compact={false}
+                />
+                {onStopStreaming && (
+                  <button
+                    onClick={onStopStreaming}
+                    className="agent-hub-input__stop-btn agent-hub-input__stop-btn--progress"
+                  >
+                    중지
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* 레거시: 기존 심플 상태 표시 */
+              <div className="agent-hub-input__status">
+                <div className="agent-hub-input__status-content">
+                  <LoadingSpinner />
+                  <span>{executionStatus.name}</span>
+                  {executionStatus.progress !== undefined && (
+                    <span className="agent-hub-input__status-progress">
+                      {executionStatus.progress}%
+                    </span>
+                  )}
+                </div>
+                {onStopStreaming && (
+                  <button
+                    onClick={onStopStreaming}
+                    className="agent-hub-input__stop-btn"
+                  >
+                    중지
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
