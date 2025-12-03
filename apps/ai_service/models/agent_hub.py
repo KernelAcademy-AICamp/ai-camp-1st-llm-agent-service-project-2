@@ -1,7 +1,7 @@
 """SQLAlchemy models for Agent Hub persistent entities."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Column,
@@ -17,6 +17,11 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
+def _utc_now():
+    """UTC 타임존이 포함된 현재 시간 반환"""
+    return datetime.now(timezone.utc)
+
+
 class AgentHubSession(Base):
     __tablename__ = 'agent_hub_sessions'
 
@@ -29,8 +34,8 @@ class AgentHubSession(Base):
     title = Column(String(255), default='', nullable=False)
     last_message_preview = Column(String(500), default='', nullable=False)
 
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    last_activity = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now)
+    last_activity = Column(DateTime(timezone=True), default=_utc_now, index=True)
     closed_at = Column(DateTime(timezone=True), nullable=True)
 
     total_messages = Column(Integer, default=0)
@@ -53,6 +58,6 @@ class AgentHubMessage(Base):
     role = Column(String(20), nullable=False)
     content = Column(String, nullable=False)
     metadata_json = Column('metadata', JSON, default=dict)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    created_at = Column(DateTime(timezone=True), default=_utc_now, index=True)
 
     session = relationship('AgentHubSession', back_populates='messages', lazy='joined')

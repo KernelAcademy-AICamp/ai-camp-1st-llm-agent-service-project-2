@@ -2,13 +2,16 @@
 Generate Response Node - 응답 생성 노드
 
 Phase 5: Agent Hub - Master Agent Graph Node
+Phase 7: 비용 정보 통합
 
 설계 문서: docs/AGENT_HUB_DESIGN.md 섹션 6.3.3
+            docs/adaptive-agent/07_IMPLEMENTATION_GUIDE.md - 8. 단계별 비용 추정
 
 역할:
 - LLM 기반 응답 생성
 - 사용자 친화적 포맷팅
 - 응답 형식 결정 (텍스트, 구조화, 비교 등)
+- Phase 7: 실행 비용 계산 및 메타데이터 포함
 """
 
 from datetime import datetime
@@ -18,12 +21,20 @@ from typing import Dict, Any, List, Optional
 
 from apps.ai_service.agents.states.master_agent_state import (
     MasterAgentState,
+    ExtendedMasterAgentState,
     StreamingEvent,
     Intent,
     IntentCategory,
+    ProgressStep,
+    create_progress_event,
 )
 from libs.rag_core.llm.llm_client import create_llm_client
 from apps.ai_service.config.settings import settings
+from apps.ai_service.agents.cache.response_cache import get_response_cache
+from apps.ai_service.agents.cost_estimator import (
+    get_cost_estimator,
+    calculate_actual_cost,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,14 +149,127 @@ async def generate_response_node(state: MasterAgentState) -> MasterAgentState:
         1. response_generating: 응답 생성 시작
         2. response_chunk: 스트리밍 응답 청크
         3. complete: 최종 완료
+
+    Fast Path 지원:
+        - Fast Path에서 final_response가 이미 설정된 경우 LLM 호출을 스킵합니다.
+        - response_metadata.path == "fast"인 경우에 해당합니다.
+
+    Thinking Path 지원 (Phase 6):
+        - Thinking Path에서 final_response가 이미 설정된 경우 LLM 호출을 스킵합니다.
+        - response_metadata.path == "thinking"인 경우에 해당합니다.
+        - 필요한 경우 accumulated_context 기반 응답 생성
     """
     logger.info("[generate_response_node] Starting response generation")
 
     try:
         streaming_events = list(state.get("streaming_events", []))
         response_metadata = state.get("response_metadata", {})
+        execution_path = response_metadata.get("path", "")
+
+        # =================================================================
+        # Thinking Path 처리 (Phase 6)
+        # =================================================================
+        if execution_path == "thinking":
+            final_response = state.get("final_response", "")
+
+            if not final_response:
+                # thought_history에서 추출 시도
+                thought_history = state.get("thought_history", [])
+                if thought_history:
+                    from apps.ai_service.agents.states.master_agent_state import ThoughtStep
+                    # 역순으로 FINAL_ANSWER 찾기
+                    for step_dict in reversed(thought_history):
+                        step = ThoughtStep.from_dict(step_dict)
+                        if step.is_final and step.action_input:
+                            if isinstance(step.action_input, str):
+                                final_response = step.action_input
+                            elif isinstance(step.action_input, dict):
+                                final_response = step.action_input.get("answer", str(step.action_input))
+                            else:
+                                final_response = str(step.action_input)
+                            break
+
+            if not final_response:
+                # 컨텍스트 기반 응답 생성
+                accumulated_context = state.get("accumulated_context", [])
+                if accumulated_context:
+                    final_response = await _generate_from_context(
+                        state.get("user_message", ""),
+                        accumulated_context,
+                    )
+                else:
+                    final_response = "분석을 수행했으나 충분한 정보를 찾지 못했습니다. 다른 방식으로 질문해 주시면 도움을 드리겠습니다."
+
+            logger.info(f"[generate_response_node] Thinking path response: {len(final_response)} chars")
+
+            # Phase 7: 부분 응답 여부 확인
+            is_partial = state.get("is_partial_response", False)
+            completion_reason = response_metadata.get("completion_reason", "goal_achieved")
+
+            # 완료 이벤트
+            complete_event = StreamingEvent(
+                event="complete",
+                data={
+                    "response": final_response,
+                    "format": ResponseFormat.TEXT.value,
+                    "path": "thinking",
+                    "total_steps": len(state.get("thought_history", [])),
+                    "status": "partial" if is_partial else "success",
+                    # Phase 7: 부분 응답 관련 정보
+                    "is_partial_response": is_partial,
+                    "completion_reason": completion_reason,
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            streaming_events.append(complete_event.model_dump())
+
+            state["final_response"] = final_response
+            state["streaming_events"] = streaming_events
+            state["response_metadata"] = {
+                **response_metadata,
+                "format": ResponseFormat.TEXT.value,
+                "response_length": len(final_response),
+                "generated_at": datetime.now().isoformat(),
+                "is_partial_response": is_partial,  # Phase 7
+            }
+
+            return state
+
+        # =================================================================
+        # Fast Path 스킵 로직
+        # Fast Path에서 이미 응답이 생성된 경우 LLM 호출 스킵
+        # =================================================================
+        final_response = state.get("final_response")
+        if final_response and execution_path == "fast":
+            logger.info("[generate_response_node] Fast path response already set, skipping LLM")
+
+            # 완료 이벤트만 추가
+            complete_event = StreamingEvent(
+                event="complete",
+                data={
+                    "response": final_response,
+                    "format": ResponseFormat.TEXT.value,
+                    "source": response_metadata.get("source", "fast"),
+                    "cached": response_metadata.get("cached", False),
+                    "status": "success",
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            streaming_events.append(complete_event.model_dump())
+
+            state["streaming_events"] = streaming_events
+            return state
 
         # 1. 응답 생성 시작 이벤트
+        # 진행 상황 이벤트: 응답 생성 시작 (85%)
+        progress_generating = create_progress_event(
+            step=ProgressStep.GENERATING,
+            percentage=85,
+            message="응답을 생성하고 있습니다...",
+            execution_path=execution_path or "medium",
+        )
+        streaming_events.append(progress_generating.model_dump())
+
         generating_event = StreamingEvent(
             event="response_generating",
             data={"message": "응답을 생성하고 있습니다..."},
@@ -199,6 +323,10 @@ async def generate_response_node(state: MasterAgentState) -> MasterAgentState:
         response_metadata["response_length"] = len(final_response)
         response_metadata["generated_at"] = datetime.now().isoformat()
 
+        # Phase 7: 비용 정보 계산 및 추가
+        cost_info = _calculate_cost_info(state, final_response)
+        response_metadata["cost_info"] = cost_info
+
         document_analysis = _extract_document_analysis(workflow_results)
         if document_analysis:
             # 기존 문서 여부 확인 (attachments의 metadata.is_existing)
@@ -211,6 +339,19 @@ async def generate_response_node(state: MasterAgentState) -> MasterAgentState:
         # 6. sources 추출 (RAG 워크플로우 결과에서)
         sources = _extract_sources_from_results(workflow_results)
 
+        # 진행 상황 이벤트: 응답 완료 직전 (95%)
+        progress_finalizing = create_progress_event(
+            step=ProgressStep.COMPLETE,
+            percentage=95,
+            message="응답을 정리하고 있습니다...",
+            execution_path=execution_path or "medium",
+            step_details={
+                "format": response_format.value,
+                "sources_count": len(sources),
+            },
+        )
+        streaming_events.append(progress_finalizing.model_dump())
+
         # 7. 완료 이벤트
         complete_event = StreamingEvent(
             event="complete",
@@ -222,12 +363,34 @@ async def generate_response_node(state: MasterAgentState) -> MasterAgentState:
                 "status": status,
                 "sources": sources,  # RAG 참고자료 추가
                 "document_analysis": document_analysis,
+                "cost_info": cost_info,  # Phase 7: 비용 정보
             },
             timestamp=datetime.now().isoformat(),
         )
         streaming_events.append(complete_event.model_dump())
 
-        # 8. 상태 업데이트
+        # 8. 캐시 저장 (신규 추가)
+        cache_key = state.get("cache_key")
+        path = response_metadata.get("path", "medium")
+
+        # 캐시 히트가 아닌 경우에만 저장
+        if cache_key and not state.get("cache_hit", False) and final_response:
+            try:
+                cache = get_response_cache()
+                await cache.set(
+                    cache_key=cache_key,
+                    response=final_response,
+                    path=path,
+                    metadata={
+                        "intent": intent_dict.get("category") if intent_dict else None,
+                        "workflows_executed": response_metadata.get("workflows_executed", []),
+                    },
+                )
+                logger.debug(f"[generate_response_node] Response cached: {cache_key[:30]}...")
+            except Exception as e:
+                logger.warning(f"[generate_response_node] Cache save failed: {e}")
+
+        # 9. 상태 업데이트
         state["final_response"] = final_response
         state["response_metadata"] = response_metadata
         state["streaming_events"] = streaming_events
@@ -738,6 +901,160 @@ def _extract_document_analysis(workflow_results: Dict[str, Any]) -> Optional[Dic
         }
 
     return None
+
+
+# =============================================================================
+# Phase 7: 비용 계산 헬퍼 함수
+# =============================================================================
+
+def _calculate_cost_info(state: MasterAgentState, response: str) -> Dict[str, Any]:
+    """
+    Phase 7: 실행 비용 정보 계산
+
+    실행된 작업들의 실제 비용을 계산하여 메타데이터에 포함합니다.
+
+    Args:
+        state: 현재 상태 (토큰 사용량, 도구 호출 등 포함)
+        response: 생성된 응답
+
+    Returns:
+        비용 정보 딕셔너리:
+        - actual_tokens: 실제 사용된 총 토큰
+        - actual_tool_calls: 실제 도구 호출 수
+        - estimated_cost_usd: 추정 비용 (USD)
+        - complexity: 실행 경로 복잡도
+        - model: 사용된 모델
+        - breakdown: 세부 비용 분석
+    """
+    try:
+        # 상태에서 토큰 사용량 추출
+        total_tokens_used = state.get("total_tokens_used", 0)
+        total_tool_calls = state.get("total_tool_calls", 0)
+        response_metadata = state.get("response_metadata", {})
+        path = response_metadata.get("path", "medium")
+
+        # 토큰 사용량이 0인 경우 응답 길이로 추정
+        if total_tokens_used == 0:
+            # 입력 토큰 추정 (user_message + context)
+            user_message = state.get("user_message", "")
+            input_tokens = len(user_message) // 4  # 대략적인 토큰 추정
+
+            # 출력 토큰 추정 (response)
+            output_tokens = len(response) // 4  # 대략적인 토큰 추정
+
+            total_tokens_used = input_tokens + output_tokens
+
+        # CostEstimator를 사용하여 비용 계산
+        estimator = get_cost_estimator()
+        model = settings.LLM_MODEL
+
+        # 입력/출력 토큰 비율 추정 (복잡도에 따라 다름)
+        input_output_ratios = {
+            "fast": 0.7,      # 입력 70%
+            "medium": 0.5,    # 입력 50%
+            "deep": 0.4,      # 입력 40%
+            "thinking": 0.3,  # 입력 30% (긴 출력)
+        }
+        input_ratio = input_output_ratios.get(path, 0.5)
+
+        input_tokens = int(total_tokens_used * input_ratio)
+        output_tokens = total_tokens_used - input_tokens
+
+        # 실제 비용 계산
+        actual_cost = calculate_actual_cost(
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        # 비용 정보 구성
+        cost_info = {
+            "actual_tokens": total_tokens_used,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "actual_tool_calls": total_tool_calls,
+            "estimated_cost_usd": round(actual_cost.total_cost_usd, 6),
+            "complexity": path,
+            "model": model,
+            "breakdown": {
+                "input_cost_usd": round(actual_cost.input_cost_usd, 6),
+                "output_cost_usd": round(actual_cost.output_cost_usd, 6),
+                "tool_calls": total_tool_calls,
+            },
+        }
+
+        logger.debug(
+            f"[_calculate_cost_info] Calculated cost: "
+            f"tokens={total_tokens_used}, cost=${actual_cost.total_cost_usd:.6f}"
+        )
+
+        return cost_info
+
+    except Exception as e:
+        logger.warning(f"[_calculate_cost_info] Error calculating cost: {e}")
+        # 오류 시 기본값 반환
+        return {
+            "actual_tokens": state.get("total_tokens_used", 0),
+            "actual_tool_calls": state.get("total_tool_calls", 0),
+            "estimated_cost_usd": 0.0,
+            "complexity": state.get("response_metadata", {}).get("path", "unknown"),
+            "model": settings.LLM_MODEL,
+            "error": str(e),
+        }
+
+
+async def _generate_from_context(user_message: str, context: list) -> str:
+    """
+    컨텍스트 기반 응답 생성 (Thinking Path용)
+
+    Thinking Path에서 수집된 컨텍스트를 바탕으로
+    LLM을 사용하여 최종 응답을 생성합니다.
+
+    Args:
+        user_message: 사용자 질문
+        context: 누적된 컨텍스트 목록
+
+    Returns:
+        생성된 응답 텍스트
+    """
+    try:
+        llm = create_llm_client(
+            provider=settings.LLM_PROVIDER,
+            api_key=settings.LLM_API_KEY,
+            model=settings.LLM_MODEL,
+            base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+            temperature=0.3,
+            max_tokens=2000,
+        )
+
+        context_str = "\n\n".join(context)
+
+        prompt = f"""다음 정보를 바탕으로 사용자 질문에 답변하세요.
+
+## 질문
+{user_message}
+
+## 수집된 정보
+{context_str}
+
+## 응답 가이드라인
+1. 수집된 정보를 종합하여 명확하게 답변하세요
+2. 중요한 포인트는 강조해 주세요
+3. 불확실한 부분이 있다면 솔직히 언급하세요
+4. 마크다운 형식을 사용하여 구조화하세요
+5. 한국어로 응답하세요
+
+응답:"""
+
+        response = llm.generate(prompt=prompt)
+        return response
+
+    except Exception as e:
+        logger.error(f"[_generate_from_context] LLM generation failed: {e}")
+        # LLM 실패 시 컨텍스트 직접 반환
+        if context:
+            return f"**수집된 정보:**\n\n" + "\n\n---\n\n".join(context[:3])
+        return "요청을 처리하는 중 문제가 발생했습니다. 다시 시도해 주세요."
 
 
 def generate_response_node_sync(state: MasterAgentState) -> MasterAgentState:

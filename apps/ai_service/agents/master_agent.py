@@ -44,6 +44,9 @@ from apps.ai_service.agents.states.master_agent_state import (
     StreamingEvent,
     create_initial_master_agent_state,
     create_anonymous_user_context,
+    # Adaptive Agent 확장
+    ExtendedMasterAgentState,
+    create_initial_extended_state,
 )
 from apps.ai_service.agents.nodes import (
     classify_intent_node,
@@ -56,6 +59,22 @@ from apps.ai_service.agents.nodes import (
     execute_workflows_node_sync,
     aggregate_results_node_sync,
     generate_response_node_sync,
+    # Adaptive Agent 노드
+    complexity_classifier_node,
+    complexity_classifier_node_sync,
+    route_by_complexity,
+    # Fast Path (Adaptive Agent Phase 2)
+    fast_path_node,
+    fast_path_node_sync,
+    # Medium Path (Adaptive Agent Phase 3)
+    medium_path_node,
+    medium_path_node_sync,
+    # Deep Path (Adaptive Agent Phase 4)
+    deep_path_node,
+    deep_path_node_sync,
+    # Thinking Path (Adaptive Agent Phase 6)
+    thinking_path_node,
+    thinking_path_node_sync,
 )
 
 logger = logging.getLogger(__name__)
@@ -336,6 +355,119 @@ def create_master_agent_graph(
 
 
 # =============================================================================
+# Adaptive Master Agent Graph (Phase 1: Complexity-based Routing)
+# =============================================================================
+
+def create_adaptive_master_agent_graph(
+    use_checkpointing: bool = True,
+    use_async: bool = True,
+) -> StateGraph:
+    """
+    Adaptive Master Agent Graph 생성 (Thinking Path 포함)
+
+    복잡도 기반 4-way 분기를 지원하는 그래프입니다.
+
+    Args:
+        use_checkpointing: MemorySaver 사용 여부
+        use_async: 비동기 노드 사용 여부
+
+    Returns:
+        컴파일된 StateGraph
+
+    워크플로우:
+        START
+          ↓
+        classify_complexity
+          ↓
+        [조건부 분기]
+          ├─ fast → fast_path → generate_response
+          ├─ medium → medium_path → generate_response
+          ├─ deep → deep_path → generate_response
+          └─ thinking → thinking_path → generate_response
+          ↓
+        END
+
+    Note:
+        StateGraph는 ExtendedMasterAgentState를 사용합니다.
+        thinking_path_node 내부에서 Thinking 전용 필드들을 동적으로 추가합니다.
+    """
+    logger.info(f"[create_adaptive_master_agent_graph] Creating graph with Thinking Path (async={use_async})")
+
+    workflow = StateGraph(ExtendedMasterAgentState)
+
+    # 노드 선택
+    if use_async:
+        complexity_node = complexity_classifier_node
+        fast_node = fast_path_node  # Phase 2: Fast Path 구현 완료
+        medium_node = medium_path_node  # Phase 3: Medium Path 구현 완료
+        deep_node = deep_path_node  # Phase 4: Deep Path 구현 완료
+        thinking_node = thinking_path_node  # Phase 6: Thinking Path 구현 완료
+        response_node = generate_response_node
+    else:
+        complexity_node = complexity_classifier_node_sync
+        fast_node = fast_path_node_sync  # Phase 2: Fast Path 구현 완료
+        medium_node = medium_path_node_sync  # Phase 3: Medium Path 구현 완료
+        deep_node = deep_path_node_sync  # Phase 4: Deep Path 구현 완료
+        thinking_node = thinking_path_node_sync  # Phase 6: Thinking Path 구현 완료
+        response_node = generate_response_node_sync
+
+    # =========================================================================
+    # 노드 추가
+    # =========================================================================
+    workflow.add_node("classify_complexity", complexity_node)
+
+    # Fast Path (Phase 2 구현 완료)
+    workflow.add_node("fast_path", fast_node)
+
+    # Medium Path (Phase 3 구현 완료)
+    workflow.add_node("medium_path", medium_node)
+
+    # Deep Path (Phase 4 구현 완료)
+    workflow.add_node("deep_path", deep_node)
+
+    # Thinking Path (Phase 6 구현 완료)
+    workflow.add_node("thinking_path", thinking_node)
+
+    workflow.add_node("generate_response", response_node)
+
+    # =========================================================================
+    # 엣지 연결
+    # =========================================================================
+    workflow.add_edge(START, "classify_complexity")
+
+    # 4-way 분기 (Phase 6: thinking 추가)
+    workflow.add_conditional_edges(
+        "classify_complexity",
+        route_by_complexity,
+        {
+            "fast": "fast_path",
+            "medium": "medium_path",
+            "deep": "deep_path",
+            "thinking": "thinking_path",
+        }
+    )
+
+    # 모든 경로 → generate_response
+    workflow.add_edge("fast_path", "generate_response")
+    workflow.add_edge("medium_path", "generate_response")
+    workflow.add_edge("deep_path", "generate_response")
+    workflow.add_edge("thinking_path", "generate_response")
+
+    workflow.add_edge("generate_response", END)
+
+    # 체크포인팅
+    checkpointer = None
+    if use_checkpointing:
+        checkpointer = MemorySaver()
+
+    compiled_graph = workflow.compile(checkpointer=checkpointer)
+
+    logger.info("[create_adaptive_master_agent_graph] Graph compiled successfully with 4-way routing")
+
+    return compiled_graph
+
+
+# =============================================================================
 # MasterAgent 클래스
 # =============================================================================
 
@@ -374,9 +506,10 @@ class MasterAgent:
 
     @property
     def graph(self) -> StateGraph:
-        """그래프 인스턴스 (지연 생성)"""
+        """그래프 인스턴스 (지연 생성) - Adaptive Graph 사용"""
         if self._graph is None:
-            self._graph = create_master_agent_graph(
+            # Phase 6: Adaptive Master Agent Graph 사용 (4-way 라우팅 포함)
+            self._graph = create_adaptive_master_agent_graph(
                 use_checkpointing=self.use_checkpointing,
                 use_async=self.use_async,
             )
@@ -403,8 +536,8 @@ class MasterAgent:
         Returns:
             최종 상태 딕셔너리
         """
-        # 초기 상태 생성
-        initial_state = create_initial_master_agent_state(
+        # 초기 상태 생성 - Adaptive Agent용 ExtendedState 사용
+        initial_state = create_initial_extended_state(
             user_message=message,
             session_id=session_id,
             user_context=user_context or create_anonymous_user_context(),
@@ -442,8 +575,8 @@ class MasterAgent:
         Yields:
             스트리밍 이벤트 딕셔너리
         """
-        # 초기 상태 생성
-        initial_state = create_initial_master_agent_state(
+        # 초기 상태 생성 - Adaptive Agent용 ExtendedState 사용
+        initial_state = create_initial_extended_state(
             user_message=message,
             session_id=session_id,
             user_context=user_context or create_anonymous_user_context(),

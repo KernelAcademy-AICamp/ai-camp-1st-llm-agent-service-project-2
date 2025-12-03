@@ -369,7 +369,7 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
         new_plan = [t for t in analysis_plan if t != "summary"]
 
         return {
-            "summary": summary_result,
+            "summary": summary_result["summary"],  # 텍스트만 저장 (객체가 아닌)
             "analysis_plan": new_plan,
             "completed_tasks": completed + ["summary"]
         }
@@ -449,7 +449,7 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             logger.info(f"[extract_clauses_node] QA mode - answered clause question")
 
             return {
-                "summary": summary_result,  # QA 답변
+                "summary": summary_result["summary"],  # QA 답변 (텍스트만)
                 "clauses": [],  # 빈 배열 (QA 모드)
                 "analysis_plan": new_plan,
                 "completed_tasks": completed + ["clauses"]
@@ -562,7 +562,7 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
             logger.info(f"[analyze_risk_node] QA mode - answered risk question")
 
             return {
-                "summary": summary_result,  # QA 답변
+                "summary": summary_result["summary"],  # QA 답변 (텍스트만)
                 "risks": [],  # 빈 배열 (QA 모드)
                 "needs_expert_review": False,
                 "analysis_plan": new_plan,
