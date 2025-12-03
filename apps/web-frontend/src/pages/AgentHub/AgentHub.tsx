@@ -16,8 +16,11 @@ import { MessageList, Message } from '../../components/agent-hub/messages';
 import type { DocumentAnalysisMetadata } from '../../types/agentHub';
 
 // Services
-import { agentHubService } from '../../services/agentHubService';
+import { agentHubService, ProgressEvent } from '../../services/agentHubService';
 import { ChatSession, SuggestedQuestion, AttachmentPayload } from '../../types/agentHub';
+
+// Types
+import type { ExecutionStatus } from '../../components/agent-hub/layout/AppLayout';
 
 // Styles
 import './AgentHub.css';
@@ -40,7 +43,7 @@ const AgentHub: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [suggestedQuestions, setSuggestedQuestions] = useState<SuggestedQuestion[]>([]);
-  const [executionStatus, setExecutionStatus] = useState<string | null>(null);
+  const [executionStatus, setExecutionStatus] = useState<ExecutionStatus | null>(null);
 
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -211,7 +214,12 @@ const AgentHub: React.FC = () => {
       setMessages((prev) => [...prev, aiMessage]);
 
       setIsStreaming(true);
-      setExecutionStatus('분석 중...');
+      setExecutionStatus({
+        name: '분석 중...',
+        step: 'ANALYZING',
+        progress: 5,
+        message: '질문을 분석하고 있습니다...',
+      });
 
       // SSE 스트리밍 시작
       abortControllerRef.current = agentHubService.chat.sendStream(
@@ -239,7 +247,12 @@ const AgentHub: React.FC = () => {
             );
           },
           onWorkflow: (workflow) => {
-            setExecutionStatus(`${workflow} 실행 중...`);
+            setExecutionStatus((prev) => ({
+              ...prev,
+              name: `${workflow} 실행 중...`,
+              step: 'EXECUTING',
+              message: `${workflow} 워크플로우를 실행하고 있습니다...`,
+            }));
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === aiMessageId
@@ -253,6 +266,17 @@ const AgentHub: React.FC = () => {
                   : msg
               )
             );
+          },
+          onProgress: (progressEvent: ProgressEvent) => {
+            // Progress 이벤트로 실행 상태 업데이트
+            setExecutionStatus({
+              name: progressEvent.message,
+              step: progressEvent.step,
+              progress: progressEvent.percentage,
+              message: progressEvent.message,
+              execution_path: progressEvent.execution_path,
+              step_details: progressEvent.step_details,
+            });
           },
           onSource: (sources) => {
             setMessages((prev) =>
@@ -468,7 +492,7 @@ const AgentHub: React.FC = () => {
         id: s.id,
         title: s.title,
         lastMessage: s.lastMessage,
-        timestamp: new Date(s.updatedAt),
+        timestamp: s.updatedAt,
         isActive: s.id === sessionId,
       }))}
       currentSessionId={sessionId}
@@ -478,14 +502,7 @@ const AgentHub: React.FC = () => {
       onSendMessage={handleSendMessage}
       onStopStreaming={handleStopStreaming}
       isStreaming={isStreaming}
-      executionStatus={
-        executionStatus
-          ? {
-              name: executionStatus,
-              progress: isStreaming ? 50 : 0,
-            }
-          : undefined
-      }
+      executionStatus={executionStatus || undefined}
       suggestedQuestions={(suggestedQuestions ?? []).map((q) => q.text)}
       onSuggestedQuestionClick={handleSuggestedQuestionClick}
     >

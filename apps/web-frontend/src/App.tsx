@@ -66,7 +66,7 @@ function App() {
           } />
 
           {/* Feature routes - publicly accessible for demo */}
-          <Route path="/research/cases" element={
+          <Route path="/documents/research" element={
             <Layout>
               <RecentPrecedents />
             </Layout>

@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+
+def _utc_now():
+    """UTC 타임존이 포함된 현재 시간 반환"""
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import Select, func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -43,7 +48,7 @@ async def ensure_session_record(
         'organization_id': _to_uuid(organization_id),
         'project_id': _to_uuid(project_id),
         'title': title or '',
-        'last_activity': datetime.utcnow(),
+        'last_activity': _utc_now(),
     }
 
     async with write_async_session() as db:
@@ -105,7 +110,7 @@ async def record_message(
     if not session_uuid:
         return
 
-    now = datetime.utcnow()
+    now = _utc_now()
     async with write_async_session() as db:
         message = AgentHubMessage(
             session_id=session_uuid,

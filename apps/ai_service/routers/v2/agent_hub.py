@@ -23,7 +23,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 import logging
 import json
@@ -84,6 +84,7 @@ router = APIRouter(prefix="/v2/agent-hub", tags=["Agent Hub"])
 
 class IntentCategory(str, Enum):
     """의도 카테고리"""
+    UNKNOWN = "UNKNOWN"                  # 분류되지 않음 (기본값)
     GENERAL_CHAT = "GENERAL_CHAT"        # 일반 대화 (법률과 무관)
     QUERY = "QUERY"                      # 일반 법률 질의응답
     DOCUMENT_ANALYSIS = "DOCUMENT_ANALYSIS"  # 문서 분석
@@ -365,6 +366,27 @@ WORKFLOW_PERMISSIONS = {
 def generate_session_id() -> str:
     """새 세션 ID 생성"""
     return str(uuid.uuid4())
+
+
+def utc_now() -> datetime:
+    """UTC 타임존이 포함된 현재 시간 반환"""
+    return datetime.now(timezone.utc)
+
+
+def ensure_utc(dt: datetime | None) -> datetime:
+    """datetime을 UTC 타임존이 포함된 형식으로 변환
+
+    PostgreSQL은 timestamp with timezone을 세션 타임존으로 반환하므로,
+    naive datetime은 로컬 시간(KST = UTC+9)으로 간주하고 UTC로 변환합니다.
+    """
+    if dt is None:
+        return utc_now()
+    if dt.tzinfo is None:
+        # DB에서 반환된 naive datetime은 로컬 시간(KST = UTC+9)
+        # KST로 간주하고 UTC로 변환
+        kst = timezone(timedelta(hours=9))
+        return dt.replace(tzinfo=kst).astimezone(timezone.utc)
+    return dt
 
 
 def user_info_to_context(user_info: Dict[str, Any]) -> UserContext:
@@ -785,9 +807,9 @@ async def _non_streaming_response(
 
         execution_time = (datetime.now() - start_time).total_seconds()
 
-        # 결과 추출
-        intent_dict = final_state.get("intent", {})
-        execution_plan = final_state.get("execution_plan", {})
+        # 결과 추출 (None 체크 추가)
+        intent_dict = final_state.get("intent") or {}
+        execution_plan = final_state.get("execution_plan") or {}
         final_response_text = final_state.get("final_response", "")
         workflow_results = final_state.get("workflow_results", {})
         document_analysis = _extract_document_analysis(workflow_results)
@@ -933,7 +955,7 @@ async def create_session(
             # 폴백: 메모리 기반 세션
             session_id = generate_session_id()
 
-        created_at = datetime.now()
+        created_at = utc_now()
         expires_at = created_at + timedelta(hours=12)
         title = request.title or "새 대화"
 
@@ -1298,15 +1320,20 @@ async def list_sessions(
                 logger.warning(f"세션 목록 조회 실패 (Redis): {e}")
 
         for session in db_sessions:
+            # 디버그: datetime 상태 확인
+            raw_created_at = session.created_at
+            converted_created_at = ensure_utc(raw_created_at)
+            logger.info(f"[datetime debug] raw={raw_created_at}, tzinfo={raw_created_at.tzinfo if raw_created_at else None}, converted={converted_created_at}, converted_iso={converted_created_at.isoformat()}")
+
             session_responses.append(
                 SessionResponse(
                     session_id=str(session.session_id),
-                    created_at=(session.created_at or datetime.now()).isoformat(),
-                    expires_at=((session.last_activity or datetime.now()) + timedelta(hours=12)).isoformat(),
+                    created_at=converted_created_at.isoformat(),
+                    expires_at=(ensure_utc(session.last_activity) + timedelta(hours=12)).isoformat(),
                     organization_id=str(session.organization_id) if session.organization_id else None,
                     project_id=str(session.project_id) if session.project_id else None,
                     title=session.title or "새 대화",
-                    updated_at=(session.last_activity or session.created_at or datetime.now()).isoformat(),
+                    updated_at=ensure_utc(session.last_activity or session.created_at).isoformat(),
                     message_count=session.total_messages,
                     last_message=session.last_message_preview or None,
                     user_id=str(session.user_id),
@@ -1361,12 +1388,12 @@ async def get_session(
         if db_session:
             session_data = SessionResponse(
                 session_id=str(db_session.session_id),
-                created_at=(db_session.created_at or datetime.now()).isoformat(),
-                expires_at=((db_session.last_activity or datetime.now()) + timedelta(hours=12)).isoformat(),
+                created_at=ensure_utc(db_session.created_at).isoformat(),
+                expires_at=(ensure_utc(db_session.last_activity) + timedelta(hours=12)).isoformat(),
                 organization_id=str(db_session.organization_id) if db_session.organization_id else None,
                 project_id=str(db_session.project_id) if db_session.project_id else None,
                 title=db_session.title or "새 대화",
-                updated_at=(db_session.last_activity or db_session.created_at or datetime.now()).isoformat(),
+                updated_at=ensure_utc(db_session.last_activity or db_session.created_at).isoformat(),
                 message_count=db_session.total_messages,
                 last_message=db_session.last_message_preview or None,
                 user_id=str(db_session.user_id),
@@ -1467,7 +1494,7 @@ async def update_session(
             update_data["project_id"] = request.project_id
 
         if update_data:
-            update_data["last_activity"] = datetime.now()
+            update_data["last_activity"] = utc_now()
             await update_session_metadata(session_id, update_data)
             try:
                 await session_service.update_session(session_id, {
@@ -1485,12 +1512,12 @@ async def update_session(
 
         return SessionResponse(
             session_id=str(latest_session.session_id),
-            created_at=(latest_session.created_at or datetime.now()).isoformat(),
-            expires_at=((latest_session.last_activity or datetime.now()) + timedelta(hours=12)).isoformat(),
+            created_at=ensure_utc(latest_session.created_at).isoformat(),
+            expires_at=(ensure_utc(latest_session.last_activity) + timedelta(hours=12)).isoformat(),
             organization_id=str(latest_session.organization_id) if latest_session.organization_id else None,
             project_id=str(latest_session.project_id) if latest_session.project_id else None,
             title=latest_session.title or "새 대화",
-            updated_at=(latest_session.last_activity or datetime.now()).isoformat(),
+            updated_at=ensure_utc(latest_session.last_activity).isoformat(),
             message_count=latest_session.total_messages,
             last_message=latest_session.last_message_preview or None,
             user_id=str(latest_session.user_id),

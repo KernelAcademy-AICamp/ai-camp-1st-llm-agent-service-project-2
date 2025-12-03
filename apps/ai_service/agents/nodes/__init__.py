@@ -70,6 +70,33 @@ from apps.ai_service.agents.nodes.generate_response_node import (
     generate_response_node_sync,
     ResponseFormat,
 )
+from apps.ai_service.agents.nodes.complexity_classifier_node import (
+    complexity_classifier_node,
+    complexity_classifier_node_sync,
+    route_by_complexity,
+)
+from apps.ai_service.agents.nodes.fast_path_node import (
+    fast_path_node,
+    fast_path_node_sync,
+)
+from apps.ai_service.agents.nodes.medium_path_node import (
+    medium_path_node,
+    medium_path_node_sync,
+)
+from apps.ai_service.agents.nodes.deep_path_node import (
+    deep_path_node,
+    deep_path_node_sync,
+)
+from apps.ai_service.agents.nodes.cache_check_node import (
+    cache_check_node,
+    cache_check_node_sync,
+)
+
+# Thinking Path (Phase 6)
+from apps.ai_service.agents.nodes.thinking_path_node import (
+    thinking_path_node,
+    thinking_path_node_sync,
+)
 
 
 __all__ = [
@@ -87,4 +114,23 @@ __all__ = [
     "generate_response_node_sync",
     # 타입
     "ResponseFormat",
+    # Complexity Classifier (Adaptive Agent)
+    "complexity_classifier_node",
+    "complexity_classifier_node_sync",
+    "route_by_complexity",
+    # Fast Path (Adaptive Agent)
+    "fast_path_node",
+    "fast_path_node_sync",
+    # Medium Path (Adaptive Agent)
+    "medium_path_node",
+    "medium_path_node_sync",
+    # Deep Path (Adaptive Agent)
+    "deep_path_node",
+    "deep_path_node_sync",
+    # Cache Check (Adaptive Agent)
+    "cache_check_node",
+    "cache_check_node_sync",
+    # Thinking Path (Adaptive Agent Phase 6)
+    "thinking_path_node",
+    "thinking_path_node_sync",
 ]

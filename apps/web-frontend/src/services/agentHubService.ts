@@ -18,6 +18,17 @@ import {
   MessageMetadata,
 } from '../types/agentHub';
 
+/**
+ * Progress 이벤트 데이터 타입
+ */
+export interface ProgressEvent {
+  step: 'ANALYZING' | 'PLANNING' | 'SEARCHING' | 'EXECUTING' | 'THINKING' | 'GENERATING' | 'COMPLETED';
+  percentage: number;
+  message: string;
+  execution_path?: 'fast' | 'medium' | 'deep' | 'thinking';
+  step_details?: Record<string, any>;
+}
+
 interface PreprocessAttachmentResponse {
   success: boolean;
   text?: string;
@@ -57,13 +68,28 @@ interface HistoryApiResponse {
   total_messages: number;
 }
 
+/**
+ * 날짜 문자열을 Date 객체로 변환
+ * PostgreSQL은 timestamp with timezone을 세션 타임존(KST)으로 반환하므로,
+ * 타임존 정보가 없는 경우 KST(+09:00)로 간주합니다.
+ */
+const parseUTCDate = (dateStr: string | null | undefined): Date => {
+  if (!dateStr) return new Date();
+  // 이미 타임존 정보가 있으면 그대로 파싱
+  if (dateStr.endsWith('Z') || dateStr.includes('+') || /\d{2}:\d{2}:\d{2}-\d{2}/.test(dateStr)) {
+    return new Date(dateStr);
+  }
+  // 타임존 정보가 없으면 KST(UTC+9)로 간주
+  return new Date(dateStr + '+09:00');
+};
+
 const mapSession = (session: SessionApiModel): ChatSession => ({
   id: session.session_id,
   userId: session.user_id ?? '',
   title: session.title || '새 대화',
   projectId: session.project_id || undefined,
-  createdAt: new Date(session.created_at),
-  updatedAt: new Date(session.updated_at || session.created_at || Date.now()),
+  createdAt: parseUTCDate(session.created_at),
+  updatedAt: parseUTCDate(session.updated_at || session.created_at),
   messageCount: session.message_count ?? 0,
   lastMessage: session.last_message || undefined,
 });
@@ -197,7 +223,7 @@ export const agentHubService = {
         sessionId: response.session_id,
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
-        timestamp: new Date(msg.timestamp),
+        timestamp: parseUTCDate(msg.timestamp),
         metadata: msg.metadata,
       }));
     },
@@ -232,7 +258,8 @@ export const agentHubService = {
         onSource?: (sources: Array<{ title: string; url?: string }>) => void;
         onError?: (error: Error) => void;
         onComplete?: (message: ChatMessage) => void;
-        onTitleGenerated?: (title: string) => void;  // 제목 생성 콜백 추가
+        onTitleGenerated?: (title: string) => void;
+        onProgress?: (progress: ProgressEvent) => void;  // 진행 상태 콜백
       }
     ): AbortController => {
       const abortController = new AbortController();
@@ -325,6 +352,32 @@ export const agentHubService = {
                   // response_generating 이벤트 - 응답 생성 중 표시
                   if (eventType === 'response_generating') {
                     // 로딩 상태 유지
+                  }
+
+                  // progress 이벤트 - 진행 상태 업데이트
+                  if (eventType === 'progress') {
+                    // 백엔드는 소문자로 보내므로 대문자로 변환
+                    const stepMapping: Record<string, ProgressEvent['step']> = {
+                      'analyzing': 'ANALYZING',
+                      'classifying': 'ANALYZING',  // classifying -> ANALYZING로 매핑
+                      'planning': 'PLANNING',
+                      'searching': 'SEARCHING',
+                      'executing': 'EXECUTING',
+                      'thinking': 'THINKING',
+                      'generating': 'GENERATING',
+                      'complete': 'COMPLETED',
+                    };
+                    const rawStep = (eventData.step || 'executing').toLowerCase();
+                    const mappedStep = stepMapping[rawStep] || 'EXECUTING';
+
+                    const progressData: ProgressEvent = {
+                      step: mappedStep,
+                      percentage: eventData.percentage || 0,
+                      message: eventData.message || '처리 중...',
+                      execution_path: eventData.execution_path,
+                      step_details: eventData.step_details,
+                    };
+                    callbacks.onProgress?.(progressData);
                   }
 
                   // complete 이벤트 - 최종 응답
