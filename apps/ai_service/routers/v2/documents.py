@@ -8,10 +8,14 @@ Phase 4 - Week 12: LangGraph 기반 문서 분석 API
 - 병렬 실행 (summarize + extract_clauses)
 - Checkpointing 불필요 (빠른 실행)
 - 기존 v1 API와 호환성 유지
+- OCR 폴백 지원 (스캔된 PDF)
+- 2단계 업로드 플로우 (OCR 결과 사용자 검토)
 
 엔드포인트:
 - POST /v2/documents/analyze - 문서 분석
 - POST /v2/documents/analyze/text - 텍스트 직접 분석
+- POST /v2/documents/extract - 텍스트 추출 (OCR 포함)
+- POST /v2/documents/confirm - 추출된 텍스트 확인 후 분석
 - GET /v2/documents/health - 헬스체크
 """
 
@@ -24,8 +28,12 @@ import tempfile
 import os
 
 from apps.ai_service.workflows.document_workflow import DocumentWorkflow
+from apps.ai_service.services.document_processor import DocumentProcessor
 
 logger = logging.getLogger(__name__)
+
+# Initialize document processor
+document_processor = DocumentProcessor()
 
 router = APIRouter(prefix="/v2/documents", tags=["documents-v2"])
 
@@ -83,6 +91,39 @@ class DocumentErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     timestamp: str
+
+
+# ===== Two-Phase Upload Models =====
+
+class ExtractionMetadata(BaseModel):
+    """추출 메타데이터"""
+    page_count: int = 0
+    char_count: int = 0
+    avg_confidence: Optional[float] = None
+    preprocessing: Optional[str] = None
+
+
+class DocumentExtractResponse(BaseModel):
+    """텍스트 추출 응답 (Phase 1)"""
+    success: bool
+    text: str = ""
+    extraction_method: str = Field(..., description="추출 방법: pymupdf, ocr, docx, txt")
+    needs_review: bool = Field(..., description="사용자 검토 필요 여부 (OCR인 경우 True)")
+    confidence: float = Field(100.0, description="추출 신뢰도 (0-100)")
+    file_type: str = ""
+    metadata: Optional[ExtractionMetadata] = None
+    error: Optional[str] = None
+    timestamp: str
+
+
+class DocumentConfirmRequest(BaseModel):
+    """텍스트 확인 요청 (Phase 2)"""
+    text: str = Field(..., description="사용자가 확인/수정한 텍스트", min_length=10)
+    file_type: str = Field("pdf", description="원본 파일 유형")
+    doc_type: str = Field("OTHER", description="문서 유형")
+    document_id: Optional[str] = Field(None, description="문서 ID")
+    session_id: Optional[str] = Field(None, description="세션 ID")
+    original_metadata: Optional[Dict[str, Any]] = Field(None, description="원본 추출 메타데이터")
 
 
 # ===== API Endpoints =====
@@ -208,6 +249,140 @@ async def analyze_document_text(request: DocumentAnalyzeRequest):
 
     except Exception as e:
         logger.error(f"[v2/documents/analyze/text] Error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ===== Two-Phase Upload Endpoints =====
+
+@router.post("/extract", response_model=DocumentExtractResponse)
+async def extract_document_text(
+    file: UploadFile = File(...)
+):
+    """
+    파일에서 텍스트 추출 (Phase 1 of two-phase upload)
+
+    PDF 파일의 경우:
+    1. 먼저 PyMuPDF로 직접 텍스트 추출 시도
+    2. 텍스트가 충분하지 않으면 OCR로 폴백
+    3. OCR 결과는 needs_review=True로 반환
+
+    Args:
+        file: 업로드 파일 (PDF, DOCX, TXT)
+
+    Returns:
+        추출된 텍스트와 메타데이터
+        - needs_review가 True이면 사용자 검토 후 /confirm 호출 필요
+    """
+    temp_path = None
+    try:
+        logger.info(f"[v2/documents/extract] file={file.filename}")
+
+        # 파일 확장자 검증
+        filename = file.filename or "document"
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in [".pdf", ".docx", ".txt"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {ext}. Supported: pdf, docx, txt"
+            )
+
+        # 임시 파일로 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_path = temp_file.name
+
+        # 텍스트 추출 (OCR 폴백 포함)
+        result = document_processor.extract_text_for_review(temp_path)
+
+        if not result.get('success', False):
+            return DocumentExtractResponse(
+                success=False,
+                text="",
+                extraction_method="failed",
+                needs_review=False,
+                confidence=0.0,
+                file_type=ext.replace(".", ""),
+                error=result.get('error', 'Unknown error'),
+                timestamp=datetime.now().isoformat()
+            )
+
+        # 메타데이터 구성
+        metadata = None
+        if result.get('metadata'):
+            raw_metadata = result['metadata']
+            metadata = ExtractionMetadata(
+                page_count=raw_metadata.get('page_count', 0),
+                char_count=raw_metadata.get('char_count', len(result.get('text', ''))),
+                avg_confidence=raw_metadata.get('avg_confidence'),
+                preprocessing=raw_metadata.get('preprocessing')
+            )
+
+        return DocumentExtractResponse(
+            success=True,
+            text=result.get('text', ''),
+            extraction_method=result.get('extraction_method', 'unknown'),
+            needs_review=result.get('needs_review', False),
+            confidence=result.get('confidence', 100.0),
+            file_type=result.get('file_type', ext.replace(".", "")),
+            metadata=metadata,
+            timestamp=datetime.now().isoformat()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[v2/documents/extract] Error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+    finally:
+        # 임시 파일 정리
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp file: {e}")
+
+
+@router.post("/confirm", response_model=DocumentAnalyzeResponse)
+async def confirm_and_analyze(request: DocumentConfirmRequest):
+    """
+    추출된 텍스트 확인 후 분석 진행 (Phase 2 of two-phase upload)
+
+    사용자가 /extract에서 받은 텍스트를 확인/수정한 후 호출.
+    수정된 텍스트로 문서 분석을 진행합니다.
+
+    Args:
+        request: 확인된 텍스트와 메타데이터
+
+    Returns:
+        문서 분석 결과 (요약, 조항 등)
+    """
+    try:
+        logger.info(
+            f"[v2/documents/confirm] text_len={len(request.text)}, "
+            f"type={request.doc_type}"
+        )
+
+        # 워크플로우 실행 (텍스트 직접 제공)
+        workflow = DocumentWorkflow()
+        result = await workflow.arun(
+            text=request.text,
+            doc_type=request.doc_type,
+            document_id=request.document_id,
+            session_id=request.session_id
+        )
+
+        # 응답 생성
+        return _build_response(result, request.session_id)
+
+    except Exception as e:
+        logger.error(f"[v2/documents/confirm] Error: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=str(e)

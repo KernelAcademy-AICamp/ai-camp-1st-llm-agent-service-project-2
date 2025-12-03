@@ -1,43 +1,61 @@
 """
 Database Connection
-Django와 동일한 PostgreSQL 공유
+Django와 동일한 PostgreSQL 공유 (또는 SQLite for development)
 - 기본: 읽기 전용
 - 크롤러: 쓰기 가능
 """
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
+from pathlib import Path
 import os
 import logging
 
 logger = logging.getLogger(__name__)
 
-# 환경변수에서 DATABASE_URL 가져오기
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://myidwon:@localhost:5432/lawlaw"
-)
+# SQLite 사용 여부 (개발 환경용)
+USE_SQLITE = os.getenv("USE_SQLITE", "True") == "True"
 
-# Read-Only 엔진 생성 (기본)
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,  # SQL 로그 비활성화 (프로덕션)
-    pool_pre_ping=True,  # 연결 상태 확인
-    pool_size=5,  # 읽기 전용이므로 작게
-    max_overflow=10,
-    # Read-Only 트랜잭션 격리 수준
-    isolation_level="READ COMMITTED"
-)
+if USE_SQLITE:
+    # SQLite for development
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    SQLITE_PATH = BASE_DIR / "db.sqlite3"
+    DATABASE_URL = f"sqlite+aiosqlite:///{SQLITE_PATH}"
 
-# Write 가능 엔진 (크롤러용)
-write_engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True,
-    pool_size=3,  # 크롤러용 작은 풀
-    max_overflow=5,
-    isolation_level="READ COMMITTED"
-)
+    # SQLite 엔진 (Read/Write 모두 동일)
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False}
+    )
+    write_engine = engine  # SQLite에서는 동일 엔진 사용
+else:
+    # PostgreSQL for production
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://myidwon:@localhost:5432/lawlaw"
+    )
+
+    # Read-Only 엔진 생성 (기본)
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,  # SQL 로그 비활성화 (프로덕션)
+        pool_pre_ping=True,  # 연결 상태 확인
+        pool_size=5,  # 읽기 전용이므로 작게
+        max_overflow=10,
+        # Read-Only 트랜잭션 격리 수준
+        isolation_level="READ COMMITTED"
+    )
+
+    # Write 가능 엔진 (크롤러용)
+    write_engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=3,  # 크롤러용 작은 풀
+        max_overflow=5,
+        isolation_level="READ COMMITTED"
+    )
 
 # AsyncSession factory (Read-Only)
 async_session = sessionmaker(

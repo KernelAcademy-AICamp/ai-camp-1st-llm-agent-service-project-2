@@ -9,7 +9,25 @@ import {
   AnalysisStatus,
   ANALYSIS_STATUS_LABELS
 } from '../types';
+import OCRReviewModal from '../components/OCRReviewModal/OCRReviewModal';
 import '../styles/Documents.css';
+
+// Type for OCR extraction result (matches OCRReviewModal's ExtractionResult interface)
+interface ExtractionResult {
+  success: boolean;
+  text: string;
+  extraction_method: string;
+  needs_review: boolean;
+  confidence: number;
+  file_type: string;
+  metadata?: {
+    page_count?: number;
+    char_count?: number;
+    avg_confidence?: number;
+    preprocessing?: string;
+  };
+  error?: string;
+}
 
 const Documents: React.FC = () => {
   const { token } = useAuth();
@@ -28,6 +46,12 @@ const Documents: React.FC = () => {
 
   // Drag and drop state
   const [dragging, setDragging] = useState(false);
+
+  // OCR Review state
+  const [showOCRModal, setShowOCRModal] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
+  const [confirmedText, setConfirmedText] = useState<string | null>(null);  // 확인된 텍스트 저장
 
   // Guide banner state
   const [showGuideBanner, setShowGuideBanner] = useState(() => {
@@ -71,14 +95,23 @@ const Documents: React.FC = () => {
     loadDocuments();
   }, [loadDocuments]);
 
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file selection - for PDFs, immediately trigger extraction
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setUploadFile(file);
-      setShowUploadForm(true);
+      const defaultTitle = file.name.replace(/\.[^/.]+$/, '');
       if (!uploadTitle) {
-        setUploadTitle(file.name.replace(/\.[^/.]+$/, ''));
+        setUploadTitle(defaultTitle);
+      }
+
+      // For PDF files, immediately trigger text extraction
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension === 'pdf') {
+        await triggerExtraction(file);
+      } else {
+        // For non-PDF files, show upload form directly
+        setShowUploadForm(true);
       }
     }
   };
@@ -101,7 +134,7 @@ const Documents: React.FC = () => {
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragging(false);
@@ -109,9 +142,18 @@ const Documents: React.FC = () => {
     const file = e.dataTransfer.files?.[0];
     if (file) {
       setUploadFile(file);
-      setShowUploadForm(true);
+      const defaultTitle = file.name.replace(/\.[^/.]+$/, '');
       if (!uploadTitle) {
-        setUploadTitle(file.name.replace(/\.[^/.]+$/, ''));
+        setUploadTitle(defaultTitle);
+      }
+
+      // For PDF files, immediately trigger text extraction
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension === 'pdf') {
+        await triggerExtraction(file);
+      } else {
+        // For non-PDF files, show upload form directly
+        setShowUploadForm(true);
       }
     }
   };
@@ -152,7 +194,59 @@ const Documents: React.FC = () => {
     pollingIntervalsRef.current.set(documentId, pollInterval);
   }, [token]);
 
-  // Handle upload and start analysis (replaces old handleUpload)
+  // Immediately trigger text extraction when PDF is selected
+  const triggerExtraction = async (file: File) => {
+    setExtracting(true);
+    setShowOCRModal(true);  // Show modal immediately with loading state
+    setError(null);
+
+    try {
+      const response = await apiClient.extractDocumentText(file);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Text extraction failed');
+      }
+
+      // Store extraction result (matching OCRReviewModal's expected format)
+      const result: ExtractionResult = {
+        success: response.success,
+        text: response.text,
+        extraction_method: response.extraction_method,
+        needs_review: response.needs_review,
+        confidence: response.confidence,
+        file_type: response.file_type,
+        metadata: response.metadata,
+        error: response.error,
+      };
+      setExtractionResult(result);
+      // Modal stays open for user to review/edit the extracted text
+    } catch (err: any) {
+      setError(err.message || 'Text extraction failed');
+      setShowOCRModal(false);  // Close modal on error
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  // Handle OCR modal confirmation - store text and show upload form
+  const handleOCRConfirm = (text: string) => {
+    setConfirmedText(text);  // Store the confirmed text
+    setShowOCRModal(false);
+    setShowUploadForm(true);  // Now show the upload form for title/type selection
+  };
+
+  // Handle OCR modal cancel - reset everything
+  const handleOCRCancel = () => {
+    setShowOCRModal(false);
+    setExtractionResult(null);
+    setConfirmedText(null);
+    setUploadFile(null);
+    setUploadTitle('');
+  };
+
+  // Handle analyze button click
+  // Uses confirmedText directly if available (from OCR review modal)
+  // Now always uses Django's uploadAndAnalyze to ensure results are saved to DB
   const handleUploadAndAnalyze = async () => {
     if (!uploadFile || !uploadTitle || !token) return;
 
@@ -160,26 +254,29 @@ const Documents: React.FC = () => {
     setError(null);
 
     try {
-      // Upload and start auto-analysis
+      // Always use Django's uploadAndAnalyze API to ensure results are saved to DB
+      // Pass confirmedText if available (from OCR review) to skip re-extraction
       const response = await apiClient.uploadAndAnalyze(
         uploadFile,
         uploadTitle,
         uploadDocType,
         'ko',
-        token
+        token,
+        confirmedText || undefined  // Pass confirmed text if available
       );
 
-      // Reset form
+      // Start polling for analysis status
+      startPollingAnalysisStatus(response.document.id);
+
+      // Reset form state
       setUploadFile(null);
       setUploadTitle('');
       setUploadDocType('CONTRACT');
       setShowUploadForm(false);
+      setExtractionResult(null);
+      setConfirmedText(null);
 
-      // Reload documents to get the new one
       await loadDocuments();
-
-      // Start polling for this document's analysis status
-      startPollingAnalysisStatus(response.document.id);
     } catch (err: any) {
       setError(err.message || 'Upload and analyze failed');
     } finally {
@@ -202,6 +299,9 @@ const Documents: React.FC = () => {
     setUploadTitle('');
     setUploadDocType('CONTRACT');
     setShowUploadForm(false);
+    setExtractionResult(null);
+    setConfirmedText(null);
+    setShowOCRModal(false);
   };
 
   // Status badge
@@ -333,12 +433,24 @@ const Documents: React.FC = () => {
             <button
               className="btn-submit btn-analyze"
               onClick={handleUploadAndAnalyze}
-              disabled={uploading || !uploadTitle}
+              disabled={uploading || extracting || !uploadTitle}
             >
-              {uploading ? '업로드 및 분석 중...' : '분석하기'}
+              {extracting ? '텍스트 추출 중...' : uploading ? '업로드 및 분석 중...' : '분석하기'}
             </button>
           </div>
         </div>
+      )}
+
+      {/* OCR Review Modal */}
+      {showOCRModal && (
+        <OCRReviewModal
+          isOpen={showOCRModal}
+          onClose={handleOCRCancel}
+          onConfirm={handleOCRConfirm}
+          extractionResult={extractionResult}
+          fileName={uploadFile?.name || ''}
+          isLoading={extracting}
+        />
       )}
 
       {/* Error Message */}

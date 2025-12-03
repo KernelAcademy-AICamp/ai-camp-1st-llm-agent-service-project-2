@@ -69,17 +69,27 @@ WSGI_APPLICATION = 'backend_api.wsgi.application'
 # ASGI 설정 (async view 지원)
 ASGI_APPLICATION = 'backend_api.asgi.application'
 
-# Database (✅ Phase 0 PostgreSQL 계정 사용)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'lawlaw'),
-        'USER': os.getenv('DB_USER', 'myidwon'),  # ← Phase 0 계정
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),  # ← Phase 0는 비밀번호 없음
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+# Database (SQLite for development, PostgreSQL for production)
+USE_SQLITE = os.getenv('USE_SQLITE', 'True') == 'True'
+
+if USE_SQLITE:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'lawlaw'),
+            'USER': os.getenv('DB_USER', 'myidwon'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'

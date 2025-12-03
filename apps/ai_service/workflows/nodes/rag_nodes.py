@@ -85,20 +85,27 @@ def _get_global_retriever(state_retriever=None):
     from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
     from libs.rag_core.retrieval.bm25_index import BM25Index
     from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
-    from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
     from apps.ai_service.config.settings import settings
 
-    embedder = RemoteEmbedder(
-        base_url=settings.REMOTE_EMBED_BASE_URL,
-        api_key=settings.REMOTE_EMBED_API_KEY,
-        model=settings.EMBED_MODEL
-    )
+    # EMBED_MODE에 따라 로컬/원격 임베더 선택
+    if settings.EMBED_MODE == "local":
+        from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
+        embedder = KoreanLegalEmbedder()
+        embedding_dim = 768
+    else:
+        from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
+        embedder = RemoteEmbedder(
+            base_url=settings.REMOTE_EMBED_BASE_URL,
+            api_key=settings.REMOTE_EMBED_API_KEY,
+            model=settings.EMBED_MODEL
+        )
+        embedding_dim = 1024
 
     vectordb = QdrantVectorDB(
         url=settings.QDRANT_URL,
         api_key=settings.QDRANT_API_KEY or None,
         collection_name=settings.QDRANT_COLLECTION,
-        embedding_dim=1024
+        embedding_dim=embedding_dim
     )
 
     semantic_retriever = LegalDocumentRetriever(

@@ -97,71 +97,119 @@ async def startup_event():
     logger.info(f"Starting {settings.SERVICE_NAME} v{settings.SERVICE_VERSION}")
     logger.info("=" * 60)
 
+    # 개발 모드에서 필수 서비스 연결 실패 시에도 기본 서비스 시작 허용
+    import os
+    DEV_MODE = os.getenv("DEV_MODE", "True") == "True"
+
     try:
         # 1. Database 초기화
         await init_db()
-        logger.info("✅ Database connection initialized (Read-Only PostgreSQL)")
+        logger.info("✅ Database connection initialized")
+
+        # 기본 상태 초기화 (None으로 설정)
+        app.state.embedder = None
+        app.state.vectordb = None
+        app.state.embedder_local = None
+        app.state.bm25 = None
+        app.state.retriever = None
+        app.state.llm_client = None
+        app.state.chatbot = None
+        app.state.crawler_pipeline = None
+        app.state.crawler_scheduler = None
 
         # ===== v2 컴포넌트 (RAG Workflow용) =====
-        # 2a. v2 Embedder 초기화 (RemoteEmbedder - GPU 불필요)
-        logger.info("📊 Initializing v2 RemoteEmbedder...")
-        embedder_v2 = RemoteEmbedder(
-            base_url=settings.REMOTE_EMBED_BASE_URL,
-            api_key=settings.REMOTE_EMBED_API_KEY,
-            model=settings.EMBED_MODEL
-        )
-        app.state.embedder = embedder_v2  # v2용 (RAG workflow)
-        logger.info("✅ v2 RemoteEmbedder initialized")
+        vectordb_v2 = None
+        embedder_v2 = None
+        bm25 = None
+        embedder_local = None
 
-        # 3a. v2 VectorDB 로드 (QdrantVectorDB)
-        logger.info("📦 Loading v2 QdrantVectorDB...")
-        vectordb_v2 = QdrantVectorDB(
-            url=settings.QDRANT_URL,
-            api_key=settings.QDRANT_API_KEY or None,
-            collection_name=settings.QDRANT_COLLECTION,
-            embedding_dim=1024  # snowflake-arctic-embed-l-v2.0-ko
-        )
-        v2_doc_count = vectordb_v2.get_count()
-        app.state.vectordb = vectordb_v2  # v2용 (RAG workflow)
-        logger.info(f"✅ v2 QdrantVectorDB loaded: {v2_doc_count} documents")
+        try:
+            # 2a. v2 Embedder 초기화 (EMBED_MODE에 따라 로컬/원격 선택)
+            if settings.EMBED_MODE == "local":
+                logger.info("📊 Initializing v2 LocalEmbedder (KoreanLegalEmbedder)...")
+                embedder_v2 = KoreanLegalEmbedder()
+                app.state.embedder = embedder_v2
+                logger.info("✅ v2 LocalEmbedder initialized (768 dim)")
+            else:
+                logger.info("📊 Initializing v2 RemoteEmbedder...")
+                embedder_v2 = RemoteEmbedder(
+                    base_url=settings.REMOTE_EMBED_BASE_URL,
+                    api_key=settings.REMOTE_EMBED_API_KEY,
+                    model=settings.EMBED_MODEL
+                )
+                app.state.embedder = embedder_v2  # v2용 (RAG workflow)
+                logger.info("✅ v2 RemoteEmbedder initialized (1024 dim)")
+        except Exception as e:
+            logger.warning(f"⚠️  Embedder initialization failed: {e}")
 
-        # ===== Crawler Pipeline용 로컬 Embedder =====
-        # KoreanLegalEmbedder - 로컬 GPU 사용 (크롤러 인덱싱용)
-        logger.info("📊 Initializing KoreanLegalEmbedder for Crawler...")
-        embedder_local = KoreanLegalEmbedder()
-        app.state.embedder_local = embedder_local  # Crawler용 로컬 임베더
-        logger.info("✅ KoreanLegalEmbedder initialized")
+        try:
+            # 3a. v2 VectorDB 로드 (QdrantVectorDB)
+            # EMBED_MODE에 따라 차원 설정: local=768, remote=1024
+            embedding_dim = 768 if settings.EMBED_MODE == "local" else 1024
+            logger.info(f"📦 Loading v2 QdrantVectorDB (dim={embedding_dim})...")
+            vectordb_v2 = QdrantVectorDB(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY or None,
+                collection_name=settings.QDRANT_COLLECTION,
+                embedding_dim=embedding_dim
+            )
+            v2_doc_count = vectordb_v2.get_count()
+            app.state.vectordb = vectordb_v2  # v2용 (RAG workflow)
+            logger.info(f"✅ v2 QdrantVectorDB loaded: {v2_doc_count} documents")
+        except Exception as e:
+            logger.warning(f"⚠️  QdrantVectorDB initialization failed: {e}")
+            logger.warning("⚠️  RAG features will not be available")
+
+        try:
+            # ===== Crawler Pipeline용 로컬 Embedder =====
+            # KoreanLegalEmbedder - 로컬 GPU 사용 (크롤러 인덱싱용)
+            logger.info("📊 Initializing KoreanLegalEmbedder for Crawler...")
+            embedder_local = KoreanLegalEmbedder()
+            app.state.embedder_local = embedder_local  # Crawler용 로컬 임베더
+            logger.info("✅ KoreanLegalEmbedder initialized")
+        except Exception as e:
+            logger.warning(f"⚠️  KoreanLegalEmbedder initialization failed: {e}")
 
         # 4. BM25 Index 로드
         logger.info("📦 Loading BM25 index...")
         if settings.BM25_DIR.exists():
-            bm25 = BM25Index()  # 빈 인스턴스 생성
-            bm25.load(str(settings.BM25_DIR))  # 디렉토리 경로 전달
-            app.state.bm25 = bm25
-            logger.info(f"✅ BM25 index loaded: {bm25.get_count()} documents")
+            try:
+                bm25 = BM25Index()  # 빈 인스턴스 생성
+                bm25.load(str(settings.BM25_DIR))  # 디렉토리 경로 전달
+                app.state.bm25 = bm25
+                logger.info(f"✅ BM25 index loaded: {bm25.get_count()} documents")
+            except Exception as e:
+                logger.warning(f"⚠️  BM25 index load failed: {e}")
+                bm25 = BM25Index()
+                app.state.bm25 = bm25
         else:
             logger.warning("⚠️  BM25 index not found, creating empty index")
             bm25 = BM25Index()
             app.state.bm25 = bm25
 
         # 5. v2 LegalDocumentRetriever 초기화 (RAG Workflow용)
-        semantic_retriever = LegalDocumentRetriever(
-            vectordb=vectordb_v2,
-            embedder=embedder_v2
-        )
+        # VectorDB가 있을 때만 초기화
+        retriever = None
+        if vectordb_v2 and embedder_v2:
+            semantic_retriever = LegalDocumentRetriever(
+                vectordb=vectordb_v2,
+                embedder=embedder_v2
+            )
 
-        # 6. v2 Hybrid Retriever 초기화 (RAG Workflow용)
-        retriever = HybridRetriever(
-            semantic_retriever=semantic_retriever,
-            bm25_index=bm25
-        )
-        app.state.retriever = retriever
-        logger.info("✅ v2 Hybrid Retriever initialized")
+            # 6. v2 Hybrid Retriever 초기화 (RAG Workflow용)
+            retriever = HybridRetriever(
+                semantic_retriever=semantic_retriever,
+                bm25_index=bm25
+            )
+            app.state.retriever = retriever
+            logger.info("✅ v2 Hybrid Retriever initialized")
 
-        # 6.1. RAG 노드에 전역 retriever 설정 (LangGraph checkpointing 직렬화 문제 방지)
-        from apps.ai_service.workflows.nodes.rag_nodes import set_global_retriever
-        set_global_retriever(retriever)
-        logger.info("✅ Global retriever set for RAG nodes")
+            # 6.1. RAG 노드에 전역 retriever 설정 (LangGraph checkpointing 직렬화 문제 방지)
+            from apps.ai_service.workflows.nodes.rag_nodes import set_global_retriever
+            set_global_retriever(retriever)
+            logger.info("✅ Global retriever set for RAG nodes")
+        else:
+            logger.warning("⚠️  VectorDB or Embedder not available, Retriever not initialized")
 
         # 7. LLM Client 초기화
         if settings.LLM_API_KEY:
@@ -177,37 +225,42 @@ async def startup_event():
             app.state.llm_client = llm_client
             logger.info("✅ LLM client initialized")
 
-            # 8. Constitutional AI Chatbot 초기화
-            chatbot = ConstitutionalLawChatbot(
-                llm_client=llm_client,
-                retriever=retriever
-            )
-            app.state.chatbot = chatbot
-            logger.info("✅ Constitutional AI Chatbot initialized")
+            # 8. Constitutional AI Chatbot 초기화 (retriever가 있을 때만)
+            if retriever:
+                chatbot = ConstitutionalLawChatbot(
+                    llm_client=llm_client,
+                    retriever=retriever
+                )
+                app.state.chatbot = chatbot
+                logger.info("✅ Constitutional AI Chatbot initialized")
+            else:
+                logger.warning("⚠️  Retriever not available, chatbot will not be available")
         else:
             logger.warning("⚠️  LLM_API_KEY not set, chatbot will not be available")
-            app.state.llm_client = None
-            app.state.chatbot = None
 
         # 9. Crawler Pipeline 초기화 (KoreanLegalEmbedder + QdrantVectorDB)
-        logger.info("🕷️ Initializing Crawler Pipeline...")
-        from services.crawler_pipeline import CrawlerPipeline
-        from services.scheduler import CrawlJobScheduler
+        if embedder_local and vectordb_v2:
+            try:
+                logger.info("🕷️ Initializing Crawler Pipeline...")
+                from services.crawler_pipeline import CrawlerPipeline
+                from services.scheduler import CrawlJobScheduler
 
-        crawler_pipeline = CrawlerPipeline(
-            embedder=embedder_local,   # KoreanLegalEmbedder (로컬 GPU)
-            vectordb=vectordb_v2,      # QdrantVectorDB (공용)
-            bm25_index=bm25
-        )
-        app.state.crawler_pipeline = crawler_pipeline
-        logger.info("✅ Crawler Pipeline initialized (QdrantVectorDB + KoreanLegalEmbedder)")
+                crawler_pipeline = CrawlerPipeline(
+                    embedder=embedder_local,   # KoreanLegalEmbedder (로컬 GPU)
+                    vectordb=vectordb_v2,      # QdrantVectorDB (공용)
+                    bm25_index=bm25
+                )
+                app.state.crawler_pipeline = crawler_pipeline
+                logger.info("✅ Crawler Pipeline initialized (QdrantVectorDB + KoreanLegalEmbedder)")
 
-        # 10. Crawler Scheduler 초기화
-        logger.info("📅 Initializing Crawler Scheduler...")
-        crawler_scheduler = CrawlJobScheduler(pipeline=crawler_pipeline)
-        crawler_scheduler.start()
-        app.state.crawler_scheduler = crawler_scheduler
-        logger.info("✅ Crawler Scheduler initialized")
+                # 10. Crawler Scheduler 초기화
+                logger.info("📅 Initializing Crawler Scheduler...")
+                crawler_scheduler = CrawlJobScheduler(pipeline=crawler_pipeline)
+                crawler_scheduler.start()
+                app.state.crawler_scheduler = crawler_scheduler
+                logger.info("✅ Crawler Scheduler initialized")
+            except Exception as e:
+                logger.warning(f"⚠️  Crawler Pipeline initialization failed: {e}")
 
         # 11. WorkflowExecutor 초기화 (retriever 주입)
         logger.info("🔧 Initializing WorkflowExecutor...")
@@ -223,7 +276,9 @@ async def startup_event():
 
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
-        raise
+        if not DEV_MODE:
+            raise
+        logger.warning("⚠️  DEV_MODE: Starting with limited functionality")
 
 @app.on_event("shutdown")
 async def shutdown_event():
