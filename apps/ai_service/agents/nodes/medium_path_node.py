@@ -127,12 +127,37 @@ async def medium_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
     # =========================================================================
     # 2. 입력 파라미터 준비
     # =========================================================================
-    inputs = _prepare_inputs(quick_plan, user_message, attachments or [])
+    user_context = state.get("user_context", {})
+    user_id = user_context.get("user_id") if user_context else None
+    inputs = _prepare_inputs(quick_plan, user_message, attachments or [], user_id=user_id)
 
     # =========================================================================
     # 3. 워크플로우 또는 도구 실행
     # =========================================================================
     registry = get_tool_registry()
+
+    # 도구/워크플로우 실행 시작 이벤트
+    execution_name = quick_plan.workflow_name or quick_plan.tool_name or "rag_workflow"
+    execution_category = "search" if "rag" in execution_name.lower() or "search" in execution_name.lower() else \
+                        "document" if "document" in execution_name.lower() else \
+                        "analysis" if "case" in execution_name.lower() or "risk" in execution_name.lower() else \
+                        "utility"
+
+    tool_start_event = StreamingEvent(
+        event="tool_execution_start",
+        data={
+            "step": 1,
+            "tool": execution_name,
+            "category": execution_category,
+            "description": workflow_desc,
+            "input_preview": user_message[:80] + ("..." if len(user_message) > 80 else ""),
+            "status": "running",
+        },
+        timestamp=datetime.now().isoformat(),
+    )
+    streaming_events.append(tool_start_event.model_dump())
+
+    execution_start_time = datetime.now()
 
     if quick_plan.workflow_name:
         result = await registry.execute_workflow(
@@ -151,6 +176,25 @@ async def medium_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
             workflow_name="rag_workflow",
             inputs={"query": user_message, "top_k": 5},
         )
+
+    # 실행 시간 계산
+    execution_time = (datetime.now() - execution_start_time).total_seconds()
+
+    # 도구/워크플로우 실행 완료 이벤트
+    tool_complete_event = StreamingEvent(
+        event="tool_execution_complete",
+        data={
+            "step": 1,
+            "tool": execution_name,
+            "category": execution_category,
+            "status": "completed" if result.success else "failed",
+            "success": result.success,
+            "execution_time": round(execution_time, 2),
+            "result_preview": _get_result_preview(result) if result.success else result.error,
+        },
+        timestamp=datetime.now().isoformat(),
+    )
+    streaming_events.append(tool_complete_event.model_dump())
 
     # =========================================================================
     # 4. 결과 처리
@@ -256,10 +300,42 @@ def _create_quick_plan_from_intent(
     )
 
 
+def _get_result_preview(result: ToolResult, max_length: int = 100) -> str:
+    """
+    도구 실행 결과 미리보기 생성
+
+    Args:
+        result: ToolResult 객체
+        max_length: 미리보기 최대 길이
+
+    Returns:
+        결과 미리보기 문자열
+    """
+    if not result.data:
+        return "(결과 없음)"
+
+    # 주요 필드 우선 확인
+    priority_keys = ["answer", "response", "summary", "result", "analysis"]
+    for key in priority_keys:
+        if key in result.data:
+            value = result.data[key]
+            if isinstance(value, str):
+                return value[:max_length] + ("..." if len(value) > max_length else "")
+
+    # 전체 데이터 문자열 변환
+    import json
+    try:
+        data_str = json.dumps(result.data, ensure_ascii=False)
+        return data_str[:max_length] + ("..." if len(data_str) > max_length else "")
+    except (TypeError, ValueError):
+        return str(result.data)[:max_length]
+
+
 def _prepare_inputs(
     quick_plan: QuickPlan,
     user_message: str,
     attachments: List[Dict[str, Any]],
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     워크플로우/도구 실행을 위한 입력 준비
@@ -268,6 +344,7 @@ def _prepare_inputs(
         quick_plan: QuickPlan
         user_message: 사용자 메시지
         attachments: 첨부 파일 목록
+        user_id: 사용자 UUID (도구 호출 시 필요)
 
     Returns:
         입력 딕셔너리
@@ -280,6 +357,10 @@ def _prepare_inputs(
 
     if "user_message" not in inputs:
         inputs["user_message"] = user_message
+
+    # 사용자 ID 추가 (사용자 문서/사건 조회 도구용)
+    if user_id:
+        inputs["user_id"] = user_id
 
     # 첨부 파일 처리
     if attachments:

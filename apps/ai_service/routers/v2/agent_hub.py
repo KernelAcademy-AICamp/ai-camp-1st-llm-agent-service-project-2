@@ -179,6 +179,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="응답 설정"
     )
+    use_tool_use: bool = Field(
+        default=True,
+        description="Tool Use Agent 사용 여부 (True: LLM Native Tool Use, False: 기존 복잡도 기반 분기)"
+    )
 
 
 class CreateSessionRequest(BaseModel):
@@ -238,6 +242,7 @@ class ChatResponse(BaseModel):
     workflows_used: List[str]
     structured_data: Optional[Dict[str, Any]] = None
     visualizations: Optional[List[Dict[str, Any]]] = None
+    sources: Optional[List[Dict[str, Any]]] = None  # 참고 자료 (검색 결과)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: str
 
@@ -592,6 +597,7 @@ async def agent_hub_chat(
                     start_time=start_time,
                     is_first_message=is_first_message,
                     current_title=current_title,
+                    use_tool_use=request.use_tool_use,
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -611,6 +617,7 @@ async def agent_hub_chat(
             start_time=start_time,
             is_first_message=is_first_message,
             current_title=current_title,
+            use_tool_use=request.use_tool_use,
         )
 
     except HTTPException:
@@ -632,15 +639,26 @@ async def _stream_agent_response(
     start_time: datetime,
     is_first_message: bool = False,
     current_title: str = "",
+    use_tool_use: bool = True,
 ):
     """
     SSE 스트리밍 응답 생성기
 
     Master Agent를 실행하면서 실시간으로 이벤트를 전송합니다.
+
+    Args:
+        use_tool_use: True면 LLM Native Tool Use Agent,
+                      False면 기존 복잡도 기반 4-way 분기
+
+    Note: 클라이언트가 연결을 끊어도 (페이지 이동 등) 백엔드는
+    응답 생성을 완료하고 DB에 저장합니다. 사용자가 다시 돌아오면
+    저장된 응답을 세션 히스토리에서 볼 수 있습니다.
     """
     final_response = ""
+    accumulated_content = ""  # 스트리밍 중 누적된 응답 (클라이언트 중단 대비)
     workflows_used = []
     intent_category = "UNKNOWN"
+    response_saved = False  # 응답 저장 여부 플래그
 
     try:
         # 1. 시작 이벤트
@@ -651,8 +669,25 @@ async def _stream_agent_response(
             "timestamp": start_time.isoformat()
         })
 
+        # 1.5. 다양한 도구에 대한 early indicator 전송
+        # LangGraph 노드 완료를 기다리지 않고 선제적으로 표시
+        # 키워드 기반으로 예상되는 도구를 감지하여 즉시 표시
+        early_indicators = _detect_early_tool_indicators(request.message)
+
+        for indicator in early_indicators:
+            logger.info(f"[stream] Early indicator detected: {indicator['tool']}")
+            yield _format_sse_event("tool_execution_start", {
+                "step": indicator.get("step", 0),
+                "tool": indicator["tool"],
+                "category": indicator["category"],
+                "description": indicator["description"],
+                "status": "running",
+            })
+
         # 2. Master Agent 실행 (스트리밍)
-        agent = MasterAgent()
+        # use_tool_use=True: LLM Native Tool Use Agent (Claude/ChatGPT 방식)
+        # use_tool_use=False: 기존 복잡도 기반 4-way 분기 (FAST/MEDIUM/DEEP/THINKING)
+        agent = MasterAgent(use_tool_use=use_tool_use)
 
         # 대화 기록 포맷 변환 (LangGraph용)
         formatted_history = [
@@ -665,14 +700,91 @@ async def _stream_agent_response(
         if request.attachments:
             attachments = [att.model_dump() for att in request.attachments]
 
-        # 스트리밍 실행
-        async for event in agent.stream(
-            message=request.message,
-            session_id=session_id,
-            user_context=user_context,
-            attachments=attachments,
-            conversation_history=formatted_history,
-        ):
+        # 스트리밍 실행 (heartbeat 포함)
+        # 긴 작업 중에도 연결을 유지하기 위해 주기적으로 heartbeat 전송
+        heartbeat_interval = 3  # 3초마다 heartbeat (더 빠르게)
+
+        async def stream_with_heartbeat():
+            """
+            heartbeat을 포함한 스트리밍 이터레이터
+
+            Queue + 별도 Task 패턴을 사용하여 generator 취소 문제를 방지합니다.
+            asyncio.wait_for()는 타임아웃 시 coroutine을 취소하므로,
+            Queue를 사용하여 producer/consumer 분리합니다.
+            """
+            event_queue = asyncio.Queue()
+            stream_done = asyncio.Event()
+
+            async def stream_producer():
+                """agent.stream()에서 이벤트를 받아 큐에 넣음"""
+                event_count = 0
+                logger.info(f"[stream_producer] Starting stream producer for session {session_id}")
+                try:
+                    async for event in agent.stream(
+                        message=request.message,
+                        session_id=session_id,
+                        user_context=user_context,
+                        attachments=attachments,
+                        conversation_history=formatted_history,
+                    ):
+                        event_count += 1
+                        event_type = event.get("event", "unknown")
+                        logger.info(f"[stream_producer] Received event #{event_count}: {event_type}")
+                        await event_queue.put(event)
+                    logger.info(f"[stream_producer] Stream completed normally, total events: {event_count}")
+                except Exception as e:
+                    logger.error(f"[stream_producer] Error after {event_count} events: {e}", exc_info=True)
+                    await event_queue.put({"event": "error", "data": {"message": str(e)}})
+                finally:
+                    logger.info(f"[stream_producer] Finalizing, events processed: {event_count}")
+                    stream_done.set()
+                    await event_queue.put(None)  # sentinel value
+
+            # producer task 시작
+            producer_task = asyncio.create_task(stream_producer())
+
+            try:
+                heartbeat_count = 0
+                event_consumed = 0
+                logger.info(f"[stream_consumer] Starting consumer loop")
+                while True:
+                    try:
+                        # 타임아웃으로 큐에서 이벤트 대기
+                        # Queue.get()에 타임아웃을 적용하면 generator는 취소되지 않음
+                        event = await asyncio.wait_for(
+                            event_queue.get(),
+                            timeout=heartbeat_interval
+                        )
+                        if event is None:  # sentinel - 스트림 종료
+                            logger.info(f"[stream_consumer] Received sentinel, total consumed: {event_consumed}")
+                            break
+                        event_consumed += 1
+                        event_type = event.get("event", "unknown")
+                        logger.info(f"[stream_consumer] Yielding event #{event_consumed}: {event_type}")
+                        yield event
+                    except asyncio.TimeoutError:
+                        # 타임아웃 시 heartbeat 전송 (연결 유지)
+                        heartbeat_count += 1
+                        elapsed = (datetime.now() - start_time).total_seconds()
+                        logger.info(f"[heartbeat] Sending heartbeat #{heartbeat_count} at {elapsed:.1f}s")
+                        yield {
+                            "event": "heartbeat",
+                            "data": {
+                                "elapsed_seconds": round(elapsed, 1),
+                                "message": "처리 중입니다...",
+                                "heartbeat_count": heartbeat_count,
+                            }
+                        }
+            finally:
+                # 정리: producer task 취소
+                if not producer_task.done():
+                    producer_task.cancel()
+                    try:
+                        await producer_task
+                    except asyncio.CancelledError:
+                        pass
+
+        async for event in stream_with_heartbeat():
             # 이벤트 타입 추출
             event_type = event.get("event", "message")
             event_data = event.get("data", {})
@@ -684,6 +796,11 @@ async def _stream_agent_response(
             elif event_type == "execution_plan":
                 workflows_used = event_data.get("workflows", [])
 
+            elif event_type == "content":
+                # 스트리밍 중 응답 누적 (클라이언트 중단 대비)
+                delta = event_data.get("delta", "")
+                accumulated_content += delta
+
             elif event_type == "complete":
                 final_response = event_data.get("response", "")
                 workflows_used = event_data.get("workflows_used", workflows_used)
@@ -694,17 +811,21 @@ async def _stream_agent_response(
         # 3. 완료 후 처리
         execution_time = (datetime.now() - start_time).total_seconds()
 
+        # 최종 응답 결정 (complete 이벤트 응답 또는 누적된 콘텐츠)
+        response_to_save = final_response or accumulated_content
+
         # 어시스턴트 메시지 저장
         try:
             await add_assistant_message(
                 session_id=session_id,
-                content=final_response,
+                content=response_to_save,
                 metadata={
                     "intent": intent_category,
                     "workflows_used": workflows_used,
                     "execution_time": execution_time,
                 }
             )
+            response_saved = True
         except Exception as e:
             logger.warning(f"[stream] Failed to save assistant message: {e}")
 
@@ -746,24 +867,37 @@ async def _stream_agent_response(
     except Exception as e:
         logger.error(f"[stream] Error: {e}", exc_info=True)
 
-        # 에러 이벤트 전송
-        yield _format_sse_event("error", {
-            "message": str(e),
-            "type": type(e).__name__,
-        })
-
-        # 에러 응답 저장
+        # 에러 이벤트 전송 (클라이언트 연결이 끊긴 경우 실패할 수 있음)
         try:
-            await add_assistant_message(
-                session_id=session_id,
-                content=f"오류가 발생했습니다: {str(e)}",
-                metadata={
-                    "error": True,
-                    "error_type": type(e).__name__,
-                }
-            )
+            yield _format_sse_event("error", {
+                "message": str(e),
+                "type": type(e).__name__,
+            })
         except Exception:
             pass
+
+        # 응답이 아직 저장되지 않은 경우에만 저장
+        if not response_saved:
+            execution_time = (datetime.now() - start_time).total_seconds()
+
+            # 누적된 콘텐츠가 있으면 그것을 저장, 없으면 에러 메시지
+            content_to_save = accumulated_content if accumulated_content else f"오류가 발생했습니다: {str(e)}"
+            try:
+                await add_assistant_message(
+                    session_id=session_id,
+                    content=content_to_save,
+                    metadata={
+                        "error": not accumulated_content,  # 누적 콘텐츠가 없으면 에러로 표시
+                        "error_type": type(e).__name__ if not accumulated_content else None,
+                        "partial_response": bool(accumulated_content),
+                        "intent": intent_category,
+                        "workflows_used": workflows_used,
+                        "execution_time": execution_time,
+                    }
+                )
+                logger.info(f"[stream] Saved {'partial' if accumulated_content else 'error'} response on exception")
+            except Exception as save_error:
+                logger.error(f"[stream] Failed to save response on exception: {save_error}")
 
 
 async def _non_streaming_response(
@@ -775,15 +909,22 @@ async def _non_streaming_response(
     start_time: datetime,
     is_first_message: bool = False,
     current_title: str = "",
+    use_tool_use: bool = True,
 ) -> ChatResponse:
     """
     비스트리밍 응답 생성
 
     Master Agent를 실행하고 최종 결과만 반환합니다.
+
+    Args:
+        use_tool_use: True면 LLM Native Tool Use Agent,
+                      False면 기존 복잡도 기반 4-way 분기
     """
     try:
         # Master Agent 실행
-        agent = MasterAgent()
+        # use_tool_use=True: LLM Native Tool Use Agent (Claude/ChatGPT 방식)
+        # use_tool_use=False: 기존 복잡도 기반 4-way 분기 (FAST/MEDIUM/DEEP/THINKING)
+        agent = MasterAgent(use_tool_use=use_tool_use)
 
         # 대화 기록 포맷 변환
         formatted_history = [
@@ -872,6 +1013,12 @@ async def _non_streaming_response(
         if document_analysis:
             metadata["document_analysis"] = document_analysis
 
+        # sources 추출 (workflow_results에서)
+        sources = []
+        if workflow_results:
+            sources = workflow_results.get("sources", [])
+            logger.info(f"[non-streaming] Extracted {len(sources)} sources from workflow_results")
+
         return ChatResponse(
             response=final_response_text,
             format=ResponseFormat.TEXT,
@@ -880,6 +1027,7 @@ async def _non_streaming_response(
             execution_time=execution_time,
             workflows_used=workflows_used,
             structured_data=workflow_results if workflow_results else None,
+            sources=sources if sources else None,
             metadata=metadata,
             timestamp=datetime.now().isoformat()
         )
@@ -901,6 +1049,111 @@ async def _non_streaming_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# ===== Early Tool Indicator Detection =====
+# 사용자 메시지에서 예상되는 도구를 키워드 기반으로 감지
+# LangGraph 노드 완료 전에 즉시 표시하여 사용자 경험 향상
+
+TOOL_KEYWORD_MAPPING = [
+    # 법률 검색 (RAG)
+    {
+        "keywords": ['법', '판례', '소송', '형사', '민사', '손해배상', '채권', '채무', '권리', '의무', '위법', '위반', '법령', '조문', '법률'],
+        "tool": "search_legal",
+        "category": "search",
+        "description": "법률 정보를 검색하고 있습니다...",
+        "priority": 1,
+    },
+    # 계약 관련 (법률 검색과 별도로 우선순위 높음)
+    {
+        "keywords": ['계약', '해지', '해제', '갱신', '위약금', '계약서'],
+        "tool": "search_legal",
+        "category": "search",
+        "description": "계약 관련 법률 정보를 검색하고 있습니다...",
+        "priority": 2,
+    },
+    # 사건 목록 조회
+    {
+        "keywords": ['내 사건', '사건 목록', '사건 현황', '담당 사건', '진행 중인 사건', '사건들'],
+        "tool": "list_user_criminal_cases",
+        "category": "database",
+        "description": "사건 목록을 조회하고 있습니다...",
+        "priority": 3,
+    },
+    # 문서 목록 조회
+    {
+        "keywords": ['내 문서', '문서 목록', '업로드한 문서', '문서들', '파일 목록'],
+        "tool": "list_user_documents",
+        "category": "database",
+        "description": "문서 목록을 조회하고 있습니다...",
+        "priority": 3,
+    },
+    # 문서 분석
+    {
+        "keywords": ['문서 분석', '분석해줘', '요약해줘', '리스크 분석', '위험 분석'],
+        "tool": "get_document_analysis",
+        "category": "analysis",
+        "description": "문서를 분석하고 있습니다...",
+        "priority": 2,
+    },
+    # 리스크 현황
+    {
+        "keywords": ['리스크 현황', '위험도', '리스크 통계', '위험한 문서'],
+        "tool": "get_risk_overview",
+        "category": "analysis",
+        "description": "리스크 현황을 분석하고 있습니다...",
+        "priority": 2,
+    },
+    # 양형 관련
+    {
+        "keywords": ['양형', '형량', '선고', '징역', '벌금', '집행유예'],
+        "tool": "get_criminal_case_highest_sentence",
+        "category": "database",
+        "description": "양형 정보를 조회하고 있습니다...",
+        "priority": 2,
+    },
+    # 통계 관련
+    {
+        "keywords": ['통계', '현황', '분포', '개수', '몇 개'],
+        "tool": "get_user_case_statistics",
+        "category": "analysis",
+        "description": "통계 정보를 조회하고 있습니다...",
+        "priority": 4,
+    },
+]
+
+
+def _detect_early_tool_indicators(message: str) -> List[Dict[str, Any]]:
+    """
+    사용자 메시지에서 예상되는 도구를 키워드 기반으로 감지
+
+    Args:
+        message: 사용자 메시지
+
+    Returns:
+        감지된 도구 indicator 목록 (최대 1개, 가장 우선순위 높은 것)
+    """
+    message_lower = message.lower()
+    matched_tools = []
+
+    for mapping in TOOL_KEYWORD_MAPPING:
+        # 키워드 매칭
+        matched = any(keyword in message_lower for keyword in mapping["keywords"])
+        if matched:
+            matched_tools.append({
+                "step": 0,
+                "tool": mapping["tool"],
+                "category": mapping["category"],
+                "description": mapping["description"],
+                "priority": mapping["priority"],
+            })
+
+    if not matched_tools:
+        return []
+
+    # 우선순위가 가장 높은 도구만 반환 (낮은 숫자 = 높은 우선순위)
+    matched_tools.sort(key=lambda x: x["priority"])
+    return [matched_tools[0]]
 
 
 def _format_sse_event(event: str, data: Dict[str, Any]) -> str:

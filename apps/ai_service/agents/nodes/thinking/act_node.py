@@ -10,7 +10,7 @@ Phase 6-1: Thinking Agent - ReAct 패턴의 Act 단계
 """
 
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import logging
 
@@ -64,14 +64,26 @@ async def act_node(state: FullMasterAgentState) -> Dict[str, Any]:
         logger.info("[act_node] FINAL_ANSWER - skipping execution")
         return {}
 
-    # 실행 시작 이벤트
-    streaming_events.append(StreamingEvent(
-        event="action_start",
-        data={"step": last_step.step_number, "action": action},
-        timestamp=datetime.now().isoformat(),
-    ).model_dump())
-
+    # 도구 정보 가져오기
     registry = get_tool_registry()
+    tool_def = registry.get_tool(action)
+    tool_category = tool_def.category.value if tool_def else "unknown"
+    tool_description = tool_def.description if tool_def else ""
+
+    # 실행 시작 이벤트 (상세 정보 포함)
+    start_time = datetime.now()
+    streaming_events.append(StreamingEvent(
+        event="tool_execution_start",
+        data={
+            "step": last_step.step_number,
+            "tool": action,
+            "category": tool_category,
+            "description": tool_description,
+            "input_preview": _get_input_preview(action_input),
+            "status": "running",
+        },
+        timestamp=start_time.isoformat(),
+    ).model_dump())
 
     try:
         # 입력 정규화
@@ -103,15 +115,24 @@ async def act_node(state: FullMasterAgentState) -> Dict[str, Any]:
     accumulated_context = list(state.get("accumulated_context", []))
     accumulated_context.append(f"[{action}] {observation[:500]}")
 
-    # 실행 완료 이벤트
+    # 실행 시간 계산
+    end_time = datetime.now()
+    execution_time = (end_time - start_time).total_seconds()
+    is_success = not observation.startswith("실패") and not observation.startswith("오류") and not observation.startswith("시간 초과")
+
+    # 실행 완료 이벤트 (상세 정보 포함)
     streaming_events.append(StreamingEvent(
-        event="action_complete",
+        event="tool_execution_complete",
         data={
             "step": last_step.step_number,
-            "action": action,
-            "success": not observation.startswith("실패") and not observation.startswith("오류"),
+            "tool": action,
+            "category": tool_category,
+            "status": "completed" if is_success else "failed",
+            "success": is_success,
+            "execution_time": round(execution_time, 2),
+            "result_preview": _get_result_preview(observation),
         },
-        timestamp=datetime.now().isoformat(),
+        timestamp=end_time.isoformat(),
     ).model_dump())
 
     logger.info(f"[act_node] Observation: {observation[:100]}...")
@@ -133,6 +154,38 @@ def act_node_sync(state: FullMasterAgentState) -> Dict[str, Any]:
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+def _get_input_preview(action_input: Any, max_length: int = 80) -> str:
+    """도구 입력값 미리보기 생성"""
+    if action_input is None:
+        return ""
+    if isinstance(action_input, str):
+        return action_input[:max_length] + ("..." if len(action_input) > max_length else "")
+    if isinstance(action_input, dict):
+        preview_keys = ["query", "user_message", "keyword", "search_query"]
+        for key in preview_keys:
+            if key in action_input:
+                val = str(action_input[key])
+                return val[:max_length] + ("..." if len(val) > max_length else "")
+        if action_input:
+            first_val = str(list(action_input.values())[0])
+            return first_val[:max_length] + ("..." if len(first_val) > max_length else "")
+    return str(action_input)[:max_length]
+
+
+def _get_result_preview(observation: str, max_length: int = 150) -> str:
+    """도구 실행 결과 미리보기 생성"""
+    if not observation:
+        return "(결과 없음)"
+    # 에러/실패 메시지는 전체 표시
+    if observation.startswith(("실패:", "오류:", "시간 초과")):
+        return observation[:max_length]
+    # 성공 결과는 미리보기
+    preview = observation[:max_length]
+    if len(observation) > max_length:
+        preview += "..."
+    return preview
+
 
 def _normalize_inputs(
     action_input: Any,
@@ -168,6 +221,13 @@ def _normalize_inputs(
 
     # 세션 정보 추가
     inputs["session_id"] = state.get("session_id", "")
+
+    # 사용자 ID 추가 (사용자 문서/사건 조회 도구용)
+    user_context = state.get("user_context", {})
+    if user_context:
+        user_id = user_context.get("user_id")
+        if user_id:
+            inputs["user_id"] = user_id
 
     return inputs
 

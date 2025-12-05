@@ -132,6 +132,7 @@ async def _execute_step_with_timeout(
     user_message: str,
     attachments: List[Dict[str, Any]],
     timeout: float = STEP_TIMEOUT,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     타임아웃과 함께 단계 실행
@@ -143,6 +144,7 @@ async def _execute_step_with_timeout(
         user_message: 사용자 메시지
         attachments: 첨부 파일 목록
         timeout: 타임아웃 (초)
+        user_id: 사용자 UUID (도구 호출 시 필요)
 
     Returns:
         {
@@ -159,7 +161,7 @@ async def _execute_step_with_timeout(
     start_time = time.time()
 
     # 입력 준비 (의존성 결과 주입)
-    inputs = _prepare_step_inputs(step, previous_results, user_message, attachments)
+    inputs = _prepare_step_inputs(step, previous_results, user_message, attachments, user_id=user_id)
 
     try:
         # 워크플로우 또는 도구 실행
@@ -324,6 +326,10 @@ async def deep_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
     total_tool_calls = 0
     total_tokens = 0
 
+    # user_id 추출
+    user_context = state.get("user_context", {})
+    user_id = user_context.get("user_id") if user_context else None
+
     registry = get_tool_registry()
 
     for group_idx, group in enumerate(execution_groups):
@@ -365,6 +371,23 @@ async def deep_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
 
         # 병렬 실행 (그룹 내 단계들)
         if len(group) > 1:
+            # 도구 실행 시작 이벤트들 (모든 그룹 멤버)
+            for step in group:
+                step_category = _get_step_category(step.name)
+                tool_start_event = StreamingEvent(
+                    event="tool_execution_start",
+                    data={
+                        "step": group_idx + 1,
+                        "tool": step.name,
+                        "category": step_category,
+                        "description": f"{step.name} 실행 중",
+                        "input_preview": user_message[:60] + "..." if len(user_message) > 60 else user_message,
+                        "status": "running",
+                    },
+                    timestamp=datetime.now().isoformat(),
+                )
+                streaming_events.append(tool_start_event.model_dump())
+
             # asyncio.gather로 병렬 실행
             tasks = [
                 _execute_step_with_timeout(
@@ -374,6 +397,7 @@ async def deep_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
                     user_message,
                     attachments,
                     timeout=STEP_TIMEOUT,
+                    user_id=user_id,
                 )
                 for step in group
             ]
@@ -401,6 +425,23 @@ async def deep_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
                 total_tool_calls += 1
                 total_tokens += step_result.get("tokens_used", 0)
 
+                # 도구 실행 완료 이벤트
+                step_category = _get_step_category(step.name)
+                tool_complete_event = StreamingEvent(
+                    event="tool_execution_complete",
+                    data={
+                        "step": group_idx + 1,
+                        "tool": step.name,
+                        "category": step_category,
+                        "status": "completed" if step_result.get("success") else "failed",
+                        "success": step_result.get("success", False),
+                        "execution_time": round(step_result.get("execution_time", 0), 2),
+                        "result_preview": _get_result_preview_text(step_result),
+                    },
+                    timestamp=datetime.now().isoformat(),
+                )
+                streaming_events.append(tool_complete_event.model_dump())
+
                 # 실행 로그
                 execution_logs.append({
                     "step_id": step.step_id,
@@ -417,6 +458,23 @@ async def deep_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
         else:
             # 단일 작업은 직접 실행
             step = group[0]
+
+            # 도구 실행 시작 이벤트
+            step_category = _get_step_category(step.name)
+            tool_start_event = StreamingEvent(
+                event="tool_execution_start",
+                data={
+                    "step": group_idx + 1,
+                    "tool": step.name,
+                    "category": step_category,
+                    "description": f"{step.name} 실행 중",
+                    "input_preview": user_message[:60] + "..." if len(user_message) > 60 else user_message,
+                    "status": "running",
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            streaming_events.append(tool_start_event.model_dump())
+
             result = await _execute_step_with_timeout(
                 registry,
                 step,
@@ -424,11 +482,28 @@ async def deep_path_node(state: ExtendedMasterAgentState) -> Dict[str, Any]:
                 user_message,
                 attachments,
                 timeout=STEP_TIMEOUT,
+                user_id=user_id,
             )
 
             all_results[step.step_id] = result
             total_tool_calls += 1
             total_tokens += result.get("tokens_used", 0)
+
+            # 도구 실행 완료 이벤트
+            tool_complete_event = StreamingEvent(
+                event="tool_execution_complete",
+                data={
+                    "step": group_idx + 1,
+                    "tool": step.name,
+                    "category": step_category,
+                    "status": "completed" if result.get("success") else "failed",
+                    "success": result.get("success", False),
+                    "execution_time": round(result.get("execution_time", 0), 2),
+                    "result_preview": _get_result_preview_text(result),
+                },
+                timestamp=datetime.now().isoformat(),
+            )
+            streaming_events.append(tool_complete_event.model_dump())
 
             # 실행 로그
             execution_logs.append({
@@ -897,6 +972,7 @@ def _prepare_step_inputs(
     previous_results: Dict[str, Any],
     user_message: str,
     attachments: List[Dict[str, Any]],
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     단계 입력 준비
@@ -906,6 +982,10 @@ def _prepare_step_inputs(
     inputs = dict(step.inputs) if step.inputs else {}
     inputs["user_message"] = user_message
     inputs["query"] = user_message
+
+    # 사용자 ID 추가 (사용자 문서/사건 조회 도구용)
+    if user_id:
+        inputs["user_id"] = user_id
 
     # 이전 단계 결과 추가 (의존성 주입)
     depends_on = step.depends_on if hasattr(step, 'depends_on') and step.depends_on else []
@@ -931,3 +1011,71 @@ def _prepare_step_inputs(
                 inputs["filename"] = attachment["filename"]
 
     return inputs
+
+
+# =============================================================================
+# 도구 실행 이벤트용 헬퍼 함수
+# =============================================================================
+
+def _get_step_category(step_name: str) -> str:
+    """
+    단계/도구 이름에서 카테고리 추출
+
+    Args:
+        step_name: 단계 또는 도구 이름
+
+    Returns:
+        카테고리 문자열 (search, analysis, document, utility)
+    """
+    step_lower = step_name.lower()
+
+    if any(kw in step_lower for kw in ["search", "rag", "precedent", "statute", "법령", "판례"]):
+        return "search"
+    elif any(kw in step_lower for kw in ["document", "doc", "문서"]):
+        return "document"
+    elif any(kw in step_lower for kw in ["case", "risk", "analysis", "analyze", "분석", "리스크"]):
+        return "analysis"
+    elif any(kw in step_lower for kw in ["compare", "comparison", "비교"]):
+        return "analysis"
+    else:
+        return "utility"
+
+
+def _get_result_preview_text(result: Dict[str, Any], max_length: int = 100) -> str:
+    """
+    결과 미리보기 텍스트 생성
+
+    Args:
+        result: 단계 실행 결과 딕셔너리
+        max_length: 미리보기 최대 길이
+
+    Returns:
+        미리보기 문자열
+    """
+    if not result.get("success"):
+        return result.get("error", "실행 실패")[:max_length]
+
+    data = result.get("data")
+    if not data:
+        return "(결과 없음)"
+
+    # 주요 필드 우선 확인
+    priority_keys = ["answer", "response", "summary", "result", "analysis", "output"]
+    for key in priority_keys:
+        if isinstance(data, dict) and key in data:
+            value = data[key]
+            if isinstance(value, str):
+                return value[:max_length] + ("..." if len(value) > max_length else "")
+
+    # dict인 경우 JSON 문자열로 변환
+    if isinstance(data, dict):
+        import json
+        try:
+            data_str = json.dumps(data, ensure_ascii=False)
+            return data_str[:max_length] + ("..." if len(data_str) > max_length else "")
+        except (TypeError, ValueError):
+            pass
+
+    # 그 외의 경우
+    data_str = str(data)
+    return data_str[:max_length] + ("..." if len(data_str) > max_length else "")

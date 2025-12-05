@@ -98,6 +98,12 @@ from apps.ai_service.agents.nodes.thinking_path_node import (
     thinking_path_node_sync,
 )
 
+# Tool Use Agent (LLM Native Tool Use)
+from apps.ai_service.agents.nodes.tool_use_agent_node import (
+    tool_use_agent_node,
+    tool_use_agent_node_sync,
+)
+
 
 __all__ = [
     # Async 노드 (LangGraph async 실행 시 사용)
@@ -133,4 +139,7 @@ __all__ = [
     # Thinking Path (Adaptive Agent Phase 6)
     "thinking_path_node",
     "thinking_path_node_sync",
+    # Tool Use Agent (LLM Native Tool Use)
+    "tool_use_agent_node",
+    "tool_use_agent_node_sync",
 ]

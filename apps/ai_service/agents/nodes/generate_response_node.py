@@ -35,6 +35,7 @@ from apps.ai_service.agents.cost_estimator import (
     get_cost_estimator,
     calculate_actual_cost,
 )
+from apps.ai_service.services.pii_masker import PIIMasker, get_masker
 
 logger = logging.getLogger(__name__)
 
@@ -513,14 +514,20 @@ async def _generate_success_response(
     # 2. 결과 포맷팅
     results_str = _format_results_for_prompt(workflow_results, tool_results)
 
-    # 3. 프롬프트 생성
+    # 3. PII 마스킹 적용 (문서 내용만 마스킹, 사용자 질문은 제외)
+    # 문서 분석 결과에만 개인정보가 포함되어 있으므로 results_str만 마스킹
+    masker = get_masker(mode="balanced")
+    masked_results, pii_mapping = masker.mask(results_str)
+    logger.debug(f"[_generate_success_response] PII masked in results: {len(pii_mapping)} entities")
+
+    # 4. 프롬프트 생성 (user_message는 마스킹하지 않음)
     prompt = RESPONSE_GENERATION_PROMPT.format(
         user_message=user_message,
         executed_tasks=executed_tasks_str,
-        results=results_str,
+        results=masked_results,
     )
 
-    # 4. LLM 호출
+    # 5. LLM 호출
     try:
         llm = create_llm_client(
             provider=settings.LLM_PROVIDER,
@@ -532,6 +539,9 @@ async def _generate_success_response(
         )
 
         response = llm.generate(prompt=prompt)
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        response = masker.restore(response, pii_mapping)
 
         return response
 
@@ -572,7 +582,7 @@ async def _generate_error_response(
         errors=error_str,
     )
 
-    # LLM 호출
+    # LLM 호출 (에러 응답에는 문서 내용이 없으므로 PII 마스킹 불필요)
     try:
         llm = create_llm_client(
             provider=settings.LLM_PROVIDER,
@@ -613,7 +623,7 @@ async def _generate_general_chat_response(user_message: str) -> str:
     # 프롬프트 생성
     prompt = GENERAL_CHAT_PROMPT.format(user_message=user_message)
 
-    # LLM 호출
+    # LLM 호출 (일반 대화에는 문서 첨부가 없으므로 PII 마스킹 불필요)
     try:
         llm = create_llm_client(
             provider=settings.LLM_PROVIDER,
@@ -625,6 +635,7 @@ async def _generate_general_chat_response(user_message: str) -> str:
         )
 
         response = llm.generate(prompt=prompt)
+
         return response
 
     except Exception as e:
@@ -968,24 +979,29 @@ def _calculate_cost_info(state: MasterAgentState, response: str) -> Dict[str, An
         )
 
         # 비용 정보 구성
+        # actual_cost는 dict (calculate_actual_cost()가 to_dict() 반환)
         cost_info = {
             "actual_tokens": total_tokens_used,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "actual_tool_calls": total_tool_calls,
-            "estimated_cost_usd": round(actual_cost.total_cost_usd, 6),
+            "estimated_cost_usd": round(actual_cost.get("actual_cost_usd", 0), 6),
             "complexity": path,
             "model": model,
             "breakdown": {
-                "input_cost_usd": round(actual_cost.input_cost_usd, 6),
-                "output_cost_usd": round(actual_cost.output_cost_usd, 6),
+                "input_cost_usd": round(
+                    (input_tokens / 1_000_000) * 0.15, 6  # gpt-4o-mini input cost
+                ),
+                "output_cost_usd": round(
+                    (output_tokens / 1_000_000) * 0.60, 6  # gpt-4o-mini output cost
+                ),
                 "tool_calls": total_tool_calls,
             },
         }
 
         logger.debug(
             f"[_calculate_cost_info] Calculated cost: "
-            f"tokens={total_tokens_used}, cost=${actual_cost.total_cost_usd:.6f}"
+            f"tokens={total_tokens_used}, cost=${actual_cost.get('actual_cost_usd', 0):.6f}"
         )
 
         return cost_info
@@ -1029,13 +1045,18 @@ async def _generate_from_context(user_message: str, context: list) -> str:
 
         context_str = "\n\n".join(context)
 
+        # PII 마스킹 적용 (수집된 정보(context)만 마스킹, 사용자 질문은 제외)
+        masker = get_masker(mode="balanced")
+        masked_context, pii_mapping = masker.mask(context_str)
+        logger.debug(f"[_generate_from_context] PII masked in context: {len(pii_mapping)} entities")
+
         prompt = f"""다음 정보를 바탕으로 사용자 질문에 답변하세요.
 
 ## 질문
 {user_message}
 
 ## 수집된 정보
-{context_str}
+{masked_context}
 
 ## 응답 가이드라인
 1. 수집된 정보를 종합하여 명확하게 답변하세요
@@ -1047,6 +1068,10 @@ async def _generate_from_context(user_message: str, context: list) -> str:
 응답:"""
 
         response = llm.generate(prompt=prompt)
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        response = masker.restore(response, pii_mapping)
+
         return response
 
     except Exception as e:

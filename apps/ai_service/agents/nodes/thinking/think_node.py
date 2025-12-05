@@ -116,10 +116,18 @@ async def think_node(state: FullMasterAgentState) -> Dict[str, Any]:
     ).model_dump())
 
     # LLM 호출 (settings 사용)
+    # base_url 정규화: /v1이 없으면 추가
+    base_url = None
+    if settings.LLM_BASE_URL:
+        normalized_url = settings.LLM_BASE_URL.rstrip("/")
+        if not normalized_url.endswith("/v1"):
+            normalized_url += "/v1"
+        base_url = normalized_url
+
     llm = ChatOpenAI(
         model=settings.LLM_MODEL,
         api_key=settings.LLM_API_KEY,
-        base_url=settings.LLM_BASE_URL if settings.LLM_BASE_URL else None,
+        base_url=base_url,
         temperature=0.1,
     )
 
@@ -148,6 +156,23 @@ async def think_node(state: FullMasterAgentState) -> Dict[str, Any]:
             data={"step": new_step.step_number, "action": new_step.action},
             timestamp=datetime.now().isoformat(),
         ).model_dump())
+
+        # 도구 선택 이벤트 (FINAL_ANSWER가 아닌 경우)
+        if new_step.action != "FINAL_ANSWER":
+            tool_info = tool_descriptions.get(new_step.action, {})
+            streaming_events.append(StreamingEvent(
+                event="tool_selected",
+                data={
+                    "step": new_step.step_number,
+                    "tool": new_step.action,
+                    "reason": new_step.thought[:200] if new_step.thought else "",
+                    "category": tool_info.get("category", "unknown"),
+                    "description": tool_info.get("description", ""),
+                    "input_preview": _get_input_preview(new_step.action_input),
+                    "status": "pending",
+                },
+                timestamp=datetime.now().isoformat(),
+            ).model_dump())
 
         logger.info(f"[think_node] Action: {parsed['action']}")
 
@@ -275,6 +300,26 @@ def _format_tools_with_details(tools: list, tool_details: dict) -> str:
     lines.append("  - FINAL_ANSWER: 최종 답변 제시 (충분한 정보 수집 후)")
 
     return "\n".join(lines)
+
+
+def _get_input_preview(action_input: Any, max_length: int = 100) -> str:
+    """도구 입력값 미리보기 생성"""
+    if action_input is None:
+        return ""
+    if isinstance(action_input, str):
+        return action_input[:max_length] + ("..." if len(action_input) > max_length else "")
+    if isinstance(action_input, dict):
+        # 주요 필드만 추출
+        preview_keys = ["query", "user_message", "keyword", "search_query"]
+        for key in preview_keys:
+            if key in action_input:
+                val = str(action_input[key])
+                return val[:max_length] + ("..." if len(val) > max_length else "")
+        # 없으면 첫 번째 값
+        if action_input:
+            first_val = str(list(action_input.values())[0])
+            return first_val[:max_length] + ("..." if len(first_val) > max_length else "")
+    return str(action_input)[:max_length]
 
 
 def _parse_response(content: str) -> Dict[str, Any]:

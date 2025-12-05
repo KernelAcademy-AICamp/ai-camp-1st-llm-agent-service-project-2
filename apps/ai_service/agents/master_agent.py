@@ -76,6 +76,11 @@ from apps.ai_service.agents.nodes import (
     thinking_path_node,
     thinking_path_node_sync,
 )
+# Tool Use Agent (LLM Native Tool Use)
+from apps.ai_service.agents.nodes.tool_use_agent_node import (
+    tool_use_agent_node,
+    tool_use_agent_node_sync,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -468,6 +473,77 @@ def create_adaptive_master_agent_graph(
 
 
 # =============================================================================
+# Tool Use Master Agent Graph (LLM Native Tool Use)
+# =============================================================================
+
+def create_tool_use_master_agent_graph(
+    use_checkpointing: bool = True,
+    use_async: bool = True,
+) -> StateGraph:
+    """
+    Tool Use Master Agent Graph 생성
+
+    LLM의 Native Tool Use (Function Calling) 기능을 활용하는 그래프입니다.
+    Claude, ChatGPT와 같은 현대적 AI 서비스 방식으로 동작합니다.
+
+    특징:
+    1. 키워드 기반 분류 대신 LLM이 직접 도구 사용 여부 결정
+    2. ReAct 패턴: Observe → Think → Act 반복
+    3. 단순 질문은 도구 없이 직접 응답
+    4. 복잡한 질문은 필요한 만큼 도구 호출 반복
+
+    Args:
+        use_checkpointing: MemorySaver 사용 여부
+        use_async: 비동기 노드 사용 여부
+
+    Returns:
+        컴파일된 StateGraph
+
+    워크플로우:
+        START
+          ↓
+        tool_use_agent  (LLM이 도구 사용 여부 결정, 필요시 반복)
+          ↓
+        END
+
+    Note:
+        기존 4-way 분기 대신 단일 Tool Use Agent가 모든 처리를 담당합니다.
+        LLM이 질문 복잡도를 판단하고 적절한 도구를 선택합니다.
+    """
+    logger.info(f"[create_tool_use_master_agent_graph] Creating graph (async={use_async})")
+
+    workflow = StateGraph(ExtendedMasterAgentState)
+
+    # 노드 선택
+    if use_async:
+        agent_node = tool_use_agent_node
+    else:
+        agent_node = tool_use_agent_node_sync
+
+    # =========================================================================
+    # 노드 추가 - 단순화된 구조
+    # =========================================================================
+    workflow.add_node("tool_use_agent", agent_node)
+
+    # =========================================================================
+    # 엣지 연결 - 단순한 직선 흐름
+    # =========================================================================
+    workflow.add_edge(START, "tool_use_agent")
+    workflow.add_edge("tool_use_agent", END)
+
+    # 체크포인팅
+    checkpointer = None
+    if use_checkpointing:
+        checkpointer = MemorySaver()
+
+    compiled_graph = workflow.compile(checkpointer=checkpointer)
+
+    logger.info("[create_tool_use_master_agent_graph] Graph compiled successfully")
+
+    return compiled_graph
+
+
+# =============================================================================
 # MasterAgent 클래스
 # =============================================================================
 
@@ -478,7 +554,11 @@ class MasterAgent:
     LangGraph 기반 Master Agent를 쉽게 사용하기 위한 래퍼입니다.
 
     사용 예시:
+        # 기존 방식 (4-way 복잡도 기반 분기)
         agent = MasterAgent()
+
+        # Tool Use 방식 (LLM Native Tool Use)
+        agent = MasterAgent(use_tool_use=True)
 
         # 단일 실행
         result = await agent.run("절도죄의 법정형은?")
@@ -492,6 +572,7 @@ class MasterAgent:
         self,
         use_checkpointing: bool = True,
         use_async: bool = True,
+        use_tool_use: bool = False,
     ):
         """
         MasterAgent 초기화
@@ -499,20 +580,30 @@ class MasterAgent:
         Args:
             use_checkpointing: MemorySaver 사용 여부
             use_async: 비동기 노드 사용 여부
+            use_tool_use: Tool Use Agent 사용 여부 (True: LLM Native Tool Use 방식)
         """
         self.use_checkpointing = use_checkpointing
         self.use_async = use_async
+        self.use_tool_use = use_tool_use
         self._graph = None
 
     @property
     def graph(self) -> StateGraph:
-        """그래프 인스턴스 (지연 생성) - Adaptive Graph 사용"""
+        """그래프 인스턴스 (지연 생성)"""
         if self._graph is None:
-            # Phase 6: Adaptive Master Agent Graph 사용 (4-way 라우팅 포함)
-            self._graph = create_adaptive_master_agent_graph(
-                use_checkpointing=self.use_checkpointing,
-                use_async=self.use_async,
-            )
+            if self.use_tool_use:
+                # Tool Use Master Agent Graph (LLM Native Tool Use)
+                # Claude, ChatGPT와 같은 현대적 AI 서비스 방식
+                self._graph = create_tool_use_master_agent_graph(
+                    use_checkpointing=self.use_checkpointing,
+                    use_async=self.use_async,
+                )
+            else:
+                # Adaptive Master Agent Graph (4-way 복잡도 기반 분기)
+                self._graph = create_adaptive_master_agent_graph(
+                    use_checkpointing=self.use_checkpointing,
+                    use_async=self.use_async,
+                )
         return self._graph
 
     async def run(
