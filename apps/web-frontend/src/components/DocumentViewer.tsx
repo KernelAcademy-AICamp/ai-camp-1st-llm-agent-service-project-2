@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { UserDocumentDetail, DocumentChunk } from '../types';
+import { applyPartialMasking } from '../utils/piiMasker';
 import '../styles/DocumentViewer.css';
 
 // PDF.js worker 설정
@@ -12,9 +13,16 @@ interface DocumentViewerProps {
   document: UserDocumentDetail;
   fileUrl?: string;
   viewMode?: 'original' | 'text';
+  /** PII 부분 마스킹 적용 여부 (기본값: true) */
+  enablePiiMasking?: boolean;
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, viewMode = 'text' }) => {
+const DocumentViewer: React.FC<DocumentViewerProps> = ({
+  document,
+  fileUrl,
+  viewMode = 'text',
+  enablePiiMasking = true,
+}) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
@@ -22,6 +30,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, view
 
   const isPdf = document.file_type?.toLowerCase().includes('pdf') || false;
   const hasChunks = document.chunks && document.chunks.length > 0;
+  const hasContent = document.content && document.content.trim().length > 0;
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -69,6 +78,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, view
 
     return pageGroups;
   }, [document.chunks, hasChunks]);
+
+  // PII 부분 마스킹 적용된 콘텐츠
+  const maskedGroupedContent = useMemo(() => {
+    if (!enablePiiMasking) return groupedContent;
+    return groupedContent.map((group) => ({
+      ...group,
+      text: applyPartialMasking(group.text),
+    }));
+  }, [groupedContent, enablePiiMasking]);
 
   const renderPdfViewer = () => {
     if (!fileUrl) {
@@ -136,6 +154,22 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, view
   };
 
   const renderTextViewer = () => {
+    // 원문 content가 있으면 우선 사용
+    if (hasContent) {
+      const displayText = enablePiiMasking
+        ? applyPartialMasking(document.content!)
+        : document.content!;
+
+      return (
+        <div className="text-viewer">
+          <div className="text-content">
+            <div className="text-body">{displayText}</div>
+          </div>
+        </div>
+      );
+    }
+
+    // content가 없으면 chunks에서 텍스트 추출
     if (!hasChunks) {
       return (
         <div className="viewer-message">
@@ -146,14 +180,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, view
     }
 
     // 페이지 구분이 있는 경우와 없는 경우 처리
-    const hasPageNumbers = groupedContent.some(g => g.pageNumber !== null);
+    const hasPageNumbers = maskedGroupedContent.some(g => g.pageNumber !== null);
 
     return (
       <div className="text-viewer">
         <div className="text-content">
           {hasPageNumbers ? (
             // 페이지 구분이 있는 경우
-            groupedContent.map((group, index) => (
+            maskedGroupedContent.map((group, index) => (
               <div key={index} className="text-page-section">
                 {group.pageNumber && (
                   <div className="page-divider">
@@ -166,7 +200,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, fileUrl, view
           ) : (
             // 페이지 구분 없이 연속 텍스트
             <div className="text-body">
-              {groupedContent.map(g => g.text).join('\n\n')}
+              {maskedGroupedContent.map(g => g.text).join('\n\n')}
             </div>
           )}
         </div>

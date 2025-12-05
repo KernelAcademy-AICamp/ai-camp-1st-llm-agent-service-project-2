@@ -29,6 +29,65 @@ export interface ProgressEvent {
   step_details?: Record<string, any>;
 }
 
+/**
+ * 도구 실행 상태 타입
+ */
+export type ToolExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+/**
+ * 도구 실행 이벤트 데이터 타입
+ */
+export interface ToolExecutionEvent {
+  step: number;
+  tool: string;
+  category: string;
+  description?: string;
+  status: ToolExecutionStatus;
+  input_preview?: string;
+  result_preview?: string;
+  execution_time?: number;
+  reason?: string;
+  success?: boolean;
+}
+
+/**
+ * 도구 이름에서 카테고리 추출
+ */
+function _getToolCategory(toolName: string): string {
+  const toolCategories: Record<string, string> = {
+    'search_legal': 'search',
+    'search_precedents': 'search',
+    'search_statutes': 'search',
+    'rag_workflow': 'search',
+    'document_workflow': 'document',
+    'analyze_document': 'document',
+    'case_workflow': 'analysis',
+    'risk_workflow': 'analysis',
+    'get_user_cases': 'utility',
+    'get_user_documents': 'utility',
+  };
+  return toolCategories[toolName] || 'utility';
+}
+
+/**
+ * 도구 이름에서 사용자 친화적 설명 추출
+ */
+function _getToolDescription(toolName: string): string {
+  const toolDescriptions: Record<string, string> = {
+    'search_legal': '법률 정보를 검색하고 있습니다...',
+    'search_precedents': '관련 판례를 검색하고 있습니다...',
+    'search_statutes': '관련 법령을 검색하고 있습니다...',
+    'rag_workflow': '법률 정보를 검색하고 있습니다...',
+    'document_workflow': '문서를 분석하고 있습니다...',
+    'analyze_document': '문서를 분석하고 있습니다...',
+    'case_workflow': '판례를 분석하고 있습니다...',
+    'risk_workflow': '리스크를 평가하고 있습니다...',
+    'get_user_cases': '사건 정보를 조회하고 있습니다...',
+    'get_user_documents': '문서 정보를 조회하고 있습니다...',
+  };
+  return toolDescriptions[toolName] || `${toolName} 실행 중...`;
+}
+
 interface PreprocessAttachmentResponse {
   success: boolean;
   text?: string;
@@ -260,6 +319,7 @@ export const agentHubService = {
         onComplete?: (message: ChatMessage) => void;
         onTitleGenerated?: (title: string) => void;
         onProgress?: (progress: ProgressEvent) => void;  // 진행 상태 콜백
+        onToolExecution?: (event: ToolExecutionEvent) => void;  // 도구 실행 콜백
       }
     ): AbortController => {
       const abortController = new AbortController();
@@ -316,6 +376,9 @@ export const agentHubService = {
                   const eventType = parsed.event;
                   const eventData = parsed.data || {};
 
+                  // 모든 이벤트 타입 로깅 (tool 관련)
+                  console.log('[DEBUG] SSE event:', eventType, eventData);
+
                   // start 이벤트 - 세션 ID 추출
                   if (eventType === 'start') {
                     if (eventData.session_id) {
@@ -331,6 +394,21 @@ export const agentHubService = {
                     metadata.intent = eventData.category;
                     metadata.confidence = eventData.confidence;
                     callbacks.onMetadata?.(metadata);
+
+                    // 법률 관련 질문이면 즉시 "검색 중" 상태 표시
+                    // LangGraph 노드 완료를 기다리지 않고 프론트엔드에서 선제적으로 표시
+                    const legalCategories = ['QUERY', 'SEARCH', 'CASE_ANALYSIS', 'DOCUMENT_ANALYSIS', 'RISK_ASSESSMENT'];
+                    if (legalCategories.includes(eventData.category)) {
+                      console.log('[DEBUG] Legal intent detected, showing search indicator');
+                      callbacks.onToolExecution?.({
+                        step: 0,
+                        tool: 'search_legal',
+                        category: 'search',
+                        description: '법률 정보를 검색하고 있습니다...',
+                        status: 'running',
+                        input_preview: '관련 법률 정보 검색 중',
+                      });
+                    }
                   }
 
                   // execution_plan 이벤트
@@ -380,6 +458,94 @@ export const agentHubService = {
                     callbacks.onProgress?.(progressData);
                   }
 
+                  // tool_selected 이벤트 - 도구 선택됨
+                  if (eventType === 'tool_selected') {
+                    callbacks.onToolExecution?.({
+                      step: eventData.step,
+                      tool: eventData.tool,
+                      category: eventData.category || 'unknown',
+                      description: eventData.description,
+                      status: 'pending',
+                      input_preview: eventData.input_preview,
+                      reason: eventData.reason,
+                    });
+                  }
+
+                  // tool_execution_start 이벤트 - 도구 실행 시작
+                  if (eventType === 'tool_execution_start') {
+                    callbacks.onToolExecution?.({
+                      step: eventData.step,
+                      tool: eventData.tool,
+                      category: eventData.category || 'unknown',
+                      description: eventData.description,
+                      status: 'running',
+                      input_preview: eventData.input_preview,
+                    });
+                  }
+
+                  // tools_selected 이벤트 - 도구 선택 완료, "검색 중" 표시 시작
+                  if (eventType === 'tools_selected') {
+                    const selectedTools = eventData.tools || [];
+                    console.log('[DEBUG] tools_selected event received:', { selectedTools, eventData });
+
+                    // 첫 번째 도구를 "검색 중" 상태로 표시
+                    if (selectedTools.length > 0) {
+                      const primaryTool = selectedTools.includes('search_legal')
+                        ? 'search_legal'
+                        : selectedTools[0];
+                      callbacks.onToolExecution?.({
+                        step: 0,
+                        tool: primaryTool,
+                        category: _getToolCategory(primaryTool),
+                        description: eventData.message || _getToolDescription(primaryTool),
+                        status: 'running',
+                        input_preview: `선택된 도구: ${selectedTools.join(', ')}`,
+                      });
+                    }
+                  }
+
+                  // tool_call 이벤트 - LLM Native Tool Use Agent에서 도구 호출 시작
+                  if (eventType === 'tool_call') {
+                    const toolName = eventData.tool_name || eventData.tool || 'unknown';
+                    const args = eventData.arguments || {};
+                    console.log('[DEBUG] tool_call event received:', { toolName, args, eventData });
+                    callbacks.onToolExecution?.({
+                      step: eventData.iteration || 1,
+                      tool: toolName,
+                      category: _getToolCategory(toolName),
+                      description: _getToolDescription(toolName),
+                      status: 'running',
+                      input_preview: JSON.stringify(args).slice(0, 100),
+                    });
+                  }
+
+                  // tool_execution_complete 이벤트 - 도구 실행 완료
+                  if (eventType === 'tool_execution_complete') {
+                    callbacks.onToolExecution?.({
+                      step: eventData.step,
+                      tool: eventData.tool,
+                      category: eventData.category || 'unknown',
+                      status: eventData.success ? 'completed' : 'failed',
+                      success: eventData.success,
+                      execution_time: eventData.execution_time,
+                      result_preview: eventData.result_preview,
+                    });
+                  }
+
+                  // tool_result 이벤트 - LLM Native Tool Use Agent에서 도구 실행 완료
+                  if (eventType === 'tool_result') {
+                    const toolName = eventData.tool_name || eventData.tool || 'unknown';
+                    callbacks.onToolExecution?.({
+                      step: eventData.iteration || 1,
+                      tool: toolName,
+                      category: _getToolCategory(toolName),
+                      status: eventData.success ? 'completed' : 'failed',
+                      success: eventData.success,
+                      execution_time: eventData.execution_time,
+                      result_preview: eventData.result_preview || '결과 확인됨',
+                    });
+                  }
+
                   // complete 이벤트 - 최종 응답
                   if (eventType === 'complete') {
                     const response = eventData.response || '';
@@ -396,9 +562,14 @@ export const agentHubService = {
                     callbacks.onMetadata?.(metadata);
 
                     // sources(참고자료) 처리
+                    console.log('[DEBUG] complete eventData:', eventData);
+                    console.log('[DEBUG] eventData.sources:', eventData.sources);
                     if (eventData.sources && eventData.sources.length > 0) {
+                      console.log('[DEBUG] Setting sources:', eventData.sources);
                       metadata.sources = eventData.sources;
                       callbacks.onSource?.(eventData.sources);
+                    } else {
+                      console.log('[DEBUG] No sources in complete event');
                     }
                   }
 
@@ -418,6 +589,13 @@ export const agentHubService = {
                   if (eventType === 'error') {
                     const errorMsg = eventData.message || 'Unknown error';
                     callbacks.onError?.(new Error(errorMsg));
+                  }
+
+                  // heartbeat 이벤트 - 연결 유지용 (무시)
+                  // heartbeat는 연결 유지 목적이므로 progress 업데이트하지 않음
+                  if (eventType === 'heartbeat') {
+                    // 연결 유지를 위한 heartbeat, 별도 처리 불필요
+                    // progress를 0으로 재설정하지 않도록 무시
                   }
 
                   // 레거시 형식 지원 (직접 content 필드)

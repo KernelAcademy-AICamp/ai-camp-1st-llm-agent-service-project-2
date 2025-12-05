@@ -13,11 +13,12 @@ import {
   FiChevronLeft,
   FiFile,
   FiAlertTriangle,
-  FiLayers,
   FiBriefcase,
   FiLogOut,
   FiMenu,
-  FiMessageSquare
+  FiMessageSquare,
+  FiShield,
+  FiList
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -44,25 +45,25 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, isAuthenticated } = useAuth();
-  const [expandedSections, setExpandedSections] = useState<string[]>(['documents', 'analysis', 'ai-assistant']);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['documents', 'ai-assistant', 'cases']);
 
   // Auto-expand section when navigating to a page within it
   useEffect(() => {
     const currentPath = location.pathname;
 
-    if (currentPath.startsWith('/documents') || currentPath.startsWith('/research')) {
+    if (currentPath.startsWith('/documents') || currentPath.startsWith('/research') || currentPath.startsWith('/risk-dashboard')) {
       if (!expandedSections.includes('documents')) {
         setExpandedSections(prev => [...prev, 'documents']);
-      }
-    }
-    if (currentPath.startsWith('/risk-dashboard') || currentPath.startsWith('/analysis')) {
-      if (!expandedSections.includes('analysis')) {
-        setExpandedSections(prev => [...prev, 'analysis']);
       }
     }
     if (currentPath.startsWith('/agent-hub')) {
       if (!expandedSections.includes('ai-assistant')) {
         setExpandedSections(prev => [...prev, 'ai-assistant']);
+      }
+    }
+    if (currentPath.startsWith('/cases') || currentPath.startsWith('/criminal-dashboard')) {
+      if (!expandedSections.includes('cases')) {
+        setExpandedSections(prev => [...prev, 'cases']);
       }
     }
   }, [location.pathname]);
@@ -84,21 +85,21 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       ]
     },
     {
+      id: 'cases',
+      title: '사건',
+      icon: <FiShield />,
+      items: [
+        { label: '사건 현황', path: '/criminal-dashboard', icon: <FiBarChart2 /> },
+        { label: '사건 관리', path: '/cases-v2', icon: <FiList /> }
+      ]
+    },
+    {
       id: 'documents',
       title: '문서',
       icon: <FiFileText />,
       items: [
         { label: '문서 관리', path: '/documents', icon: <FiFile /> },
-        { label: '판례 검색', path: '/documents/research', icon: <FiBriefcase /> }
-      ]
-    },
-    {
-      id: 'analysis',
-      title: '분석',
-      icon: <FiBarChart2 />,
-      items: [
-        { label: '리스크 대시보드', path: '/risk-dashboard', icon: <FiAlertTriangle /> },
-        { label: '모델 비교', path: '/analysis/model-comparison', icon: <FiLayers /> }
+        { label: '리스크 대시보드', path: '/risk-dashboard', icon: <FiAlertTriangle /> }
       ]
     },
     {

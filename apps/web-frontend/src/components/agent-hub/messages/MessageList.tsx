@@ -8,6 +8,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '../../../lib/utils';
 import { MessageCard, Message } from './MessageCard';
+import type { ToolExecutionEvent } from '../../../services/agentHubService';
 
 interface MessageListProps {
   messages: Message[];
@@ -17,6 +18,8 @@ interface MessageListProps {
   onRetry?: (messageId: string) => void;
   onSuggestedQuestionClick?: (question: string) => void;
   onSaveAnalysis?: (message: Message) => Promise<{ success: boolean; document_url?: string; error?: string }>;
+  /** 현재 스트리밍 중인 도구 실행 상태 */
+  toolExecutions?: ToolExecutionEvent[];
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -27,6 +30,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   onRetry,
   onSuggestedQuestionClick,
   onSaveAnalysis,
+  toolExecutions = [],
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -74,15 +78,27 @@ export const MessageList: React.FC<MessageListProps> = ({
         className="agent-hub-message-list__container"
       >
         <div className="agent-hub-message-list__content">
-          {messages.map((message, index) => (
-            <MessageCard
-              key={message.id}
-              message={message}
-              showAvatar={shouldShowAvatar(messages, index)}
-              sessionId={sessionId}
-              onSaveAnalysis={onSaveAnalysis}
-            />
-          ))}
+          {messages.map((message, index) => {
+            // 마지막 assistant 메시지에 toolExecutions 전달
+            // isStreaming 상태와 관계없이 도구 실행 이력이 있으면 표시
+            const isLastMessage = index === messages.length - 1;
+            const isAssistant = message.role === 'assistant';
+            const hasToolExecutions = toolExecutions.length > 0;
+
+            // 마지막 assistant 메시지이고 도구 실행이 있으면 표시
+            const shouldShowTools = isLastMessage && isAssistant && hasToolExecutions;
+
+            return (
+              <MessageCard
+                key={message.id}
+                message={message}
+                showAvatar={shouldShowAvatar(messages, index)}
+                sessionId={sessionId}
+                onSaveAnalysis={onSaveAnalysis}
+                toolExecutions={shouldShowTools ? toolExecutions : undefined}
+              />
+            );
+          })}
 
           {/* Scroll anchor */}
           <div ref={bottomRef} />

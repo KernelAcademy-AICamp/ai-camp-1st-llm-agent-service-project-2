@@ -3,22 +3,40 @@
  *
  * AI 응답의 마크다운 콘텐츠를 렌더링
  * 코드 하이라이팅, 표, 링크, 리스트 등 지원
+ *
+ * PII 부분 마스킹:
+ * - 백엔드에서 복원된 개인정보를 화면에 표시할 때 부분 마스킹 적용
+ * - 이름: 김철수 → 김*수
+ * - 전화번호: 010-1234-5678 → 010-****-5678
+ * - 이메일: kim.cs@example.com → ki****@example.com
+ * - 주민번호: 760815-1234567 → 760815-*******
+ * - 주소: 서울특별시 강남구 테헤란로 123 → 서울특별시 ***
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn, copyToClipboard } from '../../../lib/utils';
+import { applyPartialMasking } from '../../../utils/piiMasker';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  /** PII 부분 마스킹 적용 여부 (기본값: true) */
+  enablePiiMasking?: boolean;
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   className,
+  enablePiiMasking = true,
 }) => {
+  // PII 부분 마스킹 적용 (성능 최적화를 위해 useMemo 사용)
+  const maskedContent = useMemo(() => {
+    if (!enablePiiMasking) return content;
+    return applyPartialMasking(content);
+  }, [content, enablePiiMasking]);
+
   return (
     <div className={cn('markdown-content', className)}>
       <ReactMarkdown
@@ -186,7 +204,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           ),
         }}
       >
-        {content}
+        {maskedContent}
       </ReactMarkdown>
     </div>
   );

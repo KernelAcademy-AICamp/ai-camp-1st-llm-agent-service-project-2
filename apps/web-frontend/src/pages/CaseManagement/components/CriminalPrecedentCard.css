@@ -1,0 +1,281 @@
+/* ===========================================
+   CriminalPrecedentCard - LegalResearch 스타일 적용
+   sources-section과 동일한 스타일
+   =========================================== */
+
+/* 섹션 컨테이너 */
+.precedent-section {
+  width: 100%;
+}
+
+/* 헤더 - sources-header 스타일 */
+.precedent-section-header {
+  margin-bottom: 20px;
+}
+
+.precedent-section-header h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+}
+
+.precedent-section-description {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 판례 목록 - sources-list 스타일 */
+.precedent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 판례 카드 - source-card 스타일 */
+.precedent-card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 4px solid #1e40af;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.precedent-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* 점수별 색상 */
+.precedent-card.score-high {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.precedent-card.score-high:hover {
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);
+}
+
+.precedent-card.score-medium {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+}
+
+.precedent-card.score-medium:hover {
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+}
+
+.precedent-card.score-low {
+  border-left-color: #1e40af;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+}
+
+.precedent-card.score-low:hover {
+  box-shadow: 0 8px 24px rgba(107, 114, 128, 0.2);
+}
+
+/* 카드 헤더 - source-header 스타일 */
+.precedent-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* 순위 배지 */
+.precedent-rank {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+  color: #374151;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* 제목 래퍼 */
+.precedent-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.precedent-type-icon {
+  font-size: 18px;
+  color: #1e40af;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.precedent-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 메타 정보 */
+.precedent-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.precedent-type-label {
+  padding: 4px 10px;
+  background-color: #dbeafe;
+  color: #1e40af;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.precedent-crime-type {
+  padding: 4px 10px;
+  background-color: #fef3c7;
+  color: #92400e;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.precedent-score {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.precedent-score.score-high {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.precedent-score.score-medium {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.precedent-score.score-low {
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+/* 선고 형량 */
+.precedent-sentence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  width: fit-content;
+}
+
+.precedent-sentence .sentence-label {
+  font-size: 13px;
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.precedent-sentence .sentence-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+/* 요약 텍스트 - source-snippet 스타일 */
+.precedent-snippet {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #4b5563;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.precedent-card:hover .precedent-snippet {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+
+/* 푸터 - source-footer 스타일 */
+.precedent-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+}
+
+.precedent-court {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.precedent-court svg {
+  font-size: 14px;
+}
+
+.precedent-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.precedent-date svg {
+  font-size: 14px;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .precedent-card {
+    padding: 16px;
+  }
+
+  .precedent-card-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .precedent-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .precedent-title {
+    white-space: normal;
+  }
+
+  .precedent-section-header h3 {
+    font-size: 18px;
+  }
+}

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Summary } from '../types';
 import { apiClient } from '../api/client';
 import ModelSelector from './ModelSelector';
 import ModelResultComparison, { ModelResult } from './ModelResultComparison';
+import { applyPartialMasking } from '../utils/piiMasker';
 import './SummarySection.css';
 
 interface SummarySectionProps {
@@ -31,33 +32,21 @@ const SummarySection: React.FC<SummarySectionProps> = ({
   const [generatingWithModel, setGeneratingWithModel] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
 
-  // Comparison results - store multiple model results
+  // Comparison results - store multiple model results (only when user explicitly generates with different model)
   const [comparisonResults, setComparisonResults] = useState<ModelResult[]>([]);
 
-  // Add current summary to comparison results when it changes
-  useEffect(() => {
-    if (summary && summary.id) {
-      // Check if this summary is already in comparison results
-      const exists = comparisonResults.find(
-        r => r.modelId === summary.llm_model && r.timestamp === summary.created_at
-      );
-      if (!exists) {
-        const newResult: ModelResult = {
-          modelId: summary.llm_model,
-          modelName: summary.llm_model,
-          provider: getProviderFromModel(summary.llm_model),
-          content: summary.content,
-          timestamp: summary.created_at,
-          isLatest: true,
-        };
-        // Mark all previous results as not latest
-        setComparisonResults(prev => [
-          ...prev.map(r => ({ ...r, isLatest: false })),
-          newResult,
-        ]);
-      }
-    }
-  }, [summary]);
+  // PII 마스킹된 요약 내용
+  const maskedSummaryContent = useMemo(() => {
+    return summary?.content ? applyPartialMasking(summary.content) : '';
+  }, [summary?.content]);
+
+  // PII 마스킹된 비교 결과
+  const maskedComparisonResults = useMemo(() => {
+    return comparisonResults.map((result) => ({
+      ...result,
+      content: applyPartialMasking(result.content),
+    }));
+  }, [comparisonResults]);
 
   // Helper to guess provider from model name
   const getProviderFromModel = (modelName: string): string => {
@@ -76,7 +65,7 @@ const SummarySection: React.FC<SummarySectionProps> = ({
   };
 
   const handleGenerateWithModel = async () => {
-    if (!documentId || !selectedModelId) return;
+    if (!documentId || !selectedModelId || !summary) return;
 
     setGeneratingWithModel(true);
     setModelError(null);
@@ -99,11 +88,25 @@ const SummarySection: React.FC<SummarySectionProps> = ({
           isLatest: true,
         };
 
-        // Mark all previous results as not latest and add new one
-        setComparisonResults(prev => [
-          ...prev.map(r => ({ ...r, isLatest: false })),
-          newResult,
-        ]);
+        setComparisonResults(prev => {
+          // If comparison results are empty, add the current summary first for comparison
+          if (prev.length === 0 && summary) {
+            const currentSummaryResult: ModelResult = {
+              modelId: summary.llm_model,
+              modelName: summary.llm_model,
+              provider: getProviderFromModel(summary.llm_model),
+              content: summary.content,
+              timestamp: summary.created_at,
+              isLatest: false,
+            };
+            return [currentSummaryResult, newResult];
+          }
+          // Mark all previous results as not latest and add new one
+          return [
+            ...prev.map(r => ({ ...r, isLatest: false })),
+            newResult,
+          ];
+        });
       }
     } catch (err: any) {
       console.error('Failed to generate summary with model:', err);
@@ -118,13 +121,8 @@ const SummarySection: React.FC<SummarySectionProps> = ({
   };
 
   const handleClearComparison = () => {
-    // Keep only the latest result
-    const latestResult = comparisonResults.find(r => r.isLatest);
-    if (latestResult) {
-      setComparisonResults([latestResult]);
-    } else {
-      setComparisonResults([]);
-    }
+    // Clear all comparison results - user can start fresh comparison later
+    setComparisonResults([]);
   };
 
   return (
@@ -173,7 +171,7 @@ const SummarySection: React.FC<SummarySectionProps> = ({
           </div>
 
           <div className="summary-text">
-            <p>{summary.content}</p>
+            <p>{maskedSummaryContent}</p>
           </div>
 
           {summary.meta && Object.keys(summary.meta).length > 0 && (
@@ -223,8 +221,8 @@ const SummarySection: React.FC<SummarySectionProps> = ({
             )}
           </div>
 
-          {/* Comparison Results */}
-          {comparisonResults.length > 1 && (
+          {/* Comparison Results (PII 마스킹 적용) */}
+          {maskedComparisonResults.length > 1 && (
             <div className="comparison-section">
               <div className="comparison-actions">
                 <button
@@ -235,7 +233,7 @@ const SummarySection: React.FC<SummarySectionProps> = ({
                 </button>
               </div>
               <ModelResultComparison
-                results={comparisonResults}
+                results={maskedComparisonResults}
                 onRemoveResult={handleRemoveResult}
                 title="모델별 요약 결과 비교"
               />

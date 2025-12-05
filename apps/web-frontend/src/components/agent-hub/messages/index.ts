@@ -11,3 +11,9 @@ export { TypingIndicator, PulseTypingIndicator, WaveTypingIndicator, ThinkingInd
 export { MarkdownRenderer } from './MarkdownRenderer';
 
 export { MessageList } from './MessageList';
+
+export { InlineToolIndicator } from './InlineToolIndicator';
+
+export { ToolExecutionLog } from './ToolExecutionLog';
+
+export { ProgressIndicator } from './ProgressIndicator';

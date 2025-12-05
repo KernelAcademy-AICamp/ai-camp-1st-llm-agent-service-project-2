@@ -71,6 +71,30 @@ export interface SourceDocument {
 // RAG Chat Types
 // ============================================
 
+// 범죄 유형 (형사법 특화)
+export type CrimeType =
+  | 'theft'         // 절도
+  | 'fraud'         // 사기
+  | 'assault'       // 폭행/상해
+  | 'murder'        // 살인
+  | 'drug'          // 마약
+  | 'sex_crime'     // 성범죄
+  | 'embezzlement'  // 횡령/배임
+  | 'dui';          // 음주운전
+
+// 법원 레벨
+export type CourtLevel =
+  | 'supreme'   // 대법원
+  | 'high'      // 고등법원
+  | 'district'; // 지방법원
+
+// 판결 유형
+export type SentenceType =
+  | 'imprisonment' // 유죄 (실형)
+  | 'suspended'    // 유죄 (집행유예)
+  | 'fine'         // 벌금형
+  | 'acquittal';   // 무죄
+
 export interface RAGFilterOptions {
   doc_types?: UserDocumentType[];
   statuses?: UserDocumentStatus[];
@@ -78,6 +102,11 @@ export interface RAGFilterOptions {
   date_to?: string;    // ISO date string (YYYY-MM-DD)
   keyword?: string;    // title search only
   document_ids?: string[];  // pre-filtered document IDs (from Django)
+
+  // 형사법 특화 필터 (Phase 4)
+  crime_types?: CrimeType[];       // 범죄 유형 필터
+  court_level?: CourtLevel[];      // 법원 레벨 필터
+  sentence_type?: SentenceType[];  // 판결 유형 필터
 }
 
 export type ResponseMode = 'concise' | 'standard' | 'detailed';
@@ -198,6 +227,7 @@ export interface CaseFile {
   filename: string;
   size: number;
   path?: string;
+  content?: string;  // 원문 텍스트 (선택적)
 }
 
 export interface RelatedCase {
@@ -480,6 +510,7 @@ export interface DocumentChunk {
 
 export interface UserDocumentDetail extends UserDocument {
   chunks: DocumentChunk[];
+  content?: string;  // 원문 텍스트 (for original text viewing)
   case_analysis?: DocumentCaseAnalysis;  // Case analysis if doc_type is 'CASE'
 }
 
@@ -981,4 +1012,214 @@ export interface StartAnalysisResponse {
   message: string;
   document_id: string;
   analysis_status: AnalysisStatus;
+}
+
+// ============================================
+// Criminal Case Analysis Types (형사법 특화)
+// ============================================
+
+export interface CrimeElement {
+  element: string;
+  description: string;
+  fulfilled: boolean;
+}
+
+export interface CrimeElements {
+  objective: CrimeElement[];
+  subjective: CrimeElement[];
+}
+
+export interface SentencingFactors {
+  favorable: string[];
+  unfavorable: string[];
+}
+
+export interface ExpectedSentence {
+  range: string;
+  suspended_probability: number;
+  reasoning?: string;
+}
+
+export interface CriminalPrecedent {
+  case_number: string;
+  court: string;
+  date: string;
+  crime_type: string;
+  sentence: string;
+  summary: string;
+  relevance: number;
+}
+
+// 판시사항 정보
+export interface JudgmentInfo {
+  case_number?: string;
+  court?: string;
+  judge?: string;
+  decision_date?: string;
+  decision_type?: string;  // 유죄/무죄/일부유죄
+  charges?: string[];
+  verdict?: string;
+}
+
+// 판시사항 요약
+export interface JudgmentSummary {
+  main_issue?: string;       // 주요 쟁점
+  facts?: string;            // 사실관계
+  court_reasoning?: string;  // 법원 판단
+  key_points?: string[];     // 판시사항 핵심
+  legal_principles?: string[]; // 적용 법리
+  info?: JudgmentInfo;
+}
+
+// 형사문서 분석 응답
+export interface CriminalAnalysisResponse {
+  document_id: string;
+  crime_elements?: CrimeElements;
+  sentencing_factors?: SentencingFactors;
+  expected_sentence?: ExpectedSentence;
+  judgment_summary?: JudgmentSummary;
+  related_precedents?: CriminalPrecedent[];
+  analyzed_at?: string;
+}
+
+// 유사 판례 검색 응답
+export interface RelatedPrecedentsResponse {
+  document_id: string;
+  precedents: CriminalPrecedent[];
+  total_count: number;
+  search_criteria?: {
+    crime_type?: string;
+    keywords?: string[];
+  };
+}
+
+export interface CriminalCaseAnalysis extends CaseAnalysis {
+  case_name?: string;
+  crime_type?: string;
+  crime_elements?: CrimeElements;
+  sentencing_factors?: SentencingFactors;
+  expected_sentence?: ExpectedSentence;
+  defense_strategies?: string[];
+  related_precedents?: CriminalPrecedent[];
+}
+
+// 형사 사건 단계
+export type CriminalStage =
+  | 'COMPLAINT'      // 고소/고발/인지
+  | 'INVESTIGATION'  // 수사 진행
+  | 'PROSECUTION'    // 기소
+  | 'TRIAL'          // 공판
+  | 'JUDGMENT'       // 판결
+  | 'CLOSED';        // 종결
+
+export const CRIMINAL_STAGE_LABELS: Record<CriminalStage, string> = {
+  COMPLAINT: '고소/고발/인지',
+  INVESTIGATION: '수사 진행',
+  PROSECUTION: '기소',
+  TRIAL: '공판',
+  JUDGMENT: '판결',
+  CLOSED: '종결',
+};
+
+// 형사 사건 일정 타입
+export type CriminalScheduleType =
+  | 'HEARING'     // 공판 기일
+  | 'SUBMISSION'  // 서류 제출
+  | 'MEETING'     // 상담/회의
+  | 'DEADLINE'    // 기한
+  | 'POLICE'      // 경찰 출석
+  | 'PROSECUTOR'; // 검찰 출석
+
+export interface CriminalScheduleItem {
+  date: string;
+  title: string;
+  schedule_type: CriminalScheduleType;
+  description?: string;
+  is_completed: boolean;
+}
+
+export interface CriminalCase {
+  id: string;
+  user_id: string;
+  case_name: string;
+  summary: string;
+  crime_type: string;
+  crime_elements: CrimeElements;
+  sentencing_factors: SentencingFactors;
+  expected_sentence: ExpectedSentence;
+  defense_strategies: string[];
+  related_precedents: CriminalPrecedent[];
+  stage: CriminalStage;
+  schedules: CriminalScheduleItem[];
+  conditions: string[];
+  uploaded_files: CaseFile[];
+  created_at: string;
+  updated_at: string;
+}
+
+// 형사 사건 분석 상태
+export type CriminalAnalysisStatus =
+  | 'pending'           // 분석 대기 중
+  | 'analyzing'         // 분석 중 (요소 검토, 양형 예측 등)
+  | 'completed'         // 분석 완료
+  | 'failed';           // 분석 실패
+
+export const CRIMINAL_ANALYSIS_STATUS_LABELS: Record<CriminalAnalysisStatus, string> = {
+  pending: '분석 대기',
+  analyzing: '분석 중',
+  completed: '분석 완료',
+  failed: '분석 실패',
+};
+
+export interface CriminalCaseListItem {
+  case_id: string;
+  case_name: string;
+  summary: string;
+  document_count: number;
+  crime_type?: string;
+  stage?: CriminalStage;
+  next_schedule?: CriminalScheduleItem;
+  created_at: number;
+  // 분석 상태 (프론트엔드에서 관리)
+  analysis_status?: CriminalAnalysisStatus;
+}
+
+// ============================================
+// Criminal Dashboard Types (Phase 5)
+// ============================================
+
+// 양형 분포
+export interface SentencingDistributionStats {
+  suspended: number;      // 집행유예 비율
+  fine: number;           // 벌금형 비율
+  imprisonment: number;   // 실형 비율
+  acquittal: number;      // 무죄 비율
+}
+
+// 유사 사건 통계 응답
+export interface SimilarCaseStatisticsResponse {
+  crime_type: string;
+  conditions: string[];
+  total_similar_cases: number;
+  distribution: SentencingDistributionStats;
+}
+
+// 권장 사항
+export interface CriminalRecommendation {
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  content: string;
+}
+
+// 대시보드 요약 응답
+export interface CriminalDashboardSummary {
+  total_cases: number;
+  cases_by_stage: Record<CriminalStage, number>;
+  upcoming_schedules: CriminalScheduleItem[];
+  recommendations: CriminalRecommendation[];
+}
+
+// 범죄 유형별 사건 수
+export interface CrimeTypeCount {
+  crime_type: string;
+  count: number;
 }

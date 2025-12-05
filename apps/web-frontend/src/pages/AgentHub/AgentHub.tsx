@@ -16,7 +16,7 @@ import { MessageList, Message } from '../../components/agent-hub/messages';
 import type { DocumentAnalysisMetadata } from '../../types/agentHub';
 
 // Services
-import { agentHubService, ProgressEvent } from '../../services/agentHubService';
+import { agentHubService, ProgressEvent, ToolExecutionEvent } from '../../services/agentHubService';
 import { ChatSession, SuggestedQuestion, AttachmentPayload } from '../../types/agentHub';
 
 // Types
@@ -44,6 +44,7 @@ const AgentHub: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [suggestedQuestions, setSuggestedQuestions] = useState<SuggestedQuestion[]>([]);
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus | null>(null);
+  const [toolExecutions, setToolExecutions] = useState<ToolExecutionEvent[]>([]);
 
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -214,11 +215,13 @@ const AgentHub: React.FC = () => {
       setMessages((prev) => [...prev, aiMessage]);
 
       setIsStreaming(true);
+      setToolExecutions([]);  // 도구 실행 로그 초기화
       setExecutionStatus({
         name: '분석 중...',
         step: 'ANALYZING',
         progress: 5,
         message: '질문을 분석하고 있습니다...',
+        toolExecutions: [],
       });
 
       // SSE 스트리밍 시작
@@ -269,16 +272,50 @@ const AgentHub: React.FC = () => {
           },
           onProgress: (progressEvent: ProgressEvent) => {
             // Progress 이벤트로 실행 상태 업데이트
-            setExecutionStatus({
+            setExecutionStatus((prev) => ({
               name: progressEvent.message,
               step: progressEvent.step,
               progress: progressEvent.percentage,
               message: progressEvent.message,
               execution_path: progressEvent.execution_path,
               step_details: progressEvent.step_details,
+              toolExecutions: prev?.toolExecutions || [],
+            }));
+          },
+          onToolExecution: (toolEvent: ToolExecutionEvent) => {
+            // 도구 실행 이벤트 처리
+            console.log('[DEBUG AgentHub] onToolExecution called:', toolEvent);
+            setToolExecutions((prev) => {
+              // 같은 step + tool 조합의 이벤트 업데이트 또는 추가
+              const existingIndex = prev.findIndex(
+                (e) => e.step === toolEvent.step && e.tool === toolEvent.tool
+              );
+              if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = toolEvent;
+                return updated;
+              }
+              return [...prev, toolEvent];
+            });
+            // executionStatus의 toolExecutions도 업데이트
+            setExecutionStatus((prev) => {
+              if (!prev) return prev;
+              const currentExecutions = prev.toolExecutions || [];
+              const existingIndex = currentExecutions.findIndex(
+                (e) => e.step === toolEvent.step && e.tool === toolEvent.tool
+              );
+              let newExecutions: ToolExecutionEvent[];
+              if (existingIndex >= 0) {
+                newExecutions = [...currentExecutions];
+                newExecutions[existingIndex] = toolEvent;
+              } else {
+                newExecutions = [...currentExecutions, toolEvent];
+              }
+              return { ...prev, toolExecutions: newExecutions };
             });
           },
           onSource: (sources) => {
+            console.log('[DEBUG AgentHub] onSource called with:', sources);
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === aiMessageId
@@ -329,6 +366,7 @@ const AgentHub: React.FC = () => {
             setIsLoading(false);
             setIsStreaming(false);
             setExecutionStatus(null);
+            setToolExecutions([]);  // 도구 실행 로그 초기화 - 완료 후 표시 제거
             abortControllerRef.current = null;
 
             refreshSessions();
@@ -467,14 +505,10 @@ const AgentHub: React.FC = () => {
     [sessionId]
   );
 
-  // 컴포넌트 언마운트 시 정리
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
+  // 참고: 페이지 이동 시 SSE 스트리밍을 abort하지 않습니다.
+  // 백엔드가 응답을 완료하고 DB에 저장하도록 허용합니다.
+  // 사용자가 돌아오면 loadSession()에서 완료된 응답을 로드합니다.
+  // 사용자가 명시적으로 "중지"를 원하면 handleStopStreaming()을 사용합니다.
 
   // 로딩 상태
   if (authLoading) {
@@ -514,6 +548,7 @@ const AgentHub: React.FC = () => {
         sessionId={sessionId || undefined}
         onSuggestedQuestionClick={handleSuggestedQuestionClick}
         onSaveAnalysis={handleSaveAnalysis}
+        toolExecutions={toolExecutions}
       />
 
       {/* Error Display */}

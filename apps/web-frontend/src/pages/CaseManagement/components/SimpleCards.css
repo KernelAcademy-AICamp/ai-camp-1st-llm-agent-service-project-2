@@ -1,0 +1,520 @@
+/* ===========================================
+   일반인용 카드 공통 스타일
+   =========================================== */
+
+.simple-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.simple-card .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.simple-card .card-header h4 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.simple-card .card-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.simple-card .card-icon {
+  font-size: 20px;
+}
+
+/* ===========================================
+   고소 가능성 카드 (PossibilityCard)
+   =========================================== */
+
+.possibility-card {
+  border-width: 2px;
+}
+
+.possibility-content {
+  text-align: center;
+}
+
+.possibility-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.possibility-indicator .level-text {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.possibility-indicator .percentage {
+  font-size: 18px;
+  opacity: 0.8;
+}
+
+.possibility-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.possibility-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.possibility-content .description {
+  font-size: 15px;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.possibility-content .advice {
+  font-size: 14px;
+  color: #6b7280;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 0;
+}
+
+/* ===========================================
+   유리/불리한 점 카드 (SimpleFactorsCard)
+   =========================================== */
+
+.factors-card .factors-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .factors-card .factors-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.factor-section {
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.factor-section.favorable {
+  background: #ecfdf5;
+}
+
+.factor-section.unfavorable {
+  background: #fef2f2;
+}
+
+.factor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.factor-header h5 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+.factor-icon.favorable {
+  color: #10b981;
+}
+
+.factor-icon.unfavorable {
+  color: #ef4444;
+}
+
+.factor-description {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.factor-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.factor-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.factor-item .bullet {
+  font-weight: 700;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.factor-item.favorable .bullet {
+  color: #10b981;
+}
+
+.factor-item.unfavorable .bullet {
+  color: #ef4444;
+}
+
+.no-factors {
+  font-size: 13px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* ===========================================
+   다음 단계 카드 (NextStepsCard)
+   =========================================== */
+
+.steps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.step-item:last-child {
+  border-bottom: none;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.step-item.priority-high .step-number {
+  background: #ef4444;
+}
+
+.step-item.priority-medium .step-number {
+  background: #f59e0b;
+}
+
+.step-item.priority-low .step-number {
+  background: #6b7280;
+}
+
+.step-details {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.step-text {
+  font-size: 14px;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-category-icon {
+  font-size: 14px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.priority-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.helpful-contacts {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.helpful-contacts h5 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 12px 0;
+}
+
+.helpful-contacts ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.helpful-contacts li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.contact-icon {
+  font-size: 14px;
+  color: var(--color-primary, #1e40af);
+  flex-shrink: 0;
+}
+
+/* ===========================================
+   예상 결과 카드 (ExpectedResultCard)
+   =========================================== */
+
+.expected-result-card {
+  min-height: 500px;
+}
+
+.expected-result-card .result-content {
+  min-height: 450px;
+}
+
+.result-main {
+  text-align: center;
+  padding: 28px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.result-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+}
+
+.result-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+}
+
+.suspended-probability {
+  padding: 24px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.suspended-probability.level-high {
+  background: #ecfdf5;
+}
+
+.suspended-probability.level-medium {
+  background: #fffbeb;
+}
+
+.suspended-probability.level-low {
+  background: #fef2f2;
+}
+
+.suspended-probability .probability-bar {
+  width: 100%;
+  height: 10px;
+  background: #e5e7eb;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.suspended-probability .probability-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+  border-radius: 5px;
+}
+
+.expected-result-card .probability-text {
+  position: static;
+  top: auto;
+  left: auto;
+  transform: none;
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.probability-value {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.reasoning-section {
+  padding: 20px 24px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.reasoning-header .info-icon {
+  color: #3b82f6;
+}
+
+.reasoning-text {
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.terms-explanation {
+  padding: 20px 24px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.terms-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.terms-header .info-icon {
+  color: #f59e0b;
+}
+
+.terms-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.terms-list li {
+  font-size: 13px;
+  color: #4b5563;
+  padding: 4px 0;
+}
+
+.terms-list li strong {
+  color: #1f2937;
+}
+
+.disclaimer {
+  padding: 12px;
+  background: #fef3c7;
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+
+.disclaimer p {
+  font-size: 12px;
+  color: #92400e;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ===========================================
+   뷰 모드 토글
+   =========================================== */
+
+.view-mode-toggle {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.view-mode-toggle button {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  color: #6b7280;
+}
+
+.view-mode-toggle button:hover {
+  color: #374151;
+}
+
+.view-mode-toggle button.active {
+  background: white;
+  color: #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ===========================================
+   반응형
+   =========================================== */
+
+@media (max-width: 640px) {
+  .simple-card {
+    padding: 16px;
+  }
+
+  .result-value {
+    font-size: 20px;
+  }
+
+  .step-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}

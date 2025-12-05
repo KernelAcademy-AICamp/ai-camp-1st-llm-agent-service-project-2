@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { UserDocumentDetail, Summary, KeyClause, AnalysisStatus } from '../types';
 import SummarySection from './SummarySection';
 import ClauseList from './ClauseList';
 import RiskAnalysisSection from './RiskAnalysisSection';
 import CaseAnalysisSection from './CaseAnalysisSection';
 import ModelComparisonSection from './ModelComparisonSection';
+import { CriminalAnalysisPanel } from './analysis/CriminalAnalysis';
 import '../styles/AnalysisPanel.css';
 
 type TabType = 'summary' | 'clauses' | 'risk' | 'case' | 'model';
+
+// Document types that should use criminal analysis mode
+const CRIMINAL_DOC_TYPES = ['CASE', 'PRECEDENT', 'INDICTMENT'];
 
 interface AnalysisPanelProps {
   document: UserDocumentDetail;
@@ -58,7 +62,28 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('summary');
 
+  // Determine analysis mode based on document type
+  const analysisMode = useMemo(() => {
+    if (CRIMINAL_DOC_TYPES.includes(document.doc_type)) {
+      return 'criminal';
+    }
+    return 'contract';
+  }, [document.doc_type]);
+
   const isCaseDocument = document.doc_type === 'CASE';
+
+  // If criminal document, render CriminalAnalysisPanel
+  if (analysisMode === 'criminal') {
+    return (
+      <CriminalAnalysisPanel
+        document={document}
+        token={token}
+        analysisStatus={analysisStatus}
+      />
+    );
+  }
+
+  // Contract/Other document - render standard analysis panel
 
   // Tab configuration
   const tabs: { id: TabType; label: string; show: boolean }[] = [

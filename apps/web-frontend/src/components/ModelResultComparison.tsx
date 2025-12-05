@@ -116,7 +116,7 @@ const ModelResultComparison: React.FC<ModelResultComparisonProps> = ({
       <div className={`comparison-results ${viewMode}`}>
         {results.map((result, index) => (
           <div
-            key={result.modelId}
+            key={`${result.modelId}-${result.timestamp}-${index}`}
             className={`result-card ${result.isLatest ? 'latest' : ''} ${
               expandedResults.has(result.modelId) ? 'expanded' : ''
             }`}

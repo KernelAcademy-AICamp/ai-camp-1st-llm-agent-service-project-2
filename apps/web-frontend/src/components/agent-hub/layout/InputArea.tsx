@@ -386,6 +386,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     step_details: executionStatus.step_details,
                   }}
                   compact={false}
+                  toolExecutions={executionStatus.toolExecutions}
                 />
                 {onStopStreaming && (
                   <button

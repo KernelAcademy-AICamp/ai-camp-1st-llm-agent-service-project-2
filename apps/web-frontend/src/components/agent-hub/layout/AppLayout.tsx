@@ -11,6 +11,7 @@ import { useIsMobile, useIsDesktop } from '../../../hooks';
 import Sidebar from './Sidebar';
 import InputArea from './InputArea';
 import type { AttachmentPayload } from '../../../types/agentHub';
+import type { ToolExecutionEvent } from '../../../services/agentHubService';
 
 // 세션 타입
 export interface SessionItem {
@@ -30,6 +31,8 @@ export interface ExecutionStatus {
   message?: string;
   execution_path?: 'fast' | 'medium' | 'deep' | 'thinking';
   step_details?: Record<string, any>;
+  // 도구 실행 로그 (Phase 7)
+  toolExecutions?: ToolExecutionEvent[];
 }
 
 interface AppLayoutProps {

@@ -1,0 +1,1006 @@
+/* ===========================================
+   Criminal Analysis - 형사문서 분석 섹션 스타일
+   =========================================== */
+
+/* 섹션 기본 스타일 */
+.criminal-section {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.section-icon {
+  color: #1e40af;
+  font-size: 20px;
+}
+
+.section-content {
+  padding: 20px;
+}
+
+.section-description {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 16px 0;
+}
+
+/* 로딩 상태 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #1e40af;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 빈 상태 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 16px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: #d1d5db;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 버튼 스타일 */
+.btn-analyze {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #1e40af;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-analyze:hover:not(:disabled) {
+  background: #1e3a8a;
+  transform: translateY(-1px);
+}
+
+.btn-analyze:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 16px;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-expand {
+  background: none;
+  border: none;
+  color: #1e40af;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 8px;
+}
+
+.btn-expand:hover {
+  text-decoration: underline;
+}
+
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ===========================================
+   CrimeElementsSection - 구성요건 분석
+   =========================================== */
+.crime-elements-section .fulfillment-summary {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.crime-elements-section .fulfillment-summary.all-fulfilled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.crime-elements-section .fulfillment-summary.partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.element-group {
+  margin-bottom: 20px;
+}
+
+.element-group:last-of-type {
+  margin-bottom: 0;
+}
+
+.element-group h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.elements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.element-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.element-item.fulfilled {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.element-item.not-fulfilled {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.element-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+  padding-top: 2px;
+}
+
+.icon-fulfilled {
+  color: #22c55e;
+}
+
+.icon-not-fulfilled {
+  color: #ef4444;
+}
+
+.element-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.element-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.element-desc {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.element-status {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.status-fulfilled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-not-fulfilled {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.no-data {
+  text-align: center;
+  padding: 32px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* ===========================================
+   SentencingSection - 양형 분석
+   =========================================== */
+.sentencing-factors {
+  margin-bottom: 24px;
+}
+
+.factors-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .factors-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.factor-group {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.factor-group.favorable {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border-color: #86efac;
+}
+
+.factor-group.unfavorable {
+  background: linear-gradient(135deg, #fef2f2 0%, #fef2f2 100%);
+  border-color: #fca5a5;
+}
+
+.factor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.factor-icon {
+  font-size: 16px;
+}
+
+.factor-icon.favorable {
+  color: #22c55e;
+}
+
+.factor-icon.unfavorable {
+  color: #ef4444;
+}
+
+.factor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.factor-tag {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.factor-tag.favorable {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.factor-tag.unfavorable {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.no-factors {
+  font-size: 13px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.factor-balance {
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.balance-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.balance-favorable {
+  background: linear-gradient(90deg, #22c55e 0%, #4ade80 100%);
+  transition: width 0.3s ease;
+}
+
+.balance-unfavorable {
+  background: linear-gradient(90deg, #f87171 0%, #ef4444 100%);
+  transition: width 0.3s ease;
+}
+
+.balance-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+/* 양형 예측 */
+.sentence-estimate {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.estimate-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.estimate-header h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.estimate-icon {
+  color: #1e40af;
+  font-size: 18px;
+}
+
+.sentence-main {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .sentence-main {
+    flex-direction: column;
+  }
+}
+
+.sentence-range {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  border-radius: 8px;
+}
+
+.range-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+}
+
+.range-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e40af;
+  letter-spacing: -0.5px;
+}
+
+.suspended-probability {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prob-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+}
+
+.prob-display {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.prob-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 4px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  flex-shrink: 0;
+}
+
+.prob-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.prob-bar-container {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.prob-bar {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.prob-status {
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.sentence-reasoning {
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.reasoning-header svg {
+  color: #1e40af;
+}
+
+.sentence-reasoning p {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.disclaimer {
+  font-size: 12px;
+  color: #92400e;
+  padding: 12px;
+  background: #fef3c7;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+  line-height: 1.5;
+}
+
+/* ===========================================
+   JudgmentSummarySection - 판시사항 요약
+   =========================================== */
+.judgment-summary-section .decision-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 9999px;
+}
+
+.decision-badge.guilty {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.decision-badge.acquittal {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.judgment-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.info-item svg {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.charges-section {
+  margin-bottom: 20px;
+}
+
+.charges-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  margin: 0 0 8px 0;
+}
+
+.charges-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.charge-tag {
+  font-size: 13px;
+  padding: 4px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+}
+
+.summary-block {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.summary-block h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+}
+
+.summary-block p {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.summary-block.main-issue {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-left: 4px solid #1e40af;
+}
+
+.key-points {
+  margin-bottom: 20px;
+}
+
+.key-points h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 12px 0;
+}
+
+.key-points ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.key-points li {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+.key-points li:last-child {
+  margin-bottom: 0;
+}
+
+.legal-principles {
+  margin-bottom: 20px;
+}
+
+.legal-principles h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 10px 0;
+}
+
+.principles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.principle-tag {
+  font-size: 13px;
+  padding: 6px 12px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 6px;
+}
+
+.verdict-section {
+  margin-bottom: 20px;
+}
+
+.verdict-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+}
+
+.verdict-content {
+  padding: 16px;
+  background: #fee2e2;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #dc2626;
+  text-align: center;
+}
+
+/* ===========================================
+   RelatedCasesSection - 유사 판례
+   =========================================== */
+.related-cases-section .precedent-count {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 9999px;
+}
+
+.precedents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.precedent-item {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.precedent-item:hover {
+  border-color: #dbeafe;
+  background: #f8fafc;
+}
+
+.precedent-item.selected {
+  border-color: #1e40af;
+  background: #eff6ff;
+}
+
+.precedent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.precedent-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.precedent-info input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.case-number {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.crime-type-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+}
+
+.relevance-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.relevance-badge svg {
+  font-size: 12px;
+}
+
+.precedent-meta {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #666;
+}
+
+.meta-item svg {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.precedent-sentence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.sentence-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #991b1b;
+}
+
+.sentence-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.precedent-summary {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+/* 비교 테이블 */
+.compare-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.compare-section h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 16px 0;
+}
+
+.compare-table-wrapper {
+  overflow-x: auto;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.compare-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.compare-table td {
+  color: #666;
+}
+
+.compare-table td.sentence-cell {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+/* ===========================================
+   CriminalAnalysisPanel - 전체 패널
+   =========================================== */
+.criminal-analysis-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.criminal-analysis-panel .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.criminal-analysis-panel .panel-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.criminal-analysis-panel .crime-type-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #fef3c7;
+  border-radius: 6px;
+}
+
+.criminal-analysis-panel .crime-type-indicator span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #92400e;
+}
+
+.criminal-analysis-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.criminal-analysis-tabs .tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.criminal-analysis-tabs .tab-btn:hover {
+  color: #1e40af;
+  background: rgba(30, 64, 175, 0.05);
+}
+
+.criminal-analysis-tabs .tab-btn.active {
+  background: white;
+  color: #1e40af;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 반응형 */
+@media (max-width: 640px) {
+  .criminal-analysis-tabs {
+    flex-wrap: wrap;
+  }
+
+  .criminal-analysis-tabs .tab-btn {
+    flex: 1 1 45%;
+  }
+}

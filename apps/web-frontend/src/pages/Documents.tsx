@@ -105,12 +105,13 @@ const Documents: React.FC = () => {
         setUploadTitle(defaultTitle);
       }
 
-      // For PDF files, immediately trigger text extraction
+      // For PDF and image files, trigger text extraction (OCR)
       const extension = file.name.split('.').pop()?.toLowerCase();
-      if (extension === 'pdf') {
+      const ocrExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'tif', 'webp'];
+      if (extension && ocrExtensions.includes(extension)) {
         await triggerExtraction(file);
       } else {
-        // For non-PDF files, show upload form directly
+        // For text-based files (docx, txt), show upload form directly
         setShowUploadForm(true);
       }
     }
@@ -147,12 +148,13 @@ const Documents: React.FC = () => {
         setUploadTitle(defaultTitle);
       }
 
-      // For PDF files, immediately trigger text extraction
+      // For PDF and image files, trigger text extraction (OCR)
       const extension = file.name.split('.').pop()?.toLowerCase();
-      if (extension === 'pdf') {
+      const ocrExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'tif', 'webp'];
+      if (extension && ocrExtensions.includes(extension)) {
         await triggerExtraction(file);
       } else {
-        // For non-PDF files, show upload form directly
+        // For text-based files (docx, txt), show upload form directly
         setShowUploadForm(true);
       }
     }
@@ -380,7 +382,7 @@ const Documents: React.FC = () => {
         </label>
         <input
           type="file"
-          accept=".pdf,.docx,.txt"
+          accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.webp,image/*"
           onChange={handleFileChange}
           style={{ display: 'none' }}
           id="file-input"
@@ -498,7 +500,7 @@ const Documents: React.FC = () => {
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
         <p>파일을 여기에 드래그하거나 상단 버튼을 클릭하세요</p>
-        <span>PDF, DOCX, TXT (최대 10MB)</span>
+        <span>PDF, DOCX, TXT, 이미지(PNG, JPG 등) - 최대 10MB</span>
       </div>
 
       {/* Documents Table */}
@@ -597,7 +599,7 @@ const Documents: React.FC = () => {
           </div>
 
           <div className="empty-state-formats">
-            지원 형식: PDF, DOCX, TXT (최대 10MB)
+            지원 형식: PDF, DOCX, TXT, 이미지(PNG, JPG, GIF, BMP, TIFF, WEBP) - 최대 10MB
           </div>
         </div>
       )}

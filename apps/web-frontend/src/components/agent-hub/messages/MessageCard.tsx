@@ -5,12 +5,14 @@
  * 깔끔한 카드 스타일
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn, formatTime, copyToClipboard } from '../../../lib/utils';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { TypingIndicator } from './TypingIndicator';
+import { InlineToolIndicator } from './InlineToolIndicator';
 import SourceDetailModal from '../../SourceDetailModal/SourceDetailModal';
 import type { MessageMetadata, DocumentAnalysisMetadata, MessageSource } from '../../../types/agentHub';
+import type { ToolExecutionEvent } from '../../../services/agentHubService';
 
 // Re-export SourceItem as alias for MessageSource for backward compatibility
 export type SourceItem = MessageSource;
@@ -30,6 +32,8 @@ interface MessageCardProps {
   className?: string;
   sessionId?: string;
   onSaveAnalysis?: (message: Message) => Promise<{ success: boolean; document_url?: string; error?: string }>;
+  /** 스트리밍 중 도구 실행 상태 (ChatGPT 스타일 인라인 표시용) */
+  toolExecutions?: ToolExecutionEvent[];
 }
 
 // Icons - 컴포넌트보다 먼저 정의해야 사용 가능
@@ -114,6 +118,7 @@ export const MessageCard: React.FC<MessageCardProps> = ({
   className,
   sessionId,
   onSaveAnalysis,
+  toolExecutions = [],
 }) => {
   const [copied, setCopied] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -200,7 +205,17 @@ export const MessageCard: React.FC<MessageCardProps> = ({
           'agent-hub-msg__bubble',
           isUser ? 'agent-hub-msg__bubble--user' : 'agent-hub-msg__bubble--assistant'
         )}>
-          {isStreaming ? (
+          {/* 인라인 도구 표시 (ChatGPT 스타일) */}
+          {/* 스트리밍 중이거나 완료 직후에도 도구 실행 이력 표시 */}
+          {!isUser && toolExecutions.length > 0 && (
+            <InlineToolIndicator
+              executions={toolExecutions}
+              showCompleted={true}
+              maxVisible={5}
+            />
+          )}
+
+          {isStreaming && !message.content ? (
             <TypingIndicator />
           ) : isUser ? (
             <p className="agent-hub-msg__text">{message.content}</p>
@@ -285,9 +300,25 @@ interface MessageMetadataViewProps {
 }
 
 const MessageMetadataView: React.FC<MessageMetadataViewProps> = ({ metadata }) => {
-  const [showSources, setShowSources] = useState(false);
+  // 소스가 있으면 자동으로 펼쳐서 보여줌
+  const [showSources, setShowSources] = useState(
+    metadata.sources && metadata.sources.length > 0
+  );
   const [selectedSource, setSelectedSource] = useState<MessageSource | null>(null);
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
+
+  console.log('[DEBUG MessageMetadataView] metadata:', metadata);
+  console.log('[DEBUG MessageMetadataView] metadata.sources:', metadata.sources);
+  console.log('[DEBUG MessageMetadataView] showSources:', showSources);
+
+  // 스트리밍 중에 소스가 나중에 도착하면 자동으로 펼쳐줌
+  useEffect(() => {
+    console.log('[DEBUG useEffect] metadata.sources changed:', metadata.sources);
+    if (metadata.sources && metadata.sources.length > 0) {
+      console.log('[DEBUG useEffect] Setting showSources to true');
+      setShowSources(true);
+    }
+  }, [metadata.sources]);
 
   // Source card click handler
   const handleSourceClick = (source: MessageSource) => {

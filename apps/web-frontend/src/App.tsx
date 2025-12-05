@@ -3,11 +3,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout/Layout';
 import Landing from './pages/Landing/Landing';
-import Home from './pages/Home/Home';
+import Dashboard from './pages/Dashboard';
 import LegalResearch from './pages/LegalResearch/LegalResearch';
 import CaseManagement from './pages/CaseManagement/CaseManagement';
+import CaseManagementV2 from './pages/CaseManagement/CaseManagementV2';
+import CaseDetailV2 from './pages/CaseManagement/CaseDetailV2';
 import DocumentEditor from './pages/DocumentEditor/DocumentEditor';
-import RecentPrecedents from './pages/RecentPrecedents/RecentPrecedents';
+import RecentPrecedentsV2 from './pages/RecentPrecedents/RecentPrecedentsV2';
 import Documents from './pages/Documents';
 import DocumentDetail from './pages/DocumentDetail';
 import Organizations from './pages/Organizations';
@@ -18,6 +20,7 @@ import Signup from './pages/Signup/Signup';
 import ModelComparison from './pages/ModelComparison/ModelComparison';
 import AgentHub from './pages/AgentHub';
 import AgentHubHistory from './pages/AgentHubHistory';
+import CriminalDashboard from './pages/CriminalDashboard/CriminalDashboard';
 import './App.css';
 
 // Analysis Landing Page Component
@@ -61,14 +64,15 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/app" element={
             <Layout>
-              <Home />
+              <Dashboard />
             </Layout>
           } />
 
           {/* Feature routes - publicly accessible for demo */}
+          {/* 판례 검색 + 양형기준 조회 (Phase 3) */}
           <Route path="/documents/research" element={
             <Layout>
-              <RecentPrecedents />
+              <RecentPrecedentsV2 />
             </Layout>
           } />
           <Route path="/research/*" element={
@@ -79,6 +83,23 @@ function App() {
           <Route path="/cases/*" element={
             <Layout>
               <CaseManagement />
+            </Layout>
+          } />
+          {/* 형사 사건 관리 V2 - 형사법 특화 버전 */}
+          <Route path="/cases-v2" element={
+            <Layout>
+              <CaseManagementV2 />
+            </Layout>
+          } />
+          <Route path="/cases-v2/:caseId" element={
+            <Layout>
+              <CaseDetailV2 />
+            </Layout>
+          } />
+          {/* 형사 사건 현황 대시보드 - Phase 5 */}
+          <Route path="/criminal-dashboard" element={
+            <Layout>
+              <CriminalDashboard />
             </Layout>
           } />
           <Route path="/docs/*" element={

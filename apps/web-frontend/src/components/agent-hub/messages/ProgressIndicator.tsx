@@ -9,13 +9,15 @@
 
 import React, { useMemo } from 'react';
 import { cn } from '../../../lib/utils';
-import type { ProgressEvent } from '../../../services/agentHubService';
+import type { ProgressEvent, ToolExecutionEvent } from '../../../services/agentHubService';
+import { ToolExecutionLog } from './ToolExecutionLog';
 
 interface ProgressIndicatorProps {
   progress: ProgressEvent;
   className?: string;
   showPercentage?: boolean;
   compact?: boolean;
+  toolExecutions?: ToolExecutionEvent[];
 }
 
 /**
@@ -68,6 +70,7 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   className,
   showPercentage = true,
   compact = false,
+  toolExecutions = [],
 }) => {
   const config = useMemo(() =>
     STEP_CONFIG[progress.step] || STEP_CONFIG.EXECUTING,
@@ -158,6 +161,15 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
       {/* Step Details (workflow/tool info) */}
       {progress.step_details && (
         <StepDetailsDisplay details={progress.step_details} />
+      )}
+
+      {/* Tool Execution Log (Phase 7) */}
+      {toolExecutions.length > 0 && (
+        <ToolExecutionLog
+          executions={toolExecutions}
+          compact={false}
+          maxVisible={5}
+        />
       )}
 
       <style>{`
@@ -265,6 +277,7 @@ const PathBadge: React.FC<{ path: ProgressEvent['execution_path'] }> = ({ path }
   if (!path) return null;
 
   const config = pathConfig[path];
+  if (!config) return null;
 
   return (
     <span className={cn(

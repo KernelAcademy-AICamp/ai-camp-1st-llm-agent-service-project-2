@@ -1,19 +1,22 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown, FiMenu } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiBookOpen, FiBook, FiFileText, FiAlertCircle, FiCheckCircle, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown, FiMenu, FiDatabase, FiGlobe } from 'react-icons/fi';
 import './LegalResearch.css';
-import './DocumentFilter.css';
+import './DocumentFilterV2.css';  // Phase 4: 형사법 특화 필터
 import { apiClient } from '../../api/client';
 import type { RAGChatResponse, RAGFilterOptions, RAGSource, SearchHistoryItem } from '../../types';
 import PrecedentModal from '../../components/PrecedentModal/PrecedentModal';
 import SourceDetailModal from '../../components/SourceDetailModal/SourceDetailModal';
 import { useAuth } from '../../contexts/AuthContext';
-import DocumentFilter from './DocumentFilter';
+import DocumentFilterV2 from './DocumentFilterV2';  // Phase 4: 형사법 특화 필터
 import {
   getSearchHistory as getLocalSearchHistory,
   addSearchHistoryItem as addLocalSearchHistoryItem,
   removeSearchHistoryItem as removeLocalSearchHistoryItem,
   clearSearchHistory as clearLocalSearchHistory,
 } from '../../utils/searchHistory';
+
+// 검색 탭 타입
+type SearchTab = 'rag' | 'live_precedent';
 
 // sessionStorage 키
 const RESEARCH_STATE_KEY = 'legalResearchState';
@@ -81,8 +84,17 @@ const LegalResearch: React.FC = () => {
   // Check if user is admin (관리자 전용 기능)
   const isAdmin = user?.is_staff === true;
 
-  // Filter panel state (Session 13-C)
-  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  // 검색 탭 상태
+  const [activeTab, setActiveTab] = useState<SearchTab>('rag');
+
+  // 실시간 판례 검색 상태
+  const [livePrecedents, setLivePrecedents] = useState<any[]>([]);
+  const [livePrecedentTotal, setLivePrecedentTotal] = useState(0);
+  const [isLivePrecedentSearching, setIsLivePrecedentSearching] = useState(false);
+  const [livePrecedentError, setLivePrecedentError] = useState<string | null>(null);
+
+  // Filter panel state (Session 13-C) - 기본값 true로 변경 (접힌 상태)
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(true);
   const [filters, setFilters] = useState<RAGFilterOptions>(() => {
     // 세션 상태에서 복원
     if (savedState?.filters) {
@@ -325,29 +337,6 @@ const LegalResearch: React.FC = () => {
     }
   };
 
-  const handlePrecedentClick = async (sourceId: string) => {
-    // Skip if sourceId is empty or invalid
-    if (!sourceId || sourceId.trim() === '') {
-      console.warn('Invalid source ID, skipping API call');
-      return;
-    }
-
-    setIsLoadingPrecedent(true);
-    setIsModalOpen(true);
-    setSelectedPrecedent(null);
-
-    try {
-      const detail = await apiClient.getDocumentDetail(sourceId);
-      setSelectedPrecedent(detail);
-    } catch (err) {
-      console.error('Failed to load precedent detail:', err);
-      setError(err instanceof Error ? err.message : '판례 상세 정보를 불러오는 데 실패했습니다.');
-      setIsModalOpen(false);
-    } finally {
-      setIsLoadingPrecedent(false);
-    }
-  };
-
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedPrecedent(null);
@@ -470,10 +459,50 @@ const LegalResearch: React.FC = () => {
     }
   };
 
+  // 실시간 판례 검색 핸들러
+  const handleLivePrecedentSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsLivePrecedentSearching(true);
+    setLivePrecedentError(null);
+    setLivePrecedents([]);
+
+    try {
+      const response = await apiClient.searchLivePrecedents({
+        keyword: searchQuery,
+        page: 1,
+        display: 20,
+        fetch_content: true,
+      });
+
+      if (response.success) {
+        setLivePrecedents(response.precedents);
+        setLivePrecedentTotal(response.total_count);
+      } else {
+        setLivePrecedentError(response.error || '판례 검색에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('Live precedent search error:', err);
+      setLivePrecedentError(err instanceof Error ? err.message : '실시간 판례 검색 중 오류가 발생했습니다.');
+    } finally {
+      setIsLivePrecedentSearching(false);
+    }
+  };
+
+  // 현재 탭에 맞는 검색 핸들러 실행
+  const handleCurrentTabSearch = (e: React.FormEvent) => {
+    if (activeTab === 'rag') {
+      handleSearch(e);
+    } else if (activeTab === 'live_precedent') {
+      handleLivePrecedentSearch(e);
+    }
+  };
+
   return (
     <div className="legal-research legal-research--three-panel">
-      {/* Left Panel: Document Filter (Session 13-C) */}
-      <DocumentFilter
+      {/* Left Panel: Document Filter V2 (Phase 4 - 검색 기록만 표시) */}
+      <DocumentFilterV2
         filters={filters}
         onFilterChange={handleFilterChange}
         isCollapsed={isFilterCollapsed}
@@ -483,6 +512,8 @@ const LegalResearch: React.FC = () => {
         onHistoryItemClick={handleHistoryItemClick}
         onHistoryItemDelete={handleHistoryItemDelete}
         onClearHistory={handleClearHistory}
+        enableCriminalFilters={false}  // 필터 비활성화 (검색 기록만 표시)
+        showFilters={false}  // 필터 섹션 숨기기
       />
 
       {/* Center Panel: Chat Area */}
@@ -502,12 +533,36 @@ const LegalResearch: React.FC = () => {
           </button>
         </div>
 
-        <form className="search-form" onSubmit={handleSearch}>
+        {/* 검색 탭 바 */}
+        <div className="search-tabs">
+          <button
+            className={`search-tab ${activeTab === 'rag' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rag')}
+          >
+            <FiDatabase />
+            <span>AI 검색</span>
+            <span className="tab-badge">388K 문서</span>
+          </button>
+          <button
+            className={`search-tab ${activeTab === 'live_precedent' ? 'active' : ''}`}
+            onClick={() => setActiveTab('live_precedent')}
+          >
+            <FiGlobe />
+            <span>실시간 판례</span>
+            <span className="tab-badge">법원 API</span>
+          </button>
+        </div>
+
+        <form className="search-form" onSubmit={handleCurrentTabSearch}>
         <div className="search-input-wrapper">
           <input
             type="text"
             className="search-input"
-            placeholder="예: 위법수집증거의 증거능력 판단 기준은?"
+            placeholder={
+              activeTab === 'rag'
+                ? '예: 위법수집증거의 증거능력 판단 기준은?'
+                : '예: 살인, 2023다12345, 대법원'
+            }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
@@ -515,54 +570,68 @@ const LegalResearch: React.FC = () => {
           <button
             type="submit"
             className="search-button"
-            disabled={isSearching}
+            disabled={isSearching || isLivePrecedentSearching}
           >
-            {isSearching ? (
+            {isSearching || isLivePrecedentSearching ? (
               <>
                 <FiLoader className="spinner-icon" />
-                AI 답변 생성 중...
+                {activeTab === 'rag' && 'AI 답변 생성 중...'}
+                {activeTab === 'live_precedent' && '판례 검색 중...'}
               </>
             ) : (
-              'AI 답변 받기'
+              <>
+                {activeTab === 'rag' && 'AI 답변 받기'}
+                {activeTab === 'live_precedent' && '판례 검색'}
+              </>
             )}
           </button>
         </div>
 
-        <div className="search-filters">
-          <span className="filter-label">
-            <FiFilter /> 응답 모드:
-          </span>
-          <select
-            className="response-mode-select"
-            value={responseMode}
-            onChange={(e) => setResponseMode(e.target.value as 'auto' | 'concise' | 'standard' | 'detailed')}
-            title="AI 응답 상세도를 선택하세요"
-          >
-            <option value="auto">자동 (AI 판단)</option>
-            <option value="concise">간결 (핵심만)</option>
-            <option value="standard">표준 (권장)</option>
-            <option value="detailed">상세 (분석 포함)</option>
-          </select>
-          <span className="filter-label">
-            검색 문서:
-          </span>
-          <select
-            className="top-k-select"
-            value={topK}
-            onChange={(e) => setTopK(Number(e.target.value))}
-          >
-            <option value={2}>2개 (빠름)</option>
-            <option value={3}>3개 (권장)</option>
-            <option value={5}>5개 (상세)</option>
-            <option value={7}>7개 (매우 상세)</option>
-          </select>
-          <span className="search-info">
-            388,767개 형사법 문서 | Hybrid Search | Constitutional AI
-          </span>
-        </div>
+        {activeTab === 'rag' && (
+          <div className="search-filters">
+            <span className="filter-label">
+              <FiFilter /> 응답 모드:
+            </span>
+            <select
+              className="response-mode-select"
+              value={responseMode}
+              onChange={(e) => setResponseMode(e.target.value as 'auto' | 'concise' | 'standard' | 'detailed')}
+              title="AI 응답 상세도를 선택하세요"
+            >
+              <option value="auto">자동 (AI 판단)</option>
+              <option value="concise">간결 (핵심만)</option>
+              <option value="standard">표준 (권장)</option>
+              <option value="detailed">상세 (분석 포함)</option>
+            </select>
+            <span className="filter-label">
+              검색 문서:
+            </span>
+            <select
+              className="top-k-select"
+              value={topK}
+              onChange={(e) => setTopK(Number(e.target.value))}
+            >
+              <option value={2}>2개 (빠름)</option>
+              <option value={3}>3개 (권장)</option>
+              <option value={5}>5개 (상세)</option>
+              <option value={7}>7개 (매우 상세)</option>
+            </select>
+            <span className="search-info">
+              388,767개 형사법 문서 | Hybrid Search | Constitutional AI
+            </span>
+          </div>
+        )}
+
+        {activeTab === 'live_precedent' && (
+          <div className="search-filters">
+            <span className="search-info">
+              <FiGlobe /> 국가법령정보센터 Open API를 통한 실시간 판례 검색
+            </span>
+          </div>
+        )}
       </form>
 
-      {error && (
+      {activeTab === 'rag' && error && (
         <div className="search-error">
           <FiAlertCircle className="error-icon" />
           <div className="error-content">
@@ -575,7 +644,7 @@ const LegalResearch: React.FC = () => {
         </div>
       )}
 
-      {isSearching && (
+      {activeTab === 'rag' && isSearching && (
         <div className="loading-container">
           <div className="loading-card">
             <div className="loading-header">
@@ -607,7 +676,7 @@ const LegalResearch: React.FC = () => {
         </div>
       )}
 
-      {ragResponse && (
+      {activeTab === 'rag' && ragResponse && (
         <div className="rag-response">
           {/* AI Answer Section */}
           <div className="ai-answer-section">
@@ -751,7 +820,72 @@ const LegalResearch: React.FC = () => {
         </div>
       )}
 
-      {!ragResponse && !isSearching && !hasSearched && (
+      {/* 실시간 판례 검색 결과 */}
+      {activeTab === 'live_precedent' && livePrecedents.length > 0 && (
+        <div className="live-results">
+          <div className="live-results-header">
+            <h3><FiGlobe /> 실시간 판례 검색 결과</h3>
+            <span className="result-count">총 {livePrecedentTotal.toLocaleString()}건</span>
+          </div>
+          <div className="live-results-list">
+            {livePrecedents.map((precedent, index) => (
+              <div key={index} className="live-result-card">
+                <div className="live-result-header">
+                  <span className="live-result-rank">#{index + 1}</span>
+                  <h4 className="live-result-title">{precedent.case_name || precedent.case_number}</h4>
+                </div>
+                <div className="live-result-meta">
+                  {precedent.court && <span className="live-result-court">{precedent.court}</span>}
+                  {precedent.case_number && <span className="live-result-case-number">{precedent.case_number}</span>}
+                  {precedent.decision_date && <span className="live-result-date">{precedent.decision_date}</span>}
+                  {precedent.case_type && <span className="live-result-type">{precedent.case_type}</span>}
+                </div>
+                {precedent.summary && (
+                  <p className="live-result-summary">{precedent.summary}</p>
+                )}
+                {precedent.content && (
+                  <details className="live-result-content">
+                    <summary>전문 보기</summary>
+                    <div
+                      className="live-result-full-content"
+                      dangerouslySetInnerHTML={{ __html: precedent.content }}
+                    />
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 실시간 판례 검색 에러 */}
+      {activeTab === 'live_precedent' && livePrecedentError && (
+        <div className="search-error">
+          <FiAlertCircle className="error-icon" />
+          <div className="error-content">
+            <h4>판례 검색 오류</h4>
+            <p>{livePrecedentError}</p>
+            <button onClick={() => setLivePrecedentError(null)} className="error-dismiss">
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 실시간 판례 로딩 */}
+      {activeTab === 'live_precedent' && isLivePrecedentSearching && (
+        <div className="loading-container">
+          <div className="loading-card">
+            <div className="loading-header">
+              <FiLoader className="loading-spinner" />
+              <h3>판례를 검색하고 있습니다</h3>
+            </div>
+            <p>국가법령정보센터 API에서 판례를 조회 중입니다...</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'rag' && !ragResponse && !isSearching && !hasSearched && (
         <div className="research-placeholder">
           <div className="placeholder-content">
             <FiSearch className="placeholder-icon" />
@@ -1079,7 +1213,7 @@ const LegalResearch: React.FC = () => {
         </div>
       )}
 
-      {!ragResponse && !isSearching && hasSearched && !error && (
+      {activeTab === 'rag' && !ragResponse && !isSearching && hasSearched && !error && (
         <div className="research-placeholder">
           <div className="placeholder-content">
             <FiAlertCircle className="placeholder-icon" />
@@ -1097,6 +1231,30 @@ const LegalResearch: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 실시간 판례 탭 초기 상태 */}
+      {activeTab === 'live_precedent' && !isLivePrecedentSearching && livePrecedents.length === 0 && !livePrecedentError && (
+        <div className="research-placeholder">
+          <div className="placeholder-content">
+            <FiGlobe className="placeholder-icon" />
+            <h3>실시간 판례 검색</h3>
+            <p>국가법령정보센터 Open API를 통해 최신 판례를 실시간으로 검색합니다</p>
+            <div className="example-queries">
+              <h4>검색 예시:</h4>
+              <ul>
+                <li className="example-query-item" onClick={() => setSearchQuery('살인')}>살인</li>
+                <li className="example-query-item" onClick={() => setSearchQuery('절도')}>절도</li>
+                <li className="example-query-item" onClick={() => setSearchQuery('사기')}>사기</li>
+                <li className="example-query-item" onClick={() => setSearchQuery('대법원')}>대법원</li>
+              </ul>
+            </div>
+            <div className="tech-info" style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#6b7280' }}>
+              <p>* 법원 API를 직접 조회하여 최신 판례를 실시간으로 검색합니다</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>{/* End of center panel */}
 
       {/* Precedent Modal */}

@@ -312,13 +312,13 @@ const CaseManagement: React.FC = () => {
                 type="file"
                 id="file-input"
                 multiple
-                accept=".pdf,.docx,.doc,.txt"
+                accept=".pdf,.docx,.doc,.txt,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.webp,image/*"
                 onChange={handleFileSelect}
                 disabled={isUploading}
               />
               <label htmlFor="file-input" className="file-upload-label">
                 <FiUpload />
-                <span>파일 선택 (PDF, DOCX, TXT)</span>
+                <span>파일 선택 (PDF, DOCX, TXT, 이미지)</span>
               </label>
 
               {selectedFiles.length > 0 && (

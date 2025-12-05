@@ -19,6 +19,8 @@ import {
   APIError,
   CasesResponse,
   CaseAnalysis,
+  CriminalCaseAnalysis,
+  CriminalCaseListItem,
   DeleteResponse,
   DocumentGenerationRequest,
   DocumentDetail,
@@ -81,6 +83,13 @@ import {
   UploadAndAnalyzeResponse,
   AnalysisStatusResponse,
   StartAnalysisResponse,
+  // Criminal Analysis Types
+  CriminalAnalysisResponse,
+  RelatedPrecedentsResponse,
+  // Criminal Dashboard Types
+  CriminalDashboardSummary,
+  SimilarCaseStatisticsResponse,
+  CriminalCase,
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -284,6 +293,355 @@ class APIClient {
     return this.fetch<DeleteResponse>(`/api/v1/cases/${caseId}/`, {
       method: 'DELETE',
     }, token);
+  }
+
+  // ============================================
+  // Criminal Case Management (형사 사건 관리)
+  // ============================================
+
+  async getCriminalCases(token?: string): Promise<{ cases: CriminalCaseListItem[]; total: number }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/criminal/cases`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, { headers });
+
+      if (!response.ok) {
+        throw new Error('Criminal cases API failed');
+      }
+
+      const rawCases = await response.json();
+      // API 응답의 'id' 필드를 'case_id'로 매핑
+      const cases = (Array.isArray(rawCases) ? rawCases : []).map((c: any) => ({
+        case_id: c.id || c.case_id,  // id → case_id 매핑
+        case_name: c.case_name,
+        summary: c.summary || '',
+        document_count: c.document_count || 0,
+        crime_type: c.crime_type,
+        stage: c.stage,
+        next_schedule: c.next_schedule,
+        created_at: c.created_at,
+        analysis_status: c.analysis_status,
+      }));
+      return { cases, total: cases.length };
+    } catch {
+      // Fallback to regular cases API
+      try {
+        const regularCases = await this.getCases(token);
+        return {
+          cases: regularCases.cases.map(c => ({
+            case_id: c.case_id,
+            case_name: c.case_name,
+            summary: c.summary,
+            document_count: c.document_count,
+            created_at: c.created_at,
+          })),
+          total: regularCases.total,
+        };
+      } catch {
+        // Final fallback: return empty array when all APIs fail
+        console.log('All cases APIs failed, returning empty list');
+        return { cases: [], total: 0 };
+      }
+    }
+  }
+
+  async getCriminalCase(caseId: string, token?: string): Promise<CriminalCaseAnalysis> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/criminal/cases/${caseId}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, { headers });
+
+      if (!response.ok) {
+        throw new Error('Criminal case API failed');
+      }
+
+      return await response.json();
+    } catch {
+      // Fallback to regular case API
+      const regularCase = await this.getCase(caseId);
+      return regularCase as CriminalCaseAnalysis;
+    }
+  }
+
+  async uploadCriminalCaseFiles(
+    files: File[],
+    documentCategory: string,
+    token?: string,
+    confirmedTexts?: Record<string, string>  // OCR로 추출된 텍스트 (파일명 -> 텍스트)
+  ): Promise<CriminalCaseAnalysis> {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    // documentCategory를 crime_type으로 매핑 (API 스키마에 맞춤)
+    if (documentCategory && documentCategory !== 'other') {
+      formData.append('crime_type', documentCategory);
+    }
+    // OCR로 추출된 텍스트가 있으면 전달
+    if (confirmedTexts && Object.keys(confirmedTexts).length > 0) {
+      formData.append('confirmed_texts', JSON.stringify(confirmedTexts));
+    }
+
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    // analyze-and-save: 분석 + DB 저장 (새로고침해도 유지됨)
+    const url = `${AI_SERVICE_URL}/v2/cases/criminal/analyze-and-save`;
+    const headers: Record<string, string> = {};
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({
+          detail: response.statusText,
+        }));
+        throw new Error(error.detail || 'Upload failed');
+      }
+
+      const rawResponse = await response.json();
+      // API 응답의 'id' 필드를 'case_id'로 매핑
+      return {
+        ...rawResponse,
+        case_id: rawResponse.id || rawResponse.case_id,
+      };
+    } catch {
+      // Fallback to regular upload API
+      const regularAnalysis = await this.uploadCaseFiles(files, token);
+      return regularAnalysis as CriminalCaseAnalysis;
+    }
+  }
+
+  async deleteCriminalCase(caseId: string, token?: string): Promise<DeleteResponse> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/criminal/cases/${caseId}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error('Criminal case delete API failed');
+      }
+
+      return { success: true, message: 'Criminal case deleted successfully' };
+    } catch {
+      // Fallback to regular delete API
+      return await this.deleteCase(caseId, token);
+    }
+  }
+
+  /**
+   * Search precedents for a criminal case asynchronously
+   * Called after initial case analysis to search related precedents
+   */
+  async searchPrecedentsForCase(
+    caseId: string,
+    token?: string
+  ): Promise<{
+    success: boolean;
+    precedents: Array<{
+      case_number: string;
+      court: string;
+      date: string;
+      crime_type: string;
+      sentence: string;
+      summary: string;
+      relevance: number;
+    }>;
+    precedents_status: string;
+    error?: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/cases/criminal/cases/${caseId}/search-precedents`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({
+          detail: response.statusText,
+        }));
+        return {
+          success: false,
+          precedents: [],
+          precedents_status: 'failed',
+          error: error.detail || 'Failed to search precedents',
+        };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('searchPrecedentsForCase error:', error);
+      return {
+        success: false,
+        precedents: [],
+        precedents_status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  // ============================================
+  // Criminal Dashboard (형사 사건 현황 대시보드)
+  // ============================================
+
+  /**
+   * Get criminal cases for dashboard with full details
+   * Returns CriminalCase array with schedules and analysis data
+   */
+  async getCriminalCasesForDashboard(token?: string): Promise<{ cases: CriminalCase[] }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/criminal/dashboard`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, { headers });
+
+      if (!response.ok) {
+        throw new Error('Dashboard API failed');
+      }
+
+      return await response.json();
+    } catch {
+      // Fallback: Convert from regular criminal cases API
+      try {
+        const listResponse = await this.getCriminalCases(token);
+        const cases: CriminalCase[] = (listResponse.cases || []).map(item => ({
+          id: item.case_id,
+          user_id: '',
+          case_name: item.case_name,
+          summary: item.summary,
+          crime_type: item.crime_type || '',
+          crime_elements: { objective: [], subjective: [] },
+          sentencing_factors: { favorable: [], unfavorable: [] },
+          expected_sentence: { range: '', suspended_probability: 0 },
+          defense_strategies: [],
+          related_precedents: [],
+          stage: item.stage || 'INVESTIGATION',
+          schedules: item.next_schedule ? [item.next_schedule] : [],
+          conditions: [],
+          uploaded_files: [],
+          created_at: new Date(item.created_at * 1000).toISOString(),
+          updated_at: new Date(item.created_at * 1000).toISOString(),
+        }));
+        return { cases };
+      } catch {
+        // Final fallback: return empty cases array when all APIs fail
+        console.log('All criminal cases APIs failed, returning empty list');
+        return { cases: [] };
+      }
+    }
+  }
+
+  /**
+   * Get criminal dashboard summary with aggregated stats
+   */
+  async getCriminalDashboardSummary(token?: string): Promise<CriminalDashboardSummary> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/criminal/dashboard/summary`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to get dashboard summary');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get similar case statistics for sentencing prediction
+   */
+  async getSimilarCaseStatistics(
+    crimeType: string,
+    conditions: string[] = []
+  ): Promise<SimilarCaseStatisticsResponse> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/criminal/statistics/similar-cases`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        crime_type: crimeType,
+        conditions,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to get similar case statistics');
+    }
+
+    return response.json();
   }
 
   // ============================================
@@ -1623,6 +1981,346 @@ class APIClient {
         detail: response.statusText,
       }));
       throw new Error(error.detail || 'Analysis failed');
+    }
+
+    return response.json();
+  }
+
+  // ============================================
+  // Criminal Document Analysis - Phase 2
+  // ============================================
+
+  /**
+   * Get criminal analysis for a document
+   * Returns crime elements, sentencing factors, judgment summary, etc.
+   */
+  async getCriminalAnalysis(
+    documentId: string,
+    token?: string
+  ): Promise<CriminalAnalysisResponse> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/documents/${documentId}/criminal-analysis`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to get criminal analysis');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Trigger criminal document analysis
+   * Analyzes crime elements, sentencing factors, judgment summary
+   */
+  async analyzeCriminalDocument(
+    documentId: string,
+    token?: string
+  ): Promise<CriminalAnalysisResponse> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/documents/${documentId}/analyze-criminal`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to analyze criminal document');
+    }
+
+    return response.json();
+  }
+
+  // ============================================
+  // Sentencing Estimation - Phase 3
+  // ============================================
+
+  /**
+   * Estimate sentencing range based on crime type and factors
+   * Returns expected sentence range and suspended probability
+   */
+  async estimateSentence(request: {
+    crime_type: string;
+    sentencing_factors: {
+      favorable: string[];
+      unfavorable: string[];
+    };
+  }): Promise<{
+    range: string;
+    suspended_probability: number;
+    reasoning?: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/sentencing/estimate`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to estimate sentence');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Search criminal precedents with filters
+   * Returns precedents matching crime type and other criteria
+   */
+  async searchCriminalPrecedents(
+    query: string,
+    options?: {
+      crime_type?: string;
+      court?: string;
+      date_from?: string;
+      date_to?: string;
+      top_k?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    total_count: number;
+    results: Array<{
+      case_number: string;
+      court: string;
+      date: string;
+      crime_type: string;
+      sentence: string;
+      summary: string;
+      relevance: number;
+    }>;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/precedents/search/criminal`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        ...options,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to search criminal precedents');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Search related precedents for a criminal document
+   * Returns similar cases based on crime type and document content
+   */
+  async searchRelatedPrecedents(
+    documentId: string,
+    token?: string,
+    crimeType?: string
+  ): Promise<RelatedPrecedentsResponse> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+
+    const params = new URLSearchParams();
+    if (crimeType) {
+      params.append('crime_type', crimeType);
+    }
+
+    const queryString = params.toString();
+    const url = `${AI_SERVICE_URL}/v2/documents/${documentId}/related-precedents${queryString ? '?' + queryString : ''}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || 'Failed to search related precedents');
+    }
+
+    return response.json();
+  }
+
+  // ============================================
+  // Live Search - 실시간 법령정보센터 API
+  // ============================================
+
+  /**
+   * Search live precedents from 국가법령정보센터 API
+   * Real-time search (not indexed documents)
+   */
+  async searchLivePrecedents(params: {
+    keyword?: string;
+    case_number?: string;
+    court?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    display?: number;
+    fetch_content?: boolean;
+  }): Promise<{
+    success: boolean;
+    total_count: number;
+    precedents: Array<{
+      prec_id: string;
+      case_number: string;
+      case_name: string;
+      court: string;
+      decision_date: string;
+      case_type: string;
+      judgment_type: string;
+      content: string;
+      source_url?: string;
+    }>;
+    error?: string;
+    metadata: Record<string, any>;
+    timestamp: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/rag/live/precedents`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        keyword: params.keyword,
+        case_number: params.case_number,
+        court: params.court,
+        start_date: params.start_date,
+        end_date: params.end_date,
+        page: params.page || 1,
+        display: params.display || 20,
+        fetch_content: params.fetch_content ?? true,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      return {
+        success: false,
+        total_count: 0,
+        precedents: [],
+        error: error.detail || 'Failed to search live precedents',
+        metadata: {},
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Search live statutes from 국가법령정보센터 API
+   * Real-time search (not indexed documents)
+   */
+  async searchLiveStatutes(params: {
+    keyword?: string;
+    law_code?: string;
+    law_type?: string;
+    ministry?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    display?: number;
+    fetch_content?: boolean;
+  }): Promise<{
+    success: boolean;
+    total_count: number;
+    statutes: Array<{
+      law_id: string;
+      law_mst: string;
+      law_name: string;
+      law_type: string;
+      ministry: string;
+      promulgation_date: string;
+      enforcement_date: string;
+      content: string;
+      source_url?: string;
+    }>;
+    error?: string;
+    metadata: Record<string, any>;
+    timestamp: string;
+  }> {
+    const AI_SERVICE_URL = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:8001';
+    const url = `${AI_SERVICE_URL}/v2/rag/live/statutes`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        keyword: params.keyword,
+        law_code: params.law_code,
+        law_type: params.law_type,
+        ministry: params.ministry,
+        start_date: params.start_date,
+        end_date: params.end_date,
+        page: params.page || 1,
+        display: params.display || 20,
+        fetch_content: params.fetch_content ?? false,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      return {
+        success: false,
+        total_count: 0,
+        statutes: [],
+        error: error.detail || 'Failed to search live statutes',
+        metadata: {},
+        timestamp: new Date().toISOString(),
+      };
     }
 
     return response.json();
