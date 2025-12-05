@@ -1,0 +1,1122 @@
+/* ========================================
+   Criminal Dashboard - Phase 5
+   ======================================== */
+
+.criminal-dashboard {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 64px);
+}
+
+/* Header */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-title h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.header-icon {
+  font-size: 1.5rem;
+  color: #1e40af;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Buttons */
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #1e40af;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Loading & Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.loading-container,
+.error-container {
+  text-align: center;
+}
+
+.loading-container .spinner {
+  font-size: 3rem;
+  color: #8b5cf6;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.error-icon {
+  font-size: 3rem;
+  color: #ef4444;
+  margin-bottom: 16px;
+}
+
+/* Empty State */
+.empty-dashboard {
+  text-align: center;
+  padding: 80px 24px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 2px dashed #e5e7eb;
+}
+
+.empty-dashboard .empty-icon {
+  font-size: 4rem;
+  color: #9ca3af;
+  margin-bottom: 24px;
+}
+
+.empty-dashboard h2 {
+  font-size: 1.5rem;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.empty-dashboard p {
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+/* ========================================
+   Progress Timeline
+   ======================================== */
+
+.progress-timeline {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 24px;
+}
+
+.timeline-container {
+  overflow-x: auto;
+  padding: 35px 0 20px 0;
+}
+
+.timeline-track {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 600px;
+}
+
+.timeline-node-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+}
+
+.timeline-node {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid #d1d5db;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  transition: all 0.3s;
+}
+
+.timeline-node.completed {
+  border-color: #10b981;
+  background: #10b981;
+}
+
+.timeline-node.current {
+  border-width: 4px;
+  box-shadow: 0 0 0 4px rgba(30, 64, 175, 0.2);
+}
+
+.timeline-node .check-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.timeline-node .case-count {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.timeline-connector {
+  flex: 1;
+  height: 4px;
+  background: #e5e7eb;
+  margin-top: 18px;
+  margin-left: -20px;
+  margin-right: -20px;
+}
+
+.timeline-connector.active {
+  background: linear-gradient(to right, #10b981, #8b5cf6);
+}
+
+.timeline-label {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.timeline-label .stage-name {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.timeline-label .stage-count {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.current-indicator {
+  position: absolute;
+  top: -25px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.current-indicator .pulse {
+  width: 8px;
+  height: 8px;
+  background: #1e40af;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+.timeline-summary {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+  color: #6b7280;
+}
+
+.timeline-summary strong {
+  color: #111827;
+}
+
+/* ========================================
+   Dashboard Grid - New Layout
+   ======================================== */
+
+.dashboard-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dashboard-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-top-grid,
+  .dashboard-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================
+   Case Overview Card
+   ======================================== */
+
+.case-overview-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.overview-header .card-title {
+  margin-bottom: 0;
+}
+
+.link-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #1e40af;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.link-btn:hover {
+  background: #eff6ff;
+}
+
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-item .stat-icon {
+  font-size: 1.5rem;
+  opacity: 0.8;
+}
+
+.stat-item.total .stat-icon { color: #1e40af; }
+.stat-item.active .stat-icon { color: #f59e0b; }
+.stat-item.closed .stat-icon { color: #10b981; }
+
+.stat-item.total { background: #eff6ff; }
+.stat-item.active { background: #fffbeb; }
+.stat-item.closed { background: #f0fdf4; }
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.documents-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.doc-count {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.doc-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.recent-cases h5 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.recent-cases ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recent-cases li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.recent-cases li:hover {
+  background: #f9fafb;
+}
+
+.recent-cases .case-name {
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.recent-cases .case-date {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+/* ========================================
+   Stage Distribution Chart (Donut)
+   ======================================== */
+
+.chart-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-chart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #9ca3af;
+}
+
+.chart-content {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.donut-chart-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.donut-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.donut-total {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1;
+}
+
+.donut-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.chart-legend {
+  flex: 1;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.legend-item:last-child {
+  border-bottom: none;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  flex: 1;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.legend-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.legend-percent {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  width: 40px;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .chart-content {
+    flex-direction: column;
+  }
+
+  .overview-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card Common Styles */
+.case-summary-card,
+.upcoming-schedule,
+.similar-case-statistics {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ========================================
+   Case Summary Card
+   ======================================== */
+
+.case-summary-card.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.case-summary-card .empty-state {
+  text-align: center;
+  color: #9ca3af;
+}
+
+.case-summary-card .empty-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.case-info {
+  margin-bottom: 16px;
+}
+
+.crime-type-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #1e40af;
+  color: white;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.crime-type-badge.large {
+  padding: 6px 16px;
+  font-size: 0.875rem;
+}
+
+.crime-type-badge.small {
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+}
+
+.case-name {
+  margin: 12px 0 8px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.stage-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.stage-badge.small {
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+}
+
+.expected-result {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.expected-result h5 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.probability-bar {
+  position: relative;
+  height: 24px;
+  background: #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.probability-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 12px;
+  transition: width 0.5s ease;
+}
+
+.probability-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.sentence-range {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.factors-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.factor-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.factor-group.favorable .factor-icon {
+  color: #10b981;
+}
+
+.factor-group.unfavorable .factor-icon {
+  color: #f59e0b;
+}
+
+/* ========================================
+   Upcoming Schedule
+   ======================================== */
+
+.schedule-list {
+  margin-bottom: 20px;
+}
+
+.schedule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #f9fafb;
+  transition: background 0.2s;
+}
+
+.schedule-item:hover {
+  background: #f3f4f6;
+}
+
+.schedule-item.urgent {
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+}
+
+.schedule-icon {
+  color: #6b7280;
+  font-size: 1.125rem;
+  margin-top: 2px;
+}
+
+.schedule-content {
+  flex: 1;
+}
+
+.schedule-date {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8b5cf6;
+  margin-bottom: 2px;
+}
+
+.schedule-item.urgent .schedule-date {
+  color: #ef4444;
+}
+
+.schedule-title {
+  display: block;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.schedule-case {
+  display: block;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.no-schedule {
+  text-align: center;
+  color: #9ca3af;
+  padding: 24px;
+}
+
+.recommendations h5 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recommendation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recommendation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  color: #374151;
+  border-left: 3px solid;
+  margin-bottom: 6px;
+  background: #f9fafb;
+  border-radius: 0 6px 6px 0;
+}
+
+.priority-icon {
+  flex-shrink: 0;
+}
+
+/* ========================================
+   Similar Case Statistics
+   ======================================== */
+
+.similar-case-statistics.empty,
+.similar-case-statistics.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.similar-case-statistics .empty-icon,
+.similar-case-statistics .spinner {
+  font-size: 2rem;
+  margin-bottom: 12px;
+}
+
+.similar-case-statistics .spinner {
+  animation: spin 1s linear infinite;
+}
+
+.statistics-description {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.statistics-chart {
+  margin-bottom: 16px;
+}
+
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-label {
+  width: 70px;
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.stat-bar-container {
+  flex: 1;
+  height: 20px;
+  background: #f3f4f6;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+.stat-value {
+  width: 50px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  text-align: right;
+}
+
+.total-cases {
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.disclaimer {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+/* ========================================
+   Dashboard Extended (Conditional)
+   ======================================== */
+
+.dashboard-extended {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Case List Table */
+.case-list-table {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+}
+
+.cases-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cases-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.cases-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cases-table th.sortable:hover {
+  color: #8b5cf6;
+}
+
+.cases-table td {
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cases-table tr:hover {
+  background: #f9fafb;
+}
+
+.cases-table tr.urgent {
+  background: #fef2f2;
+}
+
+.case-name-cell .case-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+.schedule-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7280;
+}
+
+.no-schedule {
+  color: #d1d5db;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-badge.normal {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.status-badge.urgent {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.btn-icon {
+  padding: 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.btn-icon.small {
+  padding: 6px;
+}
+
+/* Crime Type Chart */
+.crime-type-chart {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container {
+  margin-bottom: 16px;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.chart-label {
+  width: 80px;
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.chart-bar-container {
+  flex: 1;
+  height: 24px;
+  background: #f3f4f6;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.chart-bar-fill {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease;
+}
+
+.chart-value {
+  width: 100px;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: right;
+}
+
+.chart-total {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+
+@media (max-width: 768px) {
+  .criminal-dashboard {
+    padding: 16px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .timeline-track {
+    min-width: 500px;
+  }
+
+  .cases-table th,
+  .cases-table td {
+    padding: 8px 12px;
+  }
+}
