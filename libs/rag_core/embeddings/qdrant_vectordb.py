@@ -24,7 +24,8 @@ class QdrantVectorDB(VectorDB):
         api_key: Optional[str] = None,
         collection_name: str = "law_documents",
         embedding_dim: int = 1024,  # snowflake-arctic-embed-l-v2.0-ko 기본값
-        distance: str = "cosine"
+        distance: str = "cosine",
+        timeout: int = 300  # 대량 작업용 타임아웃 (초)
     ):
         """
         Args:
@@ -33,6 +34,7 @@ class QdrantVectorDB(VectorDB):
             collection_name: 컬렉션 이름
             embedding_dim: 임베딩 차원
             distance: 거리 메트릭 (cosine, euclid, dot)
+            timeout: HTTP 타임아웃 (초, 기본 300초=5분)
         """
         self.url = url
         self.collection_name = collection_name
@@ -46,9 +48,9 @@ class QdrantVectorDB(VectorDB):
         }
         self.distance = distance_map.get(distance.lower(), Distance.COSINE)
 
-        # Qdrant 클라이언트 초기화
-        logger.info(f"Connecting to Qdrant: {url}")
-        self.client = QdrantClient(url=url, api_key=api_key)
+        # Qdrant 클라이언트 초기화 (대량 작업을 위한 타임아웃 설정)
+        logger.info(f"Connecting to Qdrant: {url} (timeout={timeout}s)")
+        self.client = QdrantClient(url=url, api_key=api_key, timeout=timeout)
 
         # 컬렉션 생성 (없으면)
         self._ensure_collection()
@@ -327,3 +329,80 @@ class QdrantVectorDB(VectorDB):
         full_text = '\n\n'.join(texts)
 
         return full_text
+
+    def delete_by_filter(self, filter_dict: Dict[str, Any]) -> int:
+        """
+        메타데이터 필터로 포인트 삭제
+
+        Args:
+            filter_dict: {"field": "value"} 또는 {"field": ["v1", "v2"]}
+
+        Returns:
+            삭제된 포인트 수
+
+        Example:
+            # 단일 값
+            vectordb.delete_by_filter({"source": "원천_판결문"})
+
+            # 다중 값 (OR 조건)
+            vectordb.delete_by_filter({"source": ["원천_판결문", "원천_결정례"]})
+        """
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+
+        conditions = []
+        for field, value in filter_dict.items():
+            if isinstance(value, list):
+                conditions.append(FieldCondition(key=field, match=MatchAny(any=value)))
+            else:
+                conditions.append(FieldCondition(key=field, match=MatchValue(value=value)))
+
+        # 삭제 전 카운트
+        before_count = self.get_count()
+
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=Filter(should=conditions)  # OR 조건
+            )
+
+            after_count = self.get_count()
+            deleted = before_count - after_count
+            logger.info(f"Deleted {deleted:,} points from {self.collection_name}")
+            return deleted
+
+        except Exception as e:
+            logger.error(f"Error deleting by filter: {e}")
+            raise
+
+    def count_by_filter(self, filter_dict: Dict[str, Any]) -> int:
+        """
+        필터 조건에 맞는 포인트 수 조회
+
+        Args:
+            filter_dict: {"field": "value"} 또는 {"field": ["v1", "v2"]}
+
+        Returns:
+            조건에 맞는 포인트 수
+
+        Example:
+            count = vectordb.count_by_filter({"source": ["원천_판결문", "원천_결정례"]})
+        """
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+
+        conditions = []
+        for field, value in filter_dict.items():
+            if isinstance(value, list):
+                conditions.append(FieldCondition(key=field, match=MatchAny(any=value)))
+            else:
+                conditions.append(FieldCondition(key=field, match=MatchValue(value=value)))
+
+        try:
+            result = self.client.count(
+                collection_name=self.collection_name,
+                count_filter=Filter(should=conditions)
+            )
+            return result.count
+
+        except Exception as e:
+            logger.error(f"Error counting by filter: {e}")
+            return 0
