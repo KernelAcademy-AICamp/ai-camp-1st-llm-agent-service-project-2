@@ -47,6 +47,10 @@ from .retrieval import (
     HybridRetriever,
     filter_results
 )
+from .retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever
+
+# SPLADE Encoder
+from .embeddings.splade_encoder import SPLADEEncoder
 
 __version__ = '1.0.0'
 
@@ -56,6 +60,7 @@ __all__ = [
     'VectorDB',
     'FAISSVectorDB',
     'create_vector_db',
+    'SPLADEEncoder',
 
     # LLM
     'LLMClient',
@@ -73,5 +78,6 @@ __all__ = [
     'LegalDocumentRetriever',
     'BM25Index',
     'HybridRetriever',
+    'QdrantHybridRetriever',
     'filter_results'
 ]

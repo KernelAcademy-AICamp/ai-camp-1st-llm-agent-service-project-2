@@ -7,6 +7,7 @@ Phase 4 - Week 11-12: LangGraph 기반 워크플로우
 - RAGWorkflow: RAG 기반 질의응답 (Checkpointing 불필요)
 - DocumentWorkflow: 문서 분석 (Checkpointing 불필요)
 - CaseWorkflow: 사건 분석 (Checkpointing 불필요)
+- CriminalCaseWorkflow: 형사 사건 분석 (Checkpointing 불필요)
 - RiskWorkflow: 리스크 분석 (Checkpointing 필수 - Human-in-the-Loop)
 - LLMComparisonWorkflow: LLM 비교 (Checkpointing 필수 - Human-in-the-Loop)
 """
@@ -50,6 +51,20 @@ def create_case_workflow():
     """Case Workflow StateGraph 생성"""
     from apps.ai_service.workflows.case_workflow import (
         create_case_workflow as _create
+    )
+    return _create()
+
+
+def get_criminal_workflow():
+    """Criminal Case Workflow 인스턴스 반환"""
+    from apps.ai_service.workflows.criminal_workflow import CriminalCaseWorkflow
+    return CriminalCaseWorkflow()
+
+
+def create_criminal_workflow():
+    """Criminal Case Workflow StateGraph 생성"""
+    from apps.ai_service.workflows.criminal_workflow import (
+        create_criminal_workflow as _create
     )
     return _create()
 
@@ -99,6 +114,8 @@ __all__ = [
     "create_document_workflow",
     "get_case_workflow",
     "create_case_workflow",
+    "get_criminal_workflow",
+    "create_criminal_workflow",
     "get_risk_workflow",
     "create_risk_workflow",
     "create_llm_comparison_workflow",

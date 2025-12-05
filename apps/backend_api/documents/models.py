@@ -137,6 +137,13 @@ class Document(models.Model):
         help_text='Error message if analysis failed'
     )
 
+    # Document content (원문 텍스트)
+    content = models.TextField(
+        null=True,
+        blank=True,
+        help_text='Extracted text content from the document (for original text viewing)'
+    )
+
     # Metadata
     file_size = models.BigIntegerField(
         null=True,

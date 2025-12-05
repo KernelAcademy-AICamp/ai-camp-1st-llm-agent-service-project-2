@@ -4,7 +4,7 @@ RAG Workflow Node Functions
 Phase 4 - Week 11: RAG 워크플로우 노드 함수
 
 노드 함수 목록:
-- retrieve_node: 문서 검색 (HybridRetriever)
+- retrieve_node: 문서 검색 (QdrantHybridRetriever 또는 HybridRetriever)
 - generate_node: 답변 생성 (LLMClient)
 - check_confidence_node: 신뢰도 평가
 - critique_node: Self-Critique
@@ -18,8 +18,9 @@ Phase 4 - Week 11: RAG 워크플로우 노드 함수
 - extract_sources: 문서에서 출처 추출
 
 성능 최적화:
-- 글로벌 싱글톤 패턴으로 BM25/Retriever 재사용
-- 매 요청마다 BM25 로드하지 않음 (~40초 절약)
+- SEARCH_MODE=hybrid: Qdrant 네이티브 하이브리드 검색 (Dense + SPLADE)
+- SEARCH_MODE=legacy: BM25 기반 하이브리드 검색 (Dense + BM25)
+- 글로벌 싱글톤 패턴으로 Retriever 재사용
 """
 
 import time
@@ -31,9 +32,9 @@ from apps.ai_service.states.rag_state import RAGState
 
 
 # ===== Global Component Cache (Singleton Pattern) =====
-# 매 요청마다 BM25 인덱스를 로드하지 않도록 캐싱
-_global_retriever: Optional["HybridRetriever"] = None
-_global_bm25: Optional["BM25Index"] = None
+# 매 요청마다 Retriever를 초기화하지 않도록 캐싱
+_global_retriever = None  # QdrantHybridRetriever 또는 HybridRetriever
+_global_bm25 = None  # Legacy 모드에서만 사용
 
 
 def set_global_retriever(retriever) -> None:
@@ -43,6 +44,10 @@ def set_global_retriever(retriever) -> None:
     main.py에서 app.state.retriever 초기화 후 호출:
         from apps.ai_service.workflows.nodes.rag_nodes import set_global_retriever
         set_global_retriever(retriever)
+
+    지원하는 Retriever 타입:
+    - QdrantHybridRetriever: Qdrant 네이티브 하이브리드 검색 (Dense + SPLADE)
+    - HybridRetriever: 레거시 하이브리드 검색 (Dense + BM25)
 
     이렇게 하면 RAGState에 retriever를 포함하지 않아도 됨
     (LangGraph checkpointing msgpack 직렬화 에러 방지)
@@ -56,42 +61,41 @@ def set_global_retriever(retriever) -> None:
 
 def _get_global_retriever(state_retriever=None):
     """
-    글로벌 HybridRetriever 인스턴스 반환
+    글로벌 Retriever 인스턴스 반환
 
     우선순위:
     1. state에서 전달된 retriever (라우터 → workflow → state)
     2. 글로벌 캐시된 인스턴스
     3. 싱글톤 패턴으로 직접 초기화 (fallback)
 
-    성능: state.retriever 사용 시 BM25 재로드 없음 → 첫 요청도 ~15초
+    지원하는 Retriever 타입:
+    - QdrantHybridRetriever: Qdrant 네이티브 하이브리드 검색 (Dense + SPLADE)
+    - HybridRetriever: 레거시 하이브리드 검색 (Dense + BM25)
     """
     global _global_retriever, _global_bm25
 
     # 1. state에서 전달된 retriever 사용 (권장)
     if state_retriever is not None:
         _global_retriever = state_retriever
-        logger.info("[retrieve_node] Using state.retriever (injected from app.state)")
+        logger.info(f"[retrieve_node] Using state.retriever ({type(state_retriever).__name__})")
         return _global_retriever
 
     # 2. 이미 캐시된 인스턴스가 있으면 반환
     if _global_retriever is not None:
-        logger.debug("[retrieve_node] Using cached HybridRetriever")
+        logger.debug(f"[retrieve_node] Using cached {type(_global_retriever).__name__}")
         return _global_retriever
 
     # 3. Fallback: 직접 초기화 (state.retriever 없는 경우)
-    logger.info("[retrieve_node] Fallback: Initializing HybridRetriever...")
-
-    from libs.rag_core.retrieval.hybrid_retriever import HybridRetriever
-    from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
-    from libs.rag_core.retrieval.bm25_index import BM25Index
-    from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
     from apps.ai_service.config.settings import settings
 
-    # EMBED_MODE에 따라 로컬/원격 임베더 선택
+    logger.info(f"[retrieve_node] Fallback: Initializing Retriever (mode={settings.SEARCH_MODE})...")
+
+    # Embedder 초기화
     if settings.EMBED_MODE == "local":
         from libs.rag_core.embeddings.embedder import KoreanLegalEmbedder
-        embedder = KoreanLegalEmbedder()
-        embedding_dim = 768
+        embedder = KoreanLegalEmbedder(model_name=settings.EMBED_MODEL)
+        embedding_dim = 1024 if "arctic" in settings.EMBED_MODEL.lower() else 768
+        logger.info(f"[retrieve_node] Local embedder: {settings.EMBED_MODEL} (dim={embedding_dim})")
     else:
         from libs.rag_core.embeddings.remote_embedder import RemoteEmbedder
         embedder = RemoteEmbedder(
@@ -101,48 +105,74 @@ def _get_global_retriever(state_retriever=None):
         )
         embedding_dim = 1024
 
-    vectordb = QdrantVectorDB(
-        url=settings.QDRANT_URL,
-        api_key=settings.QDRANT_API_KEY or None,
-        collection_name=settings.QDRANT_COLLECTION,
-        embedding_dim=embedding_dim
-    )
+    # SEARCH_MODE에 따라 Retriever 선택
+    if settings.SEARCH_MODE == "hybrid":
+        # Qdrant 네이티브 하이브리드 검색 (Dense + SPLADE)
+        from libs.rag_core.retrieval.qdrant_hybrid_retriever import QdrantHybridRetriever
+        from libs.rag_core.embeddings.splade_encoder import SPLADEEncoder
 
-    semantic_retriever = LegalDocumentRetriever(
-        vectordb=vectordb,
-        embedder=embedder
-    )
+        logger.info(f"[retrieve_node] Loading SPLADE encoder: {settings.SPLADE_MODEL}")
+        splade_encoder = SPLADEEncoder(model_name=settings.SPLADE_MODEL)
 
-    _global_bm25 = BM25Index()
-    _global_bm25.load(str(settings.BM25_DIR))
-    logger.info(f"[retrieve_node] BM25 index loaded: {_global_bm25.get_count()} documents")
+        _global_retriever = QdrantHybridRetriever(
+            qdrant_url=settings.QDRANT_URL,
+            qdrant_api_key=settings.QDRANT_API_KEY or None,
+            collection_name=settings.QDRANT_HYBRID_COLLECTION,
+            dense_embedder=embedder,
+            splade_encoder=splade_encoder
+        )
+        logger.info("[retrieve_node] QdrantHybridRetriever initialized (fallback)")
+    else:
+        # Legacy 모드: Dense + BM25
+        from libs.rag_core.retrieval.hybrid_retriever import HybridRetriever
+        from libs.rag_core.retrieval.retriever import LegalDocumentRetriever
+        from libs.rag_core.retrieval.bm25_index import BM25Index
+        from libs.rag_core.embeddings.qdrant_vectordb import QdrantVectorDB
 
-    _global_retriever = HybridRetriever(
-        semantic_retriever=semantic_retriever,
-        bm25_index=_global_bm25,
-        fusion_method='rrf',
-        semantic_weight=0.5,
-        rrf_k=60,
-        enable_adaptive_weighting=True
-    )
+        vectordb = QdrantVectorDB(
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY or None,
+            collection_name=settings.QDRANT_COLLECTION,
+            embedding_dim=embedding_dim
+        )
 
-    logger.info("[retrieve_node] HybridRetriever initialized (fallback)")
+        semantic_retriever = LegalDocumentRetriever(
+            vectordb=vectordb,
+            embedder=embedder
+        )
+
+        _global_bm25 = BM25Index()
+        _global_bm25.load(str(settings.BM25_DIR))
+        logger.info(f"[retrieve_node] BM25 index loaded: {_global_bm25.get_count()} documents")
+
+        _global_retriever = HybridRetriever(
+            semantic_retriever=semantic_retriever,
+            bm25_index=_global_bm25,
+            fusion_method='rrf',
+            semantic_weight=0.5,
+            rrf_k=60,
+            enable_adaptive_weighting=True
+        )
+        logger.info("[retrieve_node] HybridRetriever initialized (fallback, BM25)")
+
     return _global_retriever
 
 
 def retrieve_node(state: RAGState) -> Dict[str, Any]:
     """
-    문서 검색 노드 (v2 - HybridRetriever)
+    문서 검색 노드 (Hybrid Search)
 
-    v2 핵심 구성:
-    - HybridRetriever: Semantic + BM25 RRF Fusion
-    - QdrantVectorDB: 벡터 검색
-    - RemoteEmbedder: 원격 임베딩 API
-    - BM25Index: 키워드 검색 (싱글톤 캐싱으로 재사용)
+    지원하는 검색 모드 (SEARCH_MODE 환경변수):
+    - hybrid: Qdrant 네이티브 하이브리드 검색 (Dense + SPLADE RRF Fusion)
+    - legacy: BM25 기반 하이브리드 검색 (Dense + BM25 RRF Fusion)
 
-    성능 최적화:
-    - 글로벌 싱글톤 패턴으로 BM25/Retriever 재사용
-    - 첫 요청에만 ~40초, 이후 요청은 즉시 검색
+    핵심 구성:
+    - QdrantHybridRetriever: Dense + SPLADE (권장, BM25 로드 불필요)
+    - HybridRetriever: Dense + BM25 (레거시)
+
+    성능:
+    - hybrid 모드: SPLADE 인코더 로드만 필요 (~5초)
+    - legacy 모드: BM25 인덱스 로드 필요 (~40초)
 
     Returns:
         업데이트된 상태 필드 (documents, context, iteration_count)

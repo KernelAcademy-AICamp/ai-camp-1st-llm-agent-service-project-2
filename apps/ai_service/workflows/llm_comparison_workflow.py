@@ -47,15 +47,52 @@ async def dispatch_to_models_node(
     """여러 모델에 병렬로 작업 전송 (직접 LLM 클라이언트 호출)"""
     logger.info("Starting dispatch_to_models_node")
 
-    async def execute_on_model(model_name: str, task: str, input_data: dict) -> str:
+    async def execute_on_model(model_name: str, provider: str, task: str, input_data: dict) -> str:
         """단일 모델에서 작업 실행"""
+        import os
         try:
-            from libs.rag_core.llm.llm_client import get_llm
+            from libs.rag_core.llm.llm_client import create_llm_client
 
-            llm = get_llm(model=model_name)
+            # 모델 이름에서 provider 추론 (명시적으로 전달되지 않은 경우)
+            if not provider:
+                if 'gpt' in model_name.lower() or 'openai' in model_name.lower():
+                    provider = 'openai'
+                elif 'claude' in model_name.lower():
+                    provider = 'anthropic'
+                elif 'gemini' in model_name.lower():
+                    provider = 'google'
+                else:
+                    provider = 'openai'  # 기본값
+
+            # API 키 가져오기
+            if provider == 'openai':
+                api_key = os.getenv('OPENAI_API_KEY', '')
+            elif provider == 'anthropic':
+                api_key = os.getenv('CLAUDE_API_KEY', os.getenv('ANTHROPIC_API_KEY', ''))
+            elif provider == 'google':
+                api_key = os.getenv('GEMINI_API_KEY', os.getenv('GOOGLE_API_KEY', ''))
+            else:
+                api_key = os.getenv('LLM_API_KEY', '')
+
+            if not api_key:
+                return f"[Error: API key not configured for provider {provider}]"
+
+            # 클라이언트 생성
+            client = create_llm_client(
+                provider=provider,
+                api_key=api_key,
+                model=model_name
+            )
+
+            # 프롬프트 생성
             prompt = f"{task}\n\n입력: {input_data}"
-            result = await llm.ainvoke(prompt)
-            return result.content
+
+            # 동기 호출을 비동기로 실행 (LLMClient는 동기 메서드만 있음)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, client.generate, prompt)
+
+            return result
         except Exception as e:
             logger.error(f"Error executing on model {model_name}: {e}")
             return f"[Error: {str(e)}]"
@@ -75,6 +112,7 @@ async def dispatch_to_models_node(
     tasks = [
         execute_on_model(
             model_config.get("model_name", "gpt-4"),
+            model_config.get("provider", ""),
             task,
             input_data
         )

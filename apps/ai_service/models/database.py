@@ -115,12 +115,18 @@ async def get_write_db():
 
 async def init_db():
     """
-    DB 초기화 (테스트용)
-    실제 테이블 생성은 Django migrations에서 수행
+    DB 초기화
+    - SQLite (개발 환경): 테이블 자동 생성
+    - PostgreSQL (프로덕션): Django migrations에서 수행
     """
     async with engine.begin() as conn:
-        # 테이블은 생성하지 않음 (Read-Only)
-        logger.info("✅ Database connection initialized (Read-Only PostgreSQL)")
+        if USE_SQLITE:
+            # SQLite에서는 테이블 자동 생성
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("✅ Database initialized (SQLite) - tables created")
+        else:
+            # PostgreSQL에서는 Read-Only (Django migrations 사용)
+            logger.info("✅ Database connection initialized (Read-Only PostgreSQL)")
 
 async def close_db():
     """DB 연결 종료"""

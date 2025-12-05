@@ -36,6 +36,7 @@ import re
 from langgraph.graph import StateGraph, START, END
 
 from apps.ai_service.workflows.base import BaseWorkflow
+from apps.ai_service.services.pii_masker import PIIMasker, get_masker
 from apps.ai_service.workflows.states.case_state import (
     CaseAnalysisState,
     PartyInfo,
@@ -102,11 +103,19 @@ async def case_analyst_agent(state: CaseAnalysisState) -> Dict[str, Any]:
 
 반드시 유효한 JSON 형식으로만 응답하세요."""
 
+        # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+        masker = get_masker(mode="balanced")
+        masked_prompt, pii_mapping = masker.mask(prompt)
+        logger.debug(f"[case_analyst_agent] PII masked: {len(pii_mapping)} entities")
+
         response = llm_client.generate(
-            prompt=prompt,
+            prompt=masked_prompt,
             temperature=0.1,
             max_tokens=2000
         )
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        response = masker.restore(response, pii_mapping)
 
         # JSON 파싱
         parties: List[PartyInfo] = []
@@ -204,11 +213,19 @@ async def complexity_assessor_node(state: CaseAnalysisState) -> Dict[str, Any]:
 
 복잡도 점수 (숫자만 응답):"""
 
+        # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+        masker = get_masker(mode="balanced")
+        masked_prompt, pii_mapping = masker.mask(prompt)
+        logger.debug(f"[complexity_assessor_node] PII masked: {len(pii_mapping)} entities")
+
         response = llm_client.generate(
-            prompt=prompt,
+            prompt=masked_prompt,
             temperature=0.1,
             max_tokens=50
         )
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        response = masker.restore(response, pii_mapping)
 
         # 숫자 추출
         try:
@@ -323,11 +340,19 @@ async def legal_strategist_agent(state: CaseAnalysisState) -> Dict[str, Any]:
 
 전략 보고서:"""
 
+        # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+        masker = get_masker(mode="balanced")
+        masked_prompt, pii_mapping = masker.mask(prompt)
+        logger.debug(f"[legal_strategist_agent] PII masked: {len(pii_mapping)} entities")
+
         strategy = llm_client.generate(
-            prompt=prompt,
+            prompt=masked_prompt,
             temperature=0.3,
             max_tokens=2000
         )
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        strategy = masker.restore(strategy, pii_mapping)
 
         logger.info(f"[legal_strategist_agent] Strategy developed: {len(strategy)} chars")
 
@@ -496,11 +521,19 @@ async def generate_analysis_node(state: CaseAnalysisState) -> Dict[str, Any]:
 
 분석 결과:"""
 
+        # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+        masker = get_masker(mode="balanced")
+        masked_prompt, pii_mapping = masker.mask(prompt)
+        logger.debug(f"[generate_analysis_node] PII masked: {len(pii_mapping)} entities")
+
         analysis = llm_client.generate(
-            prompt=prompt,
+            prompt=masked_prompt,
             temperature=0.3,
             max_tokens=2000
         )
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        analysis = masker.restore(analysis, pii_mapping)
 
         logger.info(f"[generate_analysis_node] Generated analysis: {len(analysis)} chars")
 

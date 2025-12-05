@@ -8,6 +8,7 @@ SQLAlchemy models for PostgreSQL access
 from .database import Base, get_db, get_write_db, init_db, close_db, engine, write_engine
 from .precedent_feedback import PrecedentFeedbackStats
 from .precedent import Precedent
+from .agent_hub import AgentHubSession, AgentHubMessage
 
 __all__ = [
     'Base',
@@ -19,4 +20,6 @@ __all__ = [
     'write_engine',
     'PrecedentFeedbackStats',
     'Precedent',
+    'AgentHubSession',
+    'AgentHubMessage',
 ]

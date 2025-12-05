@@ -32,6 +32,60 @@ from apps.ai_service.services.document_processor import DocumentProcessor
 
 logger = logging.getLogger(__name__)
 
+
+# ===== Helper Functions for Document Indexing =====
+
+async def index_document_chunks(
+    text: str,
+    document_id: str,
+    doc_type: str,
+    file_type: str = "unknown"
+) -> Dict[str, Any]:
+    """
+    문서 청크를 벡터DB에 인덱싱
+
+    Args:
+        text: 문서 텍스트
+        document_id: 문서 ID
+        doc_type: 문서 유형 (CONTRACT, STATUTE, etc.)
+        file_type: 파일 유형 (pdf, docx, txt)
+
+    Returns:
+        인덱싱 결과
+    """
+    try:
+        from main import app
+
+        document_indexer = getattr(app.state, 'document_indexer', None)
+        if not document_indexer:
+            logger.warning("[index_document_chunks] DocumentIndexer not available")
+            return {"success": False, "error": "DocumentIndexer not initialized"}
+
+        # 청킹
+        processor = DocumentProcessor(chunk_size=1000, chunk_overlap=200)
+        chunks = processor.chunk_text(text)
+
+        if not chunks:
+            logger.warning(f"[index_document_chunks] No chunks generated for document {document_id}")
+            return {"success": False, "error": "No chunks generated"}
+
+        # 인덱싱
+        result = document_indexer.index_chunks(
+            chunks=chunks,
+            document_id=document_id,
+            document_metadata={
+                "doc_type": doc_type,
+                "file_type": file_type,
+            }
+        )
+
+        logger.info(f"[index_document_chunks] Indexed {result.get('indexed_count', 0)} chunks for document {document_id}")
+        return result
+
+    except Exception as e:
+        logger.error(f"[index_document_chunks] Error: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
 # Initialize document processor
 document_processor = DocumentProcessor()
 
@@ -181,6 +235,16 @@ async def analyze_document_file(
             session_id=session_id
         )
 
+        # 문서 인덱싱 (document_id가 있는 경우)
+        if document_id and result.get("success") and result.get("text"):
+            indexing_result = await index_document_chunks(
+                text=result.get("text", ""),
+                document_id=document_id,
+                doc_type=doc_type,
+                file_type=ext.replace(".", "")
+            )
+            logger.info(f"[v2/documents/analyze] Indexing result: {indexing_result.get('success')}")
+
         # 응답 생성
         return _build_response(result)
 
@@ -264,13 +328,14 @@ async def extract_document_text(
     """
     파일에서 텍스트 추출 (Phase 1 of two-phase upload)
 
-    PDF 파일의 경우:
-    1. 먼저 PyMuPDF로 직접 텍스트 추출 시도
+    PDF 및 이미지 파일의 경우:
+    1. 먼저 PyMuPDF로 직접 텍스트 추출 시도 (PDF)
     2. 텍스트가 충분하지 않으면 OCR로 폴백
-    3. OCR 결과는 needs_review=True로 반환
+    3. 이미지는 항상 OCR 사용
+    4. OCR 결과는 needs_review=True로 반환
 
     Args:
-        file: 업로드 파일 (PDF, DOCX, TXT)
+        file: 업로드 파일 (PDF, DOCX, TXT, PNG, JPG, etc.)
 
     Returns:
         추출된 텍스트와 메타데이터
@@ -283,10 +348,11 @@ async def extract_document_text(
         # 파일 확장자 검증
         filename = file.filename or "document"
         ext = os.path.splitext(filename)[1].lower()
-        if ext not in [".pdf", ".docx", ".txt"]:
+        supported_extensions = [".pdf", ".docx", ".txt", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp"]
+        if ext not in supported_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file type: {ext}. Supported: pdf, docx, txt"
+                detail=f"Unsupported file type: {ext}. Supported: pdf, docx, txt, png, jpg, jpeg, gif, bmp, tiff, webp"
             )
 
         # 임시 파일로 저장
@@ -377,6 +443,16 @@ async def confirm_and_analyze(request: DocumentConfirmRequest):
             document_id=request.document_id,
             session_id=request.session_id
         )
+
+        # 문서 인덱싱 (document_id가 있는 경우)
+        if request.document_id and result.get("success"):
+            indexing_result = await index_document_chunks(
+                text=request.text,
+                document_id=request.document_id,
+                doc_type=request.doc_type,
+                file_type=request.file_type
+            )
+            logger.info(f"[v2/documents/confirm] Indexing result: {indexing_result.get('success')}")
 
         # 응답 생성
         return _build_response(result, request.session_id)

@@ -417,6 +417,90 @@ def create_mcp_server(name: str = "CriminalLaw MCP Server"):
         """
         return await validate_document_structure(data, doc_type)
 
+    # --- Database Query Tools (사용자 데이터 조회) ---
+    from apps.ai_service.mcp.tools.db_tools import (
+        query_user_criminal_cases,
+        get_criminal_case_detail,
+        get_user_case_statistics,
+    )
+
+    @mcp.tool()
+    async def mcp_query_user_criminal_cases(
+        user_id: str,
+        order_by: str = "created_at",
+        order: str = "desc",
+        limit: int = 10,
+        offset: int = 0,
+        crime_type_filter: Optional[str] = None,
+        stage_filter: Optional[str] = None,
+    ):
+        """사용자의 형사 사건을 유연하게 조회합니다.
+
+        이 도구는 다양한 형사 사건 조회 질문에 대해 적절한 파라미터를 사용하여
+        하나의 도구로 여러 유형의 조회를 수행할 수 있습니다.
+
+        Args:
+            user_id: 사용자 UUID (필수)
+            order_by: 정렬 기준
+                - "created_at": 생성일 기준 (기본값)
+                - "expected_sentence_score": 예상 형량 점수 기준 (형량 심각도)
+                - "case_name": 사건명 기준
+                - "crime_type": 범죄 유형 기준
+            order: 정렬 순서
+                - "desc": 내림차순 (기본값)
+                - "asc": 오름차순
+            limit: 반환할 결과 수 (기본값: 10)
+            offset: 건너뛸 결과 수 (페이지네이션용)
+            crime_type_filter: 범죄 유형 필터 (예: "절도", "사기", "폭행")
+            stage_filter: 진행 단계 필터 (COMPLAINT, INVESTIGATION, PROSECUTION, TRIAL, JUDGMENT, CLOSED)
+
+        Returns:
+            사건 목록과 조회 정보
+
+        사용 예시:
+            - "내 형사 사건 목록": order_by="created_at", order="desc"
+            - "형량이 가장 적은 사건": order_by="expected_sentence_score", order="asc", limit=1
+            - "형량이 가장 높은 사건": order_by="expected_sentence_score", order="desc", limit=1
+            - "절도 사건만 보여줘": crime_type_filter="절도"
+            - "수사 중인 사건들": stage_filter="INVESTIGATION"
+        """
+        return await query_user_criminal_cases(
+            user_id=user_id,
+            order_by=order_by,
+            order=order,
+            limit=limit,
+            offset=offset,
+            crime_type_filter=crime_type_filter,
+            stage_filter=stage_filter,
+        )
+
+    @mcp.tool()
+    async def mcp_get_criminal_case_detail(user_id: str, case_id: str):
+        """특정 형사 사건의 상세 정보를 조회합니다.
+
+        Args:
+            user_id: 사용자 UUID
+            case_id: 사건 UUID
+
+        Returns:
+            사건 상세 정보 (구성요건, 양형인자, 예상 양형, 변호 전략 등)
+        """
+        return await get_criminal_case_detail(user_id=user_id, case_id=case_id)
+
+    @mcp.tool()
+    async def mcp_get_user_case_statistics(user_id: str):
+        """사용자의 형사 사건 통계를 조회합니다.
+
+        전체 사건 수, 단계별/범죄유형별 분포, 양형 통계 등을 제공합니다.
+
+        Args:
+            user_id: 사용자 UUID
+
+        Returns:
+            사건 통계 정보
+        """
+        return await get_user_case_statistics(user_id=user_id)
+
     # ==========================================================================
     # Resources 등록
     # ==========================================================================

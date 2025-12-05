@@ -36,7 +36,14 @@ class Settings(BaseSettings):
     QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
     QDRANT_API_KEY: str = os.getenv("QDRANT_API_KEY", "")
     QDRANT_COLLECTION: str = os.getenv("QDRANT_COLLECTION", "law_documents")
+    QDRANT_HYBRID_COLLECTION: str = os.getenv("QDRANT_HYBRID_COLLECTION", "law_documents_hybrid")
     QDRANT_DISTANCE: str = os.getenv("QDRANT_DISTANCE", "cosine")
+
+    # ========== Hybrid Search Configuration ==========
+    # hybrid: Dense + SPLADE RRF Fusion (권장)
+    # legacy: Dense + BM25 (기존 방식)
+    SEARCH_MODE: str = os.getenv("SEARCH_MODE", "hybrid")
+    SPLADE_MODEL: str = os.getenv("SPLADE_MODEL", "yjoonjang/splade-ko-v1")
 
     # ========== Embedding Configuration ==========
     EMBED_MODE: str = os.getenv("EMBED_MODE", "remote")  # local / remote

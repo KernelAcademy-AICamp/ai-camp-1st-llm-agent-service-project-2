@@ -37,6 +37,7 @@ import re
 from langgraph.graph import StateGraph, START, END
 
 from apps.ai_service.workflows.base import BaseWorkflow
+from apps.ai_service.services.pii_masker import PIIMasker, get_masker
 from apps.ai_service.workflows.states.document_state import (
     DocumentAnalysisState,
     SummaryResult,
@@ -349,11 +350,19 @@ async def summarize_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 
 요약:"""
 
+        # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+        masker = get_masker(mode="balanced")
+        masked_prompt, pii_mapping = masker.mask(prompt)
+        logger.debug(f"[summarize_node] PII masked: {len(pii_mapping)} entities")
+
         response = llm_client.generate(
-            prompt=prompt,
+            prompt=masked_prompt,
             temperature=0.3,
             max_tokens=2000
         )
+
+        # PII 복원 (응답에서 플레이스홀더를 원본으로 복원)
+        response = masker.restore(response, pii_mapping)
 
         summary_result: SummaryResult = {
             "summary": response,
@@ -433,7 +442,15 @@ async def extract_clauses_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 4. 관련 조항이 없다면 그렇다고 명확히 알려주세요
 
 응답:"""
-            response = llm_client.generate(prompt=prompt, temperature=0.3, max_tokens=2000)
+            # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+            masker = get_masker(mode="balanced")
+            masked_prompt, pii_mapping = masker.mask(prompt)
+            logger.debug(f"[extract_clauses_node] PII masked (QA mode): {len(pii_mapping)} entities")
+
+            response = llm_client.generate(prompt=masked_prompt, temperature=0.3, max_tokens=2000)
+
+            # PII 복원
+            response = masker.restore(response, pii_mapping)
 
             # QA 모드에서는 clauses 대신 summary에 답변 저장
             summary_result: SummaryResult = {
@@ -546,7 +563,15 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 5. 관련 리스크가 없다면 그렇다고 명확히 알려주세요
 
 응답:"""
-            response = llm_client.generate(prompt=prompt, temperature=0.3, max_tokens=2000)
+            # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+            masker = get_masker(mode="balanced")
+            masked_prompt, pii_mapping = masker.mask(prompt)
+            logger.debug(f"[analyze_risk_node] PII masked (QA mode): {len(pii_mapping)} entities")
+
+            response = llm_client.generate(prompt=masked_prompt, temperature=0.3, max_tokens=2000)
+
+            # PII 복원
+            response = masker.restore(response, pii_mapping)
 
             # QA 모드에서는 summary에 답변 저장
             summary_result: SummaryResult = {
@@ -587,11 +612,19 @@ async def analyze_risk_node(state: DocumentAnalysisState) -> Dict[str, Any]:
 
 최대 5개의 리스크를 식별하세요. 반드시 유효한 JSON 형식으로만 응답해주세요."""
 
+            # PII 마스킹 적용 (OpenAI API에 개인정보 전송 방지)
+            masker = get_masker(mode="balanced")
+            masked_prompt, pii_mapping = masker.mask(prompt)
+            logger.debug(f"[analyze_risk_node] PII masked (full mode): {len(pii_mapping)} entities")
+
             response = llm_client.generate(
-                prompt=prompt,
+                prompt=masked_prompt,
                 temperature=0.3,
                 max_tokens=2000
             )
+
+            # PII 복원 (JSON 응답에서 플레이스홀더를 원본으로 복원)
+            response = masker.restore(response, pii_mapping)
 
             # JSON 파싱
             risks: List[RiskAnalysisResult] = []

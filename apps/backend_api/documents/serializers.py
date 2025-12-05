@@ -207,6 +207,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'analysis_status',
             'analysis_status_display',
             'analysis_error',
+            'content',  # 원문 텍스트
             'file_size',
             'file_type',
             'page_count',
@@ -225,6 +226,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'file_type',
             'page_count',
             'error_message',
+            'content',  # 원문 텍스트
             'chunk_count',
             'is_processing_complete',
             'analysis_status',

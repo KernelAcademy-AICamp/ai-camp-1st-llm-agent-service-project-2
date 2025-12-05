@@ -1278,9 +1278,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     result = response.json()
 
                     if result.get('success'):
-                        # Update document status
+                        # Update document status and save content (원문 텍스트)
                         document.status = Document.STATUS_PREPROCESSED
-                        document.save(update_fields=['status'])
+                        document.content = result.get('text', '')  # 원문 텍스트 저장
+                        document.save(update_fields=['status', 'content'])
 
                         # Save chunks to database
                         chunks = result.get('chunks', [])
@@ -1408,9 +1409,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 )
                 chunk_objects.append(chunk_obj)
 
-            # Update document status
+            # Update document status and save content (원문 텍스트)
             document.status = Document.STATUS_PREPROCESSED
-            document.save(update_fields=['status'])
+            document.content = confirmed_text  # 원문 텍스트 저장
+            document.save(update_fields=['status', 'content'])
 
             logger.info(
                 f"Document {document.id} chunks created from confirmed text: "

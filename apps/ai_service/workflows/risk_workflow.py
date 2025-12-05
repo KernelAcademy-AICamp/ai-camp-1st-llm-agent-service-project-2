@@ -480,7 +480,7 @@ async def generate_report_node(state: RiskAnalysisState) -> Dict[str, Any]:
         # ============================================
         # 상세 Report 생성 (전체 분석)
         # ============================================
-        report = f"""## 리스크 분석 보고서
+        report = f"""## 
 
 ### 요약
 - 문서 유형: {doc_type}
