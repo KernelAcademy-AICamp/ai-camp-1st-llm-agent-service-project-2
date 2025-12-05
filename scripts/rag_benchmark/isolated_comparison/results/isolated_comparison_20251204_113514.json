@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-12-04T11:35:14.420018",
+  "experiments": [
+    {
+      "experiment_name": "실험1_청킹비교",
+      "description": "청킹 전략만 변경 (임베딩/VectorDB 동일)",
+      "system_a_config": {
+        "chunking": "fixed_500",
+        "embedding": "ko-sroberta",
+        "vectordb": "FAISS"
+      },
+      "system_b_config": {
+        "chunking": "legal_specialized",
+        "embedding": "ko-sroberta",
+        "vectordb": "FAISS"
+      },
+      "changed_component": "chunking",
+      "system_a_avg_time_ms": 0.6156085059046745,
+      "system_b_avg_time_ms": 0.22797059500589967,
+      "system_a_hit_rate_1": 0.6,
+      "system_b_hit_rate_1": 0.6,
+      "system_a_hit_rate_3": 0.9,
+      "system_b_hit_rate_3": 0.8,
+      "system_a_mrr": 0.7333333333333333,
+      "system_b_mrr": 0.6666666666666666,
+      "query_results": [
+        {
+          "query_id": "Q01",
+          "query": "음주운전 혈중알코올농도 0.1% 이상일 때 처벌 기준은?",
+          "system_a": {
+            "time_ms": 4.558249958790839,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 

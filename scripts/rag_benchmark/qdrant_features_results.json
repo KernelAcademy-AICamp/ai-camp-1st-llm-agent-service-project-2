@@ -1,0 +1,52 @@
+{
+  "filtered_search": {
+    "no_filter": {
+      "time_ms": 25.78592300415039,
+      "count": 5
+    },
+    "type_filter": {
+      "time_ms": 22.36628532409668,
+      "count": 5
+    },
+    "complex_filter": {
+      "time_ms": 8.315086364746094,
+      "count": 3
+    },
+    "or_filter": {
+      "time_ms": 28.35988998413086,
+      "count": 5
+    }
+  },
+  "grouped_search": {
+    "feature_available": false,
+    "error": "'QdrantClient' object has no attribute 'search_groups'"
+  },
+  "payload_indexing": {
+    "indexed_fields": [
+      "doc_type",
+      "year",
+      "section"
+    ],
+    "avg_search_time_ms": 7.480859756469727
+  },
+  "selective_operations": {
+    "total": 11,
+    "판결문": 7,
+    "2023_이후": 9,
+    "complex_condition": 4
+  },
+  "scroll_api": {
+    "total_scrolled": 11,
+    "filtered_scrolled": 7,
+    "pages": 4
+  },
+  "full_document": {
+    "query": "음주운전 처벌",
+    "found_doc_id": "law_001",
+    "chunk_count": 1,
+    "sections": [
+      "조문"
+    ],
+    "full_text_length": 69
+  }
+}

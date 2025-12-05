@@ -1,0 +1,121 @@
+{
+  "timestamp": "2025-12-04T14:43:03.744439",
+  "documents": 200,
+  "queries": 10,
+  "chunking": {
+    "original": {
+      "chunk_count": 3490,
+      "avg_length": 188.7275071633238,
+      "section_distribution": {
+        "case_info": 2697,
+        "reasoning": 369,
+        "judgment": 244,
+        "summary": 22,
+        "other": 18,
+        "decision": 120,
+        "reference": 20
+      }
+    },
+    "improved": {
+      "chunk_count": 1999,
+      "avg_length": 330.7003501750875,
+      "section_distribution": {
+        "other": 182,
+        "case_info": 792,
+        "judgment": 411,
+        "reasoning": 464,
+        "summary": 27,
+        "reference": 17,
+        "decision": 106
+      }
+    },
+    "reduction": 42.72206303724928
+  },
+  "search": {
+    "original": {
+      "avg_score": 0.5221279859542847,
+      "hit_sections": {
+        "judgment": 1,
+        "case_info": 6,
+        "reasoning": 2,
+        "reference": 1
+      },
+      "important_hit_rate": 0.2
+    },
+    "improved": {
+      "avg_score": 0.5045256614685059,
+      "hit_sections": {
+        "judgment": 2,
+        "case_info": 3,
+        "reasoning": 4,
+        "reference": 1
+      },
+      "important_hit_rate": 0.4
+    }
+  },
+  "detailed_results": {
+    "original": {
+      "hits": [
+        {
+          "query": "형법",
+          "section": "judgment",
+          "score": 0.5720394253730774,
+          "text_preview": "[주           문]\n형사소송법(1954.9.23."
+        },
+        {
+          "query": "처벌",
+          "section": "case_info",
+          "score": 0.5032148957252502,
+          "text_preview": "피고인들을 각 징역 2년 및 벌금 1,450,000,000원에 처한다."
+        },
+        {
+          "query": "양형",
+          "section": "reasoning",
+          "score": 0.4858284294605255,
+          "text_preview": "양형의 이유 1.법률상 처단형의 범위: 징역 1월∼15년"
+        },
+        {
+          "query": "사기",
+          "section": "case_info",
+          "score": 0.5769904255867004,
+          "text_preview": "피고인에게 이 사건과 같은 유형은 아니나 사기 전과도 있다."
+        },
+        {
+          "query": "집행유예",
+          "section": "reasoning",
+          "score": 0.5771119594573975,
+          "text_preview": ", 자격정지 또는 벌금의 형을 선고할 경우에 양형의 조건을 참작하여 개전의 정상이 현저한 때 선고하는 형으로서 선고유예를 받은 후 2년의 유예기간을 경과하면 면소되는 것으로 간주되"
+        },
+        {
+          "query": "상해",
+          "section": "case_info",
+          "score": 0.3530207574367523,
+          "text_preview": "서울동부지방법원에서 상해죄로 벌금 150만원을 선고(서울동부지방법원 2011고정189)받은 자이다.위 법원은 위 사건의 공판기일에 청구인에게 선고기일(2011.4.29."
+        },
+        {
+          "query": "폭행",
+          "section": "case_info",
+          "score": 0.5535565614700317,
+          "text_preview": "이로써 피고인은 피해자를 폭행하였다.\n『2023고단4549』"
+        },
+        {
+          "query": "도로교통법",
+          "section": "reference",
+          "score": 0.5516369938850403,
+          "text_preview": "[참조조문]\n도로교통법(2016.12.2.\n법률 제14356호로 개정된 것)제165조 제1항\n도로법(2016.12.2.\n법률 제14338호로 개정된 것)제50조\n구 도로의 구조ㆍ시"
+        },
+        {
+          "query": "음주운전",
+          "section": "case_info",
+          "score": 0.5383813977241516,
+          "text_preview": "피고인은 운전면허를 취득하지 않은 상태에서 다섯 차례 음주운전을 하였다.\n매 음주운전마다 음주수치가 매우 높고 주취정황도 나쁘며, 세 차례의 음주운전은 물적사고를 발생시켜 음주단속"
+        },
+        {
+          "query": "절도",
+          "section": "case_info",
+          "score": 0.5094987154006958,
+          "text_preview": "(1)절도죄에서 절취행위는 타인이 점유하고 있는 재물을 점유자의 의사에 반하여 자기 또는 제3자의 점유로 이전하는 행위를 말한다.위에서 보았듯이 청구인이 차량에 승차하여 구동장치를"
+        }
+      ],
+      "scores": [
+        

@@ -1,0 +1,620 @@
+{
+  "timestamp": "2025-12-04T11:42:53.923501",
+  "experiments": [
+    {
+      "experiment_name": "실험1_청킹비교",
+      "description": "청킹 전략만 변경 (임베딩/VectorDB 동일)",
+      "system_a_config": {
+        "chunking": "fixed_500",
+        "embedding": "ko-sroberta",
+        "vectordb": "ChromaDB"
+      },
+      "system_b_config": {
+        "chunking": "legal_specialized",
+        "embedding": "ko-sroberta",
+        "vectordb": "ChromaDB"
+      },
+      "changed_component": "chunking",
+      "system_a_avg_time_ms": 20.16737087396905,
+      "system_b_avg_time_ms": 26.30879560019821,
+      "system_a_hit_rate_1": 0.6,
+      "system_b_hit_rate_1": 0.6,
+      "system_a_hit_rate_3": 0.9,
+      "system_b_hit_rate_3": 0.8,
+      "system_a_mrr": 0.7333333333333333,
+      "system_b_mrr": 0.6666666666666666,
+      "query_results": [
+        {
+          "query_id": "Q01",
+          "query": "음주운전 혈중알코올농도 0.1% 이상일 때 처벌 기준은?",
+          "system_a": {
+            "time_ms": 186.11520796548575,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7075690014287421
+          },
+          "system_b": {
+            "time_ms": 249.43166598677635,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6822374644597163
+          }
+        },
+        {
+          "query_id": "Q02",
+          "query": "보이스피싱 사기 범행에 대한 양형 기준과 판례",
+          "system_a": {
+            "time_ms": 1.7834589816629887,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7829718394645114
+          },
+          "system_b": {
+            "time_ms": 2.519582980312407,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7757485007374764
+          }
+        },
+        {
+          "query_id": "Q03",
+          "query": "상해죄와 폭행죄의 구별 기준 및 처벌",
+          "system_a": {
+            "time_ms": 1.4719170285388827,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.5,
+            "top_score": 0.758643607731002
+          },
+          "system_b": {
+            "time_ms": 1.3513329904526472,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.7795512180905967
+          }
+        },
+        {
+          "query_id": "Q04",
+          "query": "야간주거침입절도죄의 성립 요건과 처벌",
+          "system_a": {
+            "time_ms": 2.422124962322414,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.3333333333333333,
+            "top_score": 0.6807176360198497
+          },
+          "system_b": {
+            "time_ms": 1.5620420454069972,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.674343290457062
+          }
+        },
+        {
+          "query_id": "Q05",
+          "query": "마약류 투약 및 소지 범죄의 처벌 수위",
+          "system_a": {
+            "time_ms": 1.8757499055936933,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7645115892395047
+          },
+          "system_b": {
+            "time_ms": 1.7553339712321758,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.3333333333333333,
+            "top_score": 0.7936818871986158
+          }
+        },
+        {
+          "query_id": "Q06",
+          "query": "강제추행죄의 구성요건과 양형 기준",
+          "system_a": {
+            "time_ms": 1.5695829642936587,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7838439676748535
+          },
+          "system_b": {
+            "time_ms": 1.164791057817638,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7715221535570062
+          }
+        },
+        {
+          "query_id": "Q07",
+          "query": "업무상횡령죄 성립요건과 배임죄와의 차이",
+          "system_a": {
+            "time_ms": 2.33029096852988,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.5,
+            "top_score": 0.7281539800370239
+          },
+          "system_b": {
+            "time_ms": 1.3255830854177475,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.3333333333333333,
+            "top_score": 0.7780286823952235
+          }
+        },
+        {
+          "query_id": "Q08",
+          "query": "교통사고 후 도주(뺑소니)에 대한 처벌",
+          "system_a": {
+            "time_ms": 1.397875021211803,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.7461245008130237
+          },
+          "system_b": {
+            "time_ms": 1.6781659796833992,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.7405326522715835
+          }
+        },
+        {
+          "query_id": "Q09",
+          "query": "집행유예 선고 기준과 요건",
+          "system_a": {
+            "time_ms": 1.3054589508101344,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7823288562832318
+          },
+          "system_b": {
+            "time_ms": 1.1367499828338623,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7830864832434159
+          }
+        },
+        {
+          "query_id": "Q10",
+          "query": "형사 항소심에서 양형부당 주장의 인용 기준",
+          "system_a": {
+            "time_ms": 1.4020419912412763,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.808736653630895
+          },
+          "system_b": {
+            "time_ms": 1.1627079220488667,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.82948270995538
+          }
+        }
+      ]
+    },
+    {
+      "experiment_name": "실험2_임베딩비교",
+      "description": "임베딩 모델만 변경 (청킹/VectorDB 동일)",
+      "system_a_config": {
+        "chunking": "legal_specialized",
+        "embedding": "ko-sroberta (768d)",
+        "vectordb": "ChromaDB"
+      },
+      "system_b_config": {
+        "chunking": "legal_specialized",
+        "embedding": "snowflake-arctic (1024d)",
+        "vectordb": "ChromaDB"
+      },
+      "changed_component": "embedding",
+      "system_a_avg_time_ms": 40.64623328158632,
+      "system_b_avg_time_ms": 53.27424600254744,
+      "system_a_hit_rate_1": 0.6,
+      "system_b_hit_rate_1": 0.8,
+      "system_a_hit_rate_3": 0.8,
+      "system_b_hit_rate_3": 0.8,
+      "system_a_mrr": 0.6666666666666666,
+      "system_b_mrr": 0.8,
+      "query_results": [
+        {
+          "query_id": "Q01",
+          "query": "음주운전 혈중알코올농도 0.1% 이상일 때 처벌 기준은?",
+          "system_a": {
+            "time_ms": 372.63362493831664,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6822374644597163
+          },
+          "system_b": {
+            "time_ms": 496.8937080120668,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6745864245783527
+          }
+        },
+        {
+          "query_id": "Q02",
+          "query": "보이스피싱 사기 범행에 대한 양형 기준과 판례",
+          "system_a": {
+            "time_ms": 12.243082979694009,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7757485007374764
+          },
+          "system_b": {
+            "time_ms": 3.86012508533895,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7336707875225008
+          }
+        },
+        {
+          "query_id": "Q03",
+          "query": "상해죄와 폭행죄의 구별 기준 및 처벌",
+          "system_a": {
+            "time_ms": 1.7946249572560191,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.7795512180905967
+          },
+          "system_b": {
+            "time_ms": 3.4102500649169087,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.692656837977402
+          }
+        },
+        {
+          "query_id": "Q04",
+          "query": "야간주거침입절도죄의 성립 요건과 처벌",
+          "system_a": {
+            "time_ms": 4.228833015076816,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.674343290457062
+          },
+          "system_b": {
+            "time_ms": 2.9718750156462193,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.661850895832472
+          }
+        },
+        {
+          "query_id": "Q05",
+          "query": "마약류 투약 및 소지 범죄의 처벌 수위",
+          "system_a": {
+            "time_ms": 2.689874963834882,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.3333333333333333,
+            "top_score": 0.7936818871986158
+          },
+          "system_b": {
+            "time_ms": 2.2065420635044575,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6793556372267356
+          }
+        },
+        {
+          "query_id": "Q06",
+          "query": "강제추행죄의 구성요건과 양형 기준",
+          "system_a": {
+            "time_ms": 1.7819589702412486,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7715221535570062
+          },
+          "system_b": {
+            "time_ms": 9.331583976745605,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6922845086407152
+          }
+        },
+        {
+          "query_id": "Q07",
+          "query": "업무상횡령죄 성립요건과 배임죄와의 차이",
+          "system_a": {
+            "time_ms": 1.661999966017902,
+            "hit_at_1": false,
+            "hit_at_3": true,
+            "mrr": 0.3333333333333333,
+            "top_score": 0.7780286823952235
+          },
+          "system_b": {
+            "time_ms": 2.3471249733120203,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.6434802486286381
+          }
+        },
+        {
+          "query_id": "Q08",
+          "query": "교통사고 후 도주(뺑소니)에 대한 처벌",
+          "system_a": {
+            "time_ms": 1.6050420235842466,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.7405326522715835
+          },
+          "system_b": {
+            "time_ms": 4.98758303001523,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.665919347833732
+          }
+        },
+        {
+          "query_id": "Q09",
+          "query": "집행유예 선고 기준과 요건",
+          "system_a": {
+            "time_ms": 4.8672499833628535,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7830864832434159
+          },
+          "system_b": {
+            "time_ms": 3.167833900079131,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7193893317783713
+          }
+        },
+        {
+          "query_id": "Q10",
+          "query": "형사 항소심에서 양형부당 주장의 인용 기준",
+          "system_a": {
+            "time_ms": 2.9560410184785724,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.82948270995538
+          },
+          "system_b": {
+            "time_ms": 3.565833903849125,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7110115699252886
+          }
+        }
+      ]
+    },
+    {
+      "experiment_name": "실험3_VectorDB비교",
+      "description": "VectorDB만 변경 (청킹/임베딩 동일)",
+      "system_a_config": {
+        "chunking": "legal_specialized",
+        "embedding": "snowflake-arctic",
+        "vectordb": "ChromaDB"
+      },
+      "system_b_config": {
+        "chunking": "legal_specialized",
+        "embedding": "snowflake-arctic",
+        "vectordb": "Qdrant"
+      },
+      "changed_component": "vectordb",
+      "system_a_avg_time_ms": 25.530345691367984,
+      "system_b_avg_time_ms": 21.78854129742831,
+      "system_a_hit_rate_1": 0.8,
+      "system_b_hit_rate_1": 0.8,
+      "system_a_hit_rate_3": 0.8,
+      "system_b_hit_rate_3": 0.8,
+      "system_a_mrr": 0.8,
+      "system_b_mrr": 0.8,
+      "query_results": [
+        {
+          "query_id": "Q01",
+          "query": "음주운전 혈중알코올농도 0.1% 이상일 때 처벌 기준은?",
+          "system_a": {
+            "time_ms": 221.62824997212738,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6745864245783527
+          },
+          "system_b": {
+            "time_ms": 37.480666069313884,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.51761085
+          }
+        },
+        {
+          "query_id": "Q02",
+          "query": "보이스피싱 사기 범행에 대한 양형 기준과 판례",
+          "system_a": {
+            "time_ms": 3.75483394600451,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7336707875225008
+          },
+          "system_b": {
+            "time_ms": 13.60458298586309,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.63699096
+          }
+        },
+        {
+          "query_id": "Q03",
+          "query": "상해죄와 폭행죄의 구별 기준 및 처벌",
+          "system_a": {
+            "time_ms": 1.932291081175208,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.692656837977402
+          },
+          "system_b": {
+            "time_ms": 17.75983301922679,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.55628425
+          }
+        },
+        {
+          "query_id": "Q04",
+          "query": "야간주거침입절도죄의 성립 요건과 처벌",
+          "system_a": {
+            "time_ms": 2.201540977694094,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.661850895832472
+          },
+          "system_b": {
+            "time_ms": 13.707416015677154,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.48908567
+          }
+        },
+        {
+          "query_id": "Q05",
+          "query": "마약류 투약 및 소지 범죄의 처벌 수위",
+          "system_a": {
+            "time_ms": 3.6608331138268113,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6793556372267356
+          },
+          "system_b": {
+            "time_ms": 19.132541958242655,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.52801704
+          }
+        },
+        {
+          "query_id": "Q06",
+          "query": "강제추행죄의 구성요건과 양형 기준",
+          "system_a": {
+            "time_ms": 3.139749984256923,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6922845086407152
+          },
+          "system_b": {
+            "time_ms": 38.588125025853515,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.5555072
+          }
+        },
+        {
+          "query_id": "Q07",
+          "query": "업무상횡령죄 성립요건과 배임죄와의 차이",
+          "system_a": {
+            "time_ms": 6.7478748969733715,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.6434802486286381
+          },
+          "system_b": {
+            "time_ms": 23.96941592451185,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.44595128
+          }
+        },
+        {
+          "query_id": "Q08",
+          "query": "교통사고 후 도주(뺑소니)에 대한 처벌",
+          "system_a": {
+            "time_ms": 3.8237080443650484,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.665919347833732
+          },
+          "system_b": {
+            "time_ms": 19.514791085384786,
+            "hit_at_1": false,
+            "hit_at_3": false,
+            "mrr": 0.0,
+            "top_score": 0.4983166
+          }
+        },
+        {
+          "query_id": "Q09",
+          "query": "집행유예 선고 기준과 요건",
+          "system_a": {
+            "time_ms": 3.421249915845692,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7193893317783713
+          },
+          "system_b": {
+            "time_ms": 19.24895797856152,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.6099324
+          }
+        },
+        {
+          "query_id": "Q10",
+          "query": "형사 항소심에서 양형부당 주장의 인용 기준",
+          "system_a": {
+            "time_ms": 4.993124981410801,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.7110115699252886
+          },
+          "system_b": {
+            "time_ms": 14.879082911647856,
+            "hit_at_1": true,
+            "hit_at_3": true,
+            "mrr": 1.0,
+            "top_score": 0.5935539
+          }
+        }
+      ]
+    }
+  ]
+}

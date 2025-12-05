@@ -1,0 +1,121 @@
+{
+  "timestamp": "2025-12-04T14:48:36.039540",
+  "documents": 100,
+  "queries": 10,
+  "chunking": {
+    "original": {
+      "chunk_count": 1659,
+      "avg_length": 200.97528631705848,
+      "section_distribution": {
+        "case_info": 1257,
+        "reasoning": 197,
+        "judgment": 116,
+        "summary": 13,
+        "other": 7,
+        "decision": 56,
+        "reference": 13
+      }
+    },
+    "improved": {
+      "chunk_count": 999,
+      "avg_length": 331.80280280280283,
+      "section_distribution": {
+        "other": 89,
+        "case_info": 390,
+        "judgment": 199,
+        "reasoning": 236,
+        "summary": 20,
+        "reference": 10,
+        "decision": 55
+      }
+    },
+    "reduction": 39.78300180831826
+  },
+  "search": {
+    "original": {
+      "avg_score": 0.4892686903476715,
+      "hit_sections": {
+        "case_info": 7,
+        "decision": 1,
+        "reasoning": 1,
+        "reference": 1
+      },
+      "important_hit_rate": 0.1
+    },
+    "improved": {
+      "avg_score": 0.4778439998626709,
+      "hit_sections": {
+        "case_info": 5,
+        "decision": 1,
+        "reasoning": 3,
+        "judgment": 1
+      },
+      "important_hit_rate": 0.3
+    }
+  },
+  "detailed_results": {
+    "original": {
+      "hits": [
+        {
+          "query": "처벌",
+          "section": "case_info",
+          "score": 0.4770732522010803,
+          "text_preview": "피고인 A을 징역 6개월 및 벌금 2,000,000원, 피고인 B을 징역 3개월, 피고인 C을 벌 금 3,000,000원, 피고인 D을 벌금 3,000,000원, 피고인 E을 벌금"
+        },
+        {
+          "query": "형법",
+          "section": "decision",
+          "score": 0.49281802773475647,
+          "text_preview": "어떤 범죄를 어떻게 처벌할 것인가 하는 문제 즉 법정형의 종류와 범위의 선택은 그 범죄의 죄질과 보호법익에 대한 고려뿐만 아니라 우리의 역사와 문화, 입법 당시의 시대적 상황, 국"
+        },
+        {
+          "query": "양형",
+          "section": "reasoning",
+          "score": 0.4858284294605255,
+          "text_preview": "양형의 이유 1.법률상 처단형의 범위: 징역 1월∼15년"
+        },
+        {
+          "query": "사기",
+          "section": "case_info",
+          "score": 0.5056115388870239,
+          "text_preview": "피고인이 자신의 잘못을 모두 인정하며 반성하고 있고, 사기 피해자와 합의하여 피해자가 피고인의 처벌을 원하지 않고 있다."
+        },
+        {
+          "query": "집행유예",
+          "section": "case_info",
+          "score": 0.5552639961242676,
+          "text_preview": "위 집행유예 선고가 실효 또는 취소되고, 피고인이 위 벌금을 납입하지 아니하는 경우 10만 원을 1일로 환산한 기간 피고인을 노역장에 유치한다."
+        },
+        {
+          "query": "상해",
+          "section": "case_info",
+          "score": 0.31471526622772217,
+          "text_preview": "특히 상해진단서가 주로 통증이 있다는 피해자의 주관적인 호소 등에 의존하여 의학적인 가능성만으로 발급된 때에는 그 진단 일자 및 진단서 작성일자가 상해 발생 시점과 시간상으로 근접"
+        },
+        {
+          "query": "폭행",
+          "section": "case_info",
+          "score": 0.5535565614700317,
+          "text_preview": "이로써 피고인은 피해자를 폭행하였다.\n『2023고단4549』"
+        },
+        {
+          "query": "절도",
+          "section": "case_info",
+          "score": 0.42169591784477234,
+          "text_preview": "그럼에도 불구하고 피고인은 위 제1항 기재 일시 및 장소에서 절도 행위를 하면서 자신의 범행이 발각될 것을 염려하여 추적을 어렵게 할 목적으로 (차량번호 1 생략)오토바이 이륜자동"
+        },
+        {
+          "query": "도로교통법",
+          "section": "reference",
+          "score": 0.5477423071861267,
+          "text_preview": "[참조조문]\n헌법 제10조\n구 도로법(1993.3.10.\n법률 제4545호로 개정되고, 1995.1.5.\n법률 제4920호로 개정되기 전의 것)제84조 제1호, 제54조 제1항"
+        },
+        {
+          "query": "음주운전",
+          "section": "case_info",
+          "score": 0.5383813977241516,
+          "text_preview": "피고인은 운전면허를 취득하지 않은 상태에서 다섯 차례 음주운전을 하였다.\n매 음주운전마다 음주수치가 매우 높고 주취정황도 나쁘며, 세 차례의 음주운전은 물적사고를 발생시켜 음주단속"
+        }
+      ],
+      "scores": [
+        

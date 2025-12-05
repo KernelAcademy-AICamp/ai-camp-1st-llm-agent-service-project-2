@@ -1,0 +1,28 @@
+{
+  "A_Fixed500": {
+    "avg_score": 0.40196699619293214,
+    "important_rate": 100.0,
+    "chunk_count": 360,
+    "avg_length": 465.6638888888889
+  },
+  "comparison": {
+    "A_Fixed500": {
+      "avg_score": 0.40196699619293214,
+      "important_rate": 100.0,
+      "chunk_count": 360,
+      "avg_length": 465.6638888888889
+    },
+    "B_Original": {
+      "avg_score": 0.4893,
+      "important_rate": 10.0,
+      "chunk_count": "N/A",
+      "avg_length": 206
+    },
+    "C_Improved": {
+      "avg_score": 0.4778,
+      "important_rate": 30.0,
+      "chunk_count": "N/A",
+      "avg_length": 500
+    }
+  }
+}
