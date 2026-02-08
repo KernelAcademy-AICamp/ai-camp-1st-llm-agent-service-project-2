@@ -1,0 +1,406 @@
+{
+  "metadata": {
+    "timestamp": "2025-11-26T01:34:10.186782",
+    "mode": "phase3",
+    "version": "1.0.0",
+    "system": {
+      "platform": "Darwin",
+      "platform_release": "25.1.0",
+      "platform_version": "Darwin Kernel Version 25.1.0: Mon Oct 20 19:32:47 PDT 2025; root:xnu-12377.41.6~2/RELEASE_ARM64_T8103",
+      "architecture": "arm64",
+      "processor": "arm",
+      "python_version": "3.11.13",
+      "cpu_count": 8,
+      "total_memory_gb": 16.0
+    }
+  },
+  "results": {
+    "rag_chat": [
+      {
+        "test_id": "rag_001",
+        "test_name": "민사 - 이혼 위자료",
+        "category": "civil",
+        "performance": {
+          "operation": "rag_chat_rag_001",
+          "start_time": "2025-11-26T01:29:57.778125",
+          "end_time": "2025-11-26T01:30:29.860471",
+          "duration_ms": 32082.35,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 33.27,
+          "memory_mb_after": 19.78,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "Unknown"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "answer_length": 362,
+          "sources_count": 2,
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "rag_002",
+        "test_name": "형사 - 명예훼손 vs 모욕죄",
+        "category": "criminal",
+        "performance": {
+          "operation": "rag_chat_rag_002",
+          "start_time": "2025-11-26T01:30:30.066961",
+          "end_time": "2025-11-26T01:31:11.678940",
+          "duration_ms": 41611.98,
+          "cpu_percent_before": 0.1,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 20.45,
+          "memory_mb_after": 19.69,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "Unknown"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "answer_length": 452,
+          "sources_count": 2,
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "rag_003",
+        "test_name": "행정 - 취소소송 요건",
+        "category": "administrative",
+        "performance": {
+          "operation": "rag_chat_rag_003",
+          "start_time": "2025-11-26T01:31:11.886852",
+          "end_time": "2025-11-26T01:31:41.051738",
+          "duration_ms": 29164.89,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 20.61,
+          "memory_mb_after": 19.61,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "Unknown"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "answer_length": 318,
+          "sources_count": 2,
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "rag_004",
+        "test_name": "복잡 쿼리 - 계약 해지 손해배상",
+        "category": "contract",
+        "performance": {
+          "operation": "rag_chat_rag_004",
+          "start_time": "2025-11-26T01:31:41.253575",
+          "end_time": "2025-11-26T01:32:13.694260",
+          "duration_ms": 32440.69,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 20.52,
+          "memory_mb_after": 19.58,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "Unknown"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "answer_length": 311,
+          "sources_count": 3,
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "rag_005",
+        "test_name": "간단 쿼리 - 증거능력",
+        "category": "evidence",
+        "performance": {
+          "operation": "rag_chat_rag_005",
+          "start_time": "2025-11-26T01:32:13.905582",
+          "end_time": "2025-11-26T01:32:41.179991",
+          "duration_ms": 27274.41,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 20.48,
+          "memory_mb_after": 19.55,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "Unknown"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "answer_length": 234,
+          "sources_count": 2,
+          "status": "success"
+        }
+      }
+    ],
+    "document_analysis": [
+      {
+        "test_id": "doc_001",
+        "test_name": "소형 문서 분석",
+        "category": "small",
+        "performance": {
+          "operation": "doc_analysis_doc_001",
+          "start_time": "2025-11-26T01:32:41.390417",
+          "end_time": "2025-11-26T01:32:52.749555",
+          "duration_ms": 11359.14,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 20.48,
+          "memory_mb_after": 23.33,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "default"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "summary_length": 624,
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "doc_002",
+        "test_name": "중형 문서 분석",
+        "category": "medium",
+        "performance": {
+          "operation": "doc_analysis_doc_002",
+          "start_time": "2025-11-26T01:32:52.959931",
+          "end_time": "2025-11-26T01:33:08.875872",
+          "duration_ms": 15915.94,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 23.34,
+          "memory_mb_after": 23.42,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "default"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "summary_length": 767,
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "doc_003",
+        "test_name": "대형 문서 분석",
+        "category": "large",
+        "performance": {
+          "operation": "doc_analysis_doc_003",
+          "start_time": "2025-11-26T01:33:09.080436",
+          "end_time": "2025-11-26T01:33:20.233553",
+          "duration_ms": 11153.12,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 23.48,
+          "memory_mb_after": 23.52,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "default"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "summary_length": 623,
+          "status": "success"
+        }
+      }
+    ],
+    "risk_analysis": [
+      {
+        "test_id": "risk_001",
+        "test_name": "계약서 리스크 분석",
+        "category": "contract",
+        "performance": {
+          "operation": "risk_analysis_risk_001",
+          "start_time": "2025-11-26T01:33:20.442211",
+          "end_time": "2025-11-26T01:33:44.605669",
+          "duration_ms": 24163.46,
+          "cpu_percent_before": 0.0,
+          "cpu_percent_after": 0.1,
+          "memory_mb_before": 23.52,
+          "memory_mb_after": 23.53,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "default"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "risk_score": 77,
+          "risk_items_count": 3,
+          "severity": "HIGH",
+          "status": "success"
+        }
+      },
+      {
+        "test_id": "risk_002",
+        "test_name": "임대차 리스크 분석",
+        "category": "lease",
+        "performance": {
+          "operation": "risk_analysis_risk_002",
+          "start_time": "2025-11-26T01:33:44.816215",
+          "end_time": "2025-11-26T01:34:10.085585",
+          "duration_ms": 25269.37,
+          "cpu_percent_before": 0.1,
+          "cpu_percent_after": 0.0,
+          "memory_mb_before": 23.56,
+          "memory_mb_after": 23.58,
+          "status": "success",
+          "error_message": null
+        },
+        "llm": {
+          "total_tokens": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_cost_usd": 0.0,
+          "model_name": "default"
+        },
+        "database": {
+          "query_count": 0,
+          "total_query_time_ms": 0.0,
+          "avg_query_time_ms": 0.0
+        },
+        "response_data": {
+          "risk_score": 84,
+          "risk_items_count": 3,
+          "severity": "CRITICAL",
+          "status": "success"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "rag": {
+      "count": 5,
+      "avg_duration_ms": 32514.86,
+      "min_duration_ms": 27274.41,
+      "max_duration_ms": 41611.98,
+      "p95_duration_ms": 41611.98,
+      "total_tokens": 0,
+      "avg_tokens": 0.0,
+      "total_cost_usd": 0.0,
+      "success_rate": 100.0
+    },
+    "doc": {
+      "count": 3,
+      "avg_duration_ms": 12809.4,
+      "min_duration_ms": 11153.12,
+      "max_duration_ms": 15915.94,
+      "p95_duration_ms": 15915.94,
+      "total_tokens": 0,
+      "avg_tokens": 0.0,
+      "total_cost_usd": 0.0,
+      "success_rate": 100.0
+    },
+    "risk": {
+      "count": 2,
+      "avg_duration_ms": 24716.42,
+      "min_duration_ms": 24163.46,
+      "max_duration_ms": 25269.37,
+      "p95_duration_ms": 25269.37,
+      "total_tokens": 0,
+      "avg_tokens": 0.0,
+      "total_cost_usd": 0.0,
+      "success_rate": 100.0
+    },
+    "overall": {
+      "total_tests": 10,
+      "total_duration_ms": 250435.35,
+      "avg_duration_ms": 25043.53,
+      "total_cost_usd": 0.0,
+      "success_rate": 100.0
+    }
+  }
+}

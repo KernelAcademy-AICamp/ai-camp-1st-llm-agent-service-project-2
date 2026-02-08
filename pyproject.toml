@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lawlaw"
+version = "1.0.0"
+description = "LawLaw - Constitutional Law AI Service"
+requires-python = ">=3.11"
+authors = [
+    {name = "LawLaw Team"}
+]
+
+dependencies = [
+    # Core
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "django>=5.0.0",
+    "djangorestframework>=3.14.0",
+    "djangorestframework-simplejwt>=5.3.0",
+
+    # Database
+    "psycopg2-binary>=2.9.9",
+    "asyncpg>=0.29.0",
+    "sqlalchemy>=2.0.23",
+
+    # RAG & ML
+    "sentence-transformers>=2.2.2",
+    "qdrant-client>=1.16.0",
+    "rank-bm25>=0.2.2",
+    "torch>=2.0.0",
+    "langchain-text-splitters>=0.3.0",
+
+    # Document Processing
+    "pypdf>=3.0.0",
+    "python-docx>=1.0.0",
+    "pillow>=10.0.0",
+    "pytesseract>=0.3.10",
+
+    # Utils
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "httpx>=0.25.2",
+
+    # LangGraph (Phase 4)
+    "langgraph>=1.0.4",
+    "langgraph-checkpoint>=3.0.1",
+    "langchain-core>=1.1.0",
+    "langsmith",
+    "redis>=5.0.0",
+
+    # FastMCP (Phase 4 - Week 12)
+    "fastmcp>=2.13.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "black>=23.11.0",
+    "ruff>=0.1.6",
+]
+
+[tool.setuptools]
+packages = ["libs", "apps"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.yml"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | data
+  | \.eggs
+  | _build
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "data",
+    "__pycache__",
+    "migrations",
+]

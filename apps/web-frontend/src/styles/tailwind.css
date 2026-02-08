@@ -1,0 +1,445 @@
+/**
+ * Agent Hub - Tailwind CSS Entry Point
+ *
+ * 이 파일은 Agent Hub 컴포넌트에만 Tailwind CSS를 적용합니다.
+ * 기존 LawLaw CSS와 충돌하지 않도록 설계되었습니다.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   Agent Hub Theme Variables
+   ======================================== */
+
+:root {
+  /* Light Mode (Default) */
+  --ah-bg-primary: #ffffff;
+  --ah-bg-secondary: #f8fafc;
+  --ah-bg-tertiary: #f1f5f9;
+
+  --ah-text-primary: #0f172a;
+  --ah-text-secondary: #475569;
+  --ah-text-tertiary: #64748b;
+
+  --ah-border-primary: #e2e8f0;
+  --ah-border-secondary: #cbd5e1;
+
+  /* Glassmorphism */
+  --ah-glass-bg: rgba(255, 255, 255, 0.7);
+  --ah-glass-border: rgba(148, 163, 184, 0.2);
+  --ah-glass-shadow: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] {
+  /* Dark Mode */
+  --ah-bg-primary: #0f172a;
+  --ah-bg-secondary: #1e293b;
+  --ah-bg-tertiary: #334155;
+
+  --ah-text-primary: #f1f5f9;
+  --ah-text-secondary: #cbd5e1;
+  --ah-text-tertiary: #94a3b8;
+
+  --ah-border-primary: #334155;
+  --ah-border-secondary: #475569;
+
+  /* Glassmorphism */
+  --ah-glass-bg: rgba(30, 41, 59, 0.7);
+  --ah-glass-border: rgba(148, 163, 184, 0.1);
+  --ah-glass-shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+   Agent Hub Custom Components
+   ======================================== */
+
+@layer components {
+  /* Agent Hub Container */
+  .agent-hub {
+    @apply h-screen overflow-hidden;
+    background: var(--ah-bg-primary);
+    color: var(--ah-text-primary);
+  }
+
+  /* Glassmorphism Card */
+  .ah-glass-card {
+    background: var(--ah-glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--ah-glass-border);
+    box-shadow: 0 10px 30px -10px var(--ah-glass-shadow);
+  }
+
+  /* Message Cards */
+  .ah-message-card {
+    @apply relative p-4 mb-4 rounded-2xl;
+    @apply transition-all duration-300 ease-out;
+    background: var(--ah-glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--ah-glass-border);
+    box-shadow:
+      0 10px 30px -10px var(--ah-glass-shadow),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .ah-message-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 20px 40px -15px var(--ah-glass-shadow),
+      0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .ah-message-user {
+    @apply ml-auto max-w-[70%];
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+  }
+
+  /* Input Area */
+  .ah-input {
+    @apply w-full resize-none;
+    @apply px-4 py-3 pr-24;
+    @apply text-base;
+    @apply rounded-2xl;
+    @apply border-2 transition-all duration-200;
+    background: var(--ah-glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-color: var(--ah-border-primary);
+    color: var(--ah-text-primary);
+  }
+
+  .ah-input:focus {
+    @apply outline-none;
+    border-color: #3b82f6;
+    box-shadow:
+      0 0 0 4px rgba(59, 130, 246, 0.1),
+      0 10px 30px -5px rgba(59, 130, 246, 0.2);
+  }
+
+  .ah-input::placeholder {
+    color: var(--ah-text-tertiary);
+  }
+
+  /* Send Button */
+  .ah-send-btn {
+    @apply w-10 h-10;
+    @apply flex items-center justify-center;
+    @apply rounded-full;
+    @apply text-white;
+    @apply transition-all duration-200;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  }
+
+  .ah-send-btn:hover:not(:disabled) {
+    @apply scale-105;
+    box-shadow: 0 8px 20px -5px rgba(59, 130, 246, 0.4);
+  }
+
+  .ah-send-btn:active:not(:disabled) {
+    @apply scale-95;
+  }
+
+  .ah-send-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Sidebar Items */
+  .ah-sidebar-item {
+    @apply relative flex items-center gap-3;
+    @apply px-4 py-3 mx-2 my-1;
+    @apply rounded-xl;
+    @apply text-sm;
+    @apply cursor-pointer;
+    @apply transition-all duration-200;
+    color: var(--ah-text-secondary);
+  }
+
+  .ah-sidebar-item:hover {
+    background: var(--ah-bg-tertiary);
+    color: var(--ah-text-primary);
+  }
+
+  .ah-sidebar-item.active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%);
+    color: #3b82f6;
+    @apply font-medium;
+  }
+
+  .ah-sidebar-item.active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 -translate-y-1/2;
+    @apply w-[3px] h-[70%];
+    @apply rounded-r-sm;
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  }
+
+  /* Buttons */
+  .ah-btn {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply px-4 py-2;
+    @apply rounded-xl;
+    @apply text-sm font-medium;
+    @apply border-none cursor-pointer;
+    @apply transition-all duration-200;
+    @apply select-none;
+  }
+
+  .ah-btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  }
+
+  .ah-btn-primary:hover {
+    @apply -translate-y-0.5;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .ah-btn-secondary {
+    background: var(--ah-bg-secondary);
+    color: var(--ah-text-primary);
+    border: 1px solid var(--ah-border-primary);
+  }
+
+  .ah-btn-secondary:hover {
+    background: var(--ah-bg-tertiary);
+    border-color: var(--ah-border-secondary);
+  }
+
+  .ah-btn-ghost {
+    @apply bg-transparent;
+    color: var(--ah-text-secondary);
+  }
+
+  .ah-btn-ghost:hover {
+    background: var(--ah-bg-tertiary);
+    color: var(--ah-text-primary);
+  }
+
+  /* Tags */
+  .ah-tag {
+    @apply inline-flex items-center gap-1.5;
+    @apply px-3 py-1.5;
+    @apply text-xs font-medium;
+    @apply rounded-full;
+    @apply transition-all duration-200;
+    background: var(--ah-bg-tertiary);
+    color: var(--ah-text-primary);
+  }
+
+  .ah-tag-primary {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  .ah-tag-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+
+  .ah-tag-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+
+  .ah-tag-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #b91c1c;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  /* Skeleton Loading */
+  .ah-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--ah-bg-secondary) 0%,
+      var(--ah-bg-tertiary) 50%,
+      var(--ah-bg-secondary) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-skeleton rounded-lg;
+  }
+
+  /* Typing Indicator */
+  .ah-typing-dot {
+    @apply w-2 h-2 rounded-full;
+    background: var(--ah-text-tertiary);
+    @apply animate-typing;
+  }
+
+  .ah-typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .ah-typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  /* Avatar */
+  .ah-avatar {
+    @apply w-10 h-10 rounded-full;
+    @apply flex items-center justify-center;
+    @apply font-semibold text-white;
+    background: linear-gradient(135deg, #818cf8 0%, #4f46e5 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Scrollbar */
+  .ah-scrollbar::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  .ah-scrollbar::-webkit-scrollbar-track {
+    background: var(--ah-bg-secondary);
+  }
+
+  .ah-scrollbar::-webkit-scrollbar-thumb {
+    @apply rounded-full;
+    background: var(--ah-border-secondary);
+  }
+
+  .ah-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--ah-text-tertiary);
+  }
+}
+
+/* ========================================
+   Agent Hub Utilities
+   ======================================== */
+
+@layer utilities {
+  /* Theme Transition */
+  .ah-theme-transition,
+  .ah-theme-transition *,
+  .ah-theme-transition *::before,
+  .ah-theme-transition *::after {
+    transition:
+      background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  /* Hide Scrollbar */
+  .ah-hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ah-hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Safe Area Padding (for mobile) */
+  .ah-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .ah-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* ========================================
+   Markdown Content Styling
+   ======================================== */
+
+.ah-markdown {
+  @apply text-base leading-relaxed;
+  color: var(--ah-text-primary);
+}
+
+.ah-markdown h1,
+.ah-markdown h2,
+.ah-markdown h3,
+.ah-markdown h4,
+.ah-markdown h5,
+.ah-markdown h6 {
+  @apply font-semibold mt-6 mb-3;
+  color: var(--ah-text-primary);
+}
+
+.ah-markdown h1 { @apply text-2xl; }
+.ah-markdown h2 { @apply text-xl; }
+.ah-markdown h3 { @apply text-lg; }
+
+.ah-markdown p {
+  @apply mb-4;
+}
+
+.ah-markdown ul,
+.ah-markdown ol {
+  @apply mb-4 pl-6;
+}
+
+.ah-markdown ul {
+  @apply list-disc;
+}
+
+.ah-markdown ol {
+  @apply list-decimal;
+}
+
+.ah-markdown li {
+  @apply mb-2;
+}
+
+.ah-markdown code {
+  @apply font-mono text-sm;
+  @apply px-1.5 py-0.5;
+  @apply rounded;
+  background: var(--ah-bg-tertiary);
+}
+
+.ah-markdown pre {
+  @apply mb-4 p-4;
+  @apply rounded-xl overflow-x-auto;
+  background: var(--ah-bg-tertiary);
+}
+
+.ah-markdown pre code {
+  @apply bg-transparent p-0;
+}
+
+.ah-markdown blockquote {
+  @apply mb-4 pl-4;
+  @apply border-l-4;
+  @apply italic;
+  border-color: #3b82f6;
+  color: var(--ah-text-secondary);
+}
+
+.ah-markdown a {
+  @apply text-primary-500 hover:text-primary-600;
+  @apply underline;
+}
+
+.ah-markdown table {
+  @apply w-full mb-4;
+  @apply border-collapse;
+}
+
+.ah-markdown th,
+.ah-markdown td {
+  @apply px-4 py-2;
+  @apply text-left;
+  border: 1px solid var(--ah-border-primary);
+}
+
+.ah-markdown th {
+  @apply font-semibold;
+  background: var(--ah-bg-secondary);
+}
+
+.ah-markdown hr {
+  @apply my-6;
+  border-color: var(--ah-border-primary);
+}

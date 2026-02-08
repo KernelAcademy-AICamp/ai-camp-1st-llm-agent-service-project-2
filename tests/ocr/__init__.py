@@ -1,3 +1,0 @@
-"""
-OCR Pipeline Tests
-"""

@@ -1,0 +1,345 @@
+.sidebar {
+  width: 260px;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e5e5;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  transition: width 0.3s ease;
+}
+
+/* Collapsed state */
+.sidebar.sidebar-collapsed {
+  width: 64px;
+}
+
+/* Sidebar Header with Logo */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #e5e5e5;
+  min-height: 64px;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar-logo:hover {
+  opacity: 0.7;
+}
+
+.sidebar-logo-icon {
+  font-size: 24px;
+}
+
+.sidebar-logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #666666;
+  transition: all 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  background-color: #f5f5f5;
+  color: #333333;
+}
+
+/* Collapsed header adjustments */
+.sidebar.sidebar-collapsed .sidebar-header {
+  padding: 16px 12px;
+  justify-content: center;
+}
+
+.sidebar.sidebar-collapsed .sidebar-toggle {
+  width: 40px;
+  height: 40px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 0;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 4px;
+}
+
+.sidebar-section-header {
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+  text-align: left;
+}
+
+/* Collapsed section header */
+.sidebar.sidebar-collapsed .sidebar-section-header {
+  padding: 12px;
+  justify-content: center;
+}
+
+.sidebar-section-header:hover {
+  background-color: #f5f5f5;
+}
+
+.sidebar-section-header.active {
+  color: var(--color-primary, #1e40af);
+  background-color: var(--color-primary-light, #dbeafe);
+}
+
+.sidebar-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Collapsed section title */
+.sidebar.sidebar-collapsed .sidebar-section-title {
+  gap: 0;
+}
+
+.sidebar-section-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sidebar-section-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #999999;
+  transition: transform 0.2s ease;
+}
+
+.sidebar-section-items {
+  padding: 4px 0;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebar-item {
+  width: 100%;
+  padding: 10px 16px 10px 44px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #666666;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.sidebar-item:hover {
+  background-color: #f5f5f5;
+  color: #333333;
+}
+
+.sidebar-item.active {
+  background-color: var(--color-primary-light, #dbeafe);
+  color: var(--color-primary, #1e40af);
+  font-weight: 500;
+}
+
+.sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--color-primary, #1e40af);
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #e5e5e5;
+  background-color: #fafafa;
+}
+
+/* Collapsed footer */
+.sidebar.sidebar-collapsed .sidebar-footer {
+  padding: 12px;
+}
+
+/* User Info Section */
+.sidebar-user {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-email {
+  font-size: 12px;
+  color: #666666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background-color: var(--color-primary, #1e40af);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-logout-btn:hover {
+  background-color: var(--color-primary-hover, #1e3a8a);
+}
+
+.sidebar-logout-collapsed {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+
+/* Auth buttons (for non-authenticated users) */
+.sidebar-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-auth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: transparent;
+  color: #374151;
+  border: 1px solid #e5e5e5;
+}
+
+.sidebar-auth-btn:hover {
+  background-color: #f5f5f5;
+}
+
+.sidebar-auth-signup {
+  background: linear-gradient(135deg, #1E40AF 0%, #7C3AED 100%);
+  color: white;
+  border: none;
+}
+
+.sidebar-auth-signup:hover {
+  opacity: 0.9;
+  background: linear-gradient(135deg, #1E40AF 0%, #7C3AED 100%);
+}
+
+/* Collapsed auth button */
+.sidebar.sidebar-collapsed .sidebar-auth-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+
+.sidebar-version {
+  font-size: 12px;
+  color: #999999;
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: #d1d1d1;
+  border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: #b1b1b1;
+}

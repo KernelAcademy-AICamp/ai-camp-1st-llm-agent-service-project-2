@@ -1,0 +1,133 @@
+{
+  "timestamp": "2025-11-30T20:21:50.563074",
+  "test_queries": [
+    "형법 제250조 살인죄의 구성요건은 무엇인가요?",
+    "정당방위의 성립요건에 대해 설명해주세요.",
+    "절도죄와 강도죄의 차이점은 무엇인가요?",
+    "명예훼손죄와 모욕죄는 어떻게 다른가요?",
+    "사기죄의 기망행위 요건에 대해 알려주세요."
+  ],
+  "v1": {
+    "results": [
+      {
+        "name": "v1_query_1",
+        "success": true,
+        "latency_ms": 11140.59,
+        "status_code": 200,
+        "response_length": 10633,
+        "answer_length": 376,
+        "sources_count": 5
+      },
+      {
+        "name": "v1_query_2",
+        "success": true,
+        "latency_ms": 7936.91,
+        "status_code": 200,
+        "response_length": 10075,
+        "answer_length": 252,
+        "sources_count": 5
+      },
+      {
+        "name": "v1_query_3",
+        "success": true,
+        "latency_ms": 13223.92,
+        "status_code": 200,
+        "response_length": 12730,
+        "answer_length": 399,
+        "sources_count": 5
+      },
+      {
+        "name": "v1_query_4",
+        "success": true,
+        "latency_ms": 13380.61,
+        "status_code": 200,
+        "response_length": 14242,
+        "answer_length": 406,
+        "sources_count": 5
+      },
+      {
+        "name": "v1_query_5",
+        "success": true,
+        "latency_ms": 11477.05,
+        "status_code": 200,
+        "response_length": 11780,
+        "answer_length": 416,
+        "sources_count": 5
+      }
+    ],
+    "stats": {
+      "total_tests": 5,
+      "success_count": 5,
+      "success_rate": 100.0,
+      "avg_latency_ms": 11431.82,
+      "min_latency_ms": 7936.91,
+      "max_latency_ms": 13380.61,
+      "avg_answer_length": 370.0,
+      "avg_sources_count": 5.0
+    }
+  },
+  "v2": {
+    "results": [
+      {
+        "name": "v2_query_1",
+        "success": true,
+        "latency_ms": 9000.04,
+        "status_code": 200,
+        "response_length": 1725,
+        "answer_length": 187,
+        "sources_count": 5
+      },
+      {
+        "name": "v2_query_2",
+        "success": true,
+        "latency_ms": 10523.46,
+        "status_code": 200,
+        "response_length": 1837,
+        "answer_length": 236,
+        "sources_count": 5
+      },
+      {
+        "name": "v2_query_3",
+        "success": true,
+        "latency_ms": 10106.46,
+        "status_code": 200,
+        "response_length": 1904,
+        "answer_length": 228,
+        "sources_count": 5
+      },
+      {
+        "name": "v2_query_4",
+        "success": true,
+        "latency_ms": 10294.56,
+        "status_code": 200,
+        "response_length": 2173,
+        "answer_length": 282,
+        "sources_count": 5
+      },
+      {
+        "name": "v2_query_5",
+        "success": true,
+        "latency_ms": 10290.97,
+        "status_code": 200,
+        "response_length": 1863,
+        "answer_length": 235,
+        "sources_count": 5
+      }
+    ],
+    "stats": {
+      "total_tests": 5,
+      "success_count": 5,
+      "success_rate": 100.0,
+      "avg_latency_ms": 10043.1,
+      "min_latency_ms": 9000.04,
+      "max_latency_ms": 10523.46,
+      "avg_answer_length": 234.0,
+      "avg_sources_count": 5.0
+    }
+  },
+  "comparison": {
+    "latency_diff_ms": 1388.72,
+    "latency_improvement_pct": 12.15,
+    "v2_faster": true
+  }
+}

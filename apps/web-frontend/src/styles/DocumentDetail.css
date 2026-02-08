@@ -1,0 +1,184 @@
+/* Base page styling - research/cases와 통일 */
+.document-detail-page {
+  background: var(--color-background, #f8f9fa);
+  min-height: calc(100vh - 64px);
+}
+
+/* Loading state */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  padding: 2rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-container p {
+  color: #718096;
+  font-size: 0.95rem;
+}
+
+/* Error state */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  padding: 2rem;
+}
+
+.error-message {
+  padding: 1.5rem 2rem;
+  background: #fed7d7;
+  color: #742a2a;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  max-width: 400px;
+  text-align: center;
+}
+
+.error-container .btn-back {
+  padding: 0.5rem 1.5rem;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #4a5568;
+  transition: background-color 0.2s;
+}
+
+.error-container .btn-back:hover {
+  background: #cbd5e0;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-uploaded {
+  background: #bee3f8;
+  color: #2b6cb0;
+}
+
+.status-ocr_done {
+  background: #feebc8;
+  color: #c05621;
+}
+
+.status-preprocessed {
+  background: #e9d8fd;
+  color: #6b46c1;
+}
+
+.status-embedded {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.status-failed {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .document-detail-page.three-panel {
+    height: auto;
+    min-height: calc(100vh - 64px);
+    overflow: visible;
+  }
+}
+
+/* Print styles */
+@media print {
+  .document-detail-page {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+/* Legacy styles preserved for potential fallback */
+.document-detail-container {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.document-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.btn-back {
+  padding: 0.5rem 1rem;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.btn-back:hover {
+  background: #cbd5e0;
+}
+
+.document-header h1 {
+  margin: 1rem 0;
+  color: #1a1a1a;
+  font-size: 1.75rem;
+}
+
+.document-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.btn-danger {
+  padding: 0.5rem 1.5rem;
+  background: #f56565;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #e53e3e;
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -1,0 +1,23 @@
+"""
+Backend API URL Configuration
+"""
+
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/v1/', include('api.v1.urls')),
+    path('api/v1/cases/', include('cases.urls')),  # Case CRUD API
+    path('api/v1/documents/', include('documents.urls')),  # Document CRUD API
+    path('api/v1/', include('organizations.urls')),  # Organization & Project CRUD API
+    path('api/v1/llm/', include('llm.urls')),  # LLM Models & Comparison API
+    path('api/v1/', include('crawler.urls')),  # Crawler API
+    path('api/v1/users/', include('users.urls')),  # User & Search History API
+]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

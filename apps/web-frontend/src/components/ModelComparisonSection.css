@@ -1,0 +1,535 @@
+/**
+ * ModelComparisonSection Styles
+ * 문서 상세 페이지에 통합된 LLM 모델 비교 섹션 스타일
+ */
+
+.model-comparison-section {
+  margin-bottom: 1.5rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.mcs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mcs-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.mcs-content {
+  padding: 0;
+}
+
+/* Error */
+.mcs-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.mcs-error button {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+/* Model Selection */
+.mcs-model-selection {
+  margin-bottom: 1.5rem;
+}
+
+.mcs-model-selection h4,
+.mcs-task-selection h4,
+.mcs-custom-question h4,
+.mcs-summary h4,
+.mcs-table-container h4,
+.mcs-responses h4,
+.mcs-errors h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mcs-loading,
+.mcs-empty {
+  padding: 1rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.mcs-select-all {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mcs-select-all label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.mcs-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.mcs-model-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: white;
+}
+
+.mcs-model-item:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.mcs-model-item.selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.mcs-model-item input[type="checkbox"] {
+  margin-top: 2px;
+}
+
+.mcs-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcs-model-name {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 0.85rem;
+}
+
+.mcs-model-provider {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.mcs-default-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  width: fit-content;
+}
+
+/* Task Selection */
+.mcs-task-selection {
+  margin-bottom: 1.5rem;
+}
+
+.mcs-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.mcs-task-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.mcs-task-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.mcs-task-btn.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.mcs-task-label {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 0.85rem;
+  margin-bottom: 2px;
+}
+
+.mcs-task-desc {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* Custom Question */
+.mcs-custom-question {
+  margin-bottom: 1.5rem;
+}
+
+.mcs-custom-question textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.mcs-custom-question textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Compare Button */
+.mcs-compare-btn {
+  width: 100%;
+  padding: 1rem;
+  background: var(--color-primary, #1e40af);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 1.5rem;
+}
+
+.mcs-compare-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover, #1e3a8a);
+  transform: translateY(-1px);
+}
+
+.mcs-compare-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Loading State */
+.mcs-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.mcs-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top-color: var(--color-primary, #1e40af);
+  border-radius: 50%;
+  animation: mcs-spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes mcs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mcs-loading-state p {
+  margin: 0 0 0.5rem;
+  font-weight: 500;
+}
+
+.mcs-loading-state small {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+/* Results */
+.mcs-results {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1.5rem;
+}
+
+/* Summary */
+.mcs-summary {
+  margin-bottom: 1.5rem;
+}
+
+.mcs-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.mcs-summary-item {
+  background: #f9fafb;
+  padding: 0.75rem;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.mcs-summary-item .label {
+  display: block;
+  font-size: 0.7rem;
+  color: #6b7280;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.mcs-summary-item .value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.mcs-summary-item .value.success {
+  color: #059669;
+}
+
+/* Table */
+.mcs-table-container {
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+}
+
+.mcs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.mcs-table th,
+.mcs-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mcs-table th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  background: #f9fafb;
+}
+
+.mcs-table td {
+  color: #374151;
+}
+
+.mcs-table td small {
+  display: block;
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.mcs-table .error-row {
+  background: #fef2f2;
+}
+
+.mcs-model-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcs-model-cell strong {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.mcs-model-cell small {
+  color: #6b7280;
+}
+
+.mcs-model-cell .badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* Status Badge */
+.mcs-status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 4px;
+}
+
+.mcs-status-badge.success {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.mcs-status-badge.error {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Best Badge */
+.mcs-best-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 0.6rem;
+  font-weight: 500;
+  border-radius: 4px;
+}
+
+.mcs-best-badge.fastest {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.mcs-best-badge.cheapest {
+  background: #d1fae5;
+  color: #059669;
+}
+
+/* Response Cards */
+.mcs-responses {
+  margin-bottom: 1.5rem;
+}
+
+.mcs-responses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.mcs-response-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mcs-response-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mcs-response-header strong {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 0.875rem;
+}
+
+.mcs-response-content {
+  padding: 1rem;
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.6;
+  max-height: 250px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.mcs-response-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* Error Messages */
+.mcs-errors {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.mcs-errors h4 {
+  color: #dc2626;
+}
+
+.mcs-error-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #fecaca;
+  font-size: 0.8rem;
+}
+
+.mcs-error-item:last-child {
+  border-bottom: none;
+}
+
+.mcs-error-item strong {
+  color: #b91c1c;
+  margin-right: 0.5rem;
+}
+
+.mcs-error-item span {
+  color: #7f1d1d;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mcs-model-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mcs-task-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mcs-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mcs-responses-grid {
+    grid-template-columns: 1fr;
+  }
+}

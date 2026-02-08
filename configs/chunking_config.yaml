@@ -1,0 +1,103 @@
+# 청킹 전략 설정
+# 데이터 타입별 최적화된 청킹 전략 매핑
+# 수정일: 2025-11-29
+# 변경사항: 원천데이터에 구조적 청킹 전략 적용
+
+chunking:
+  # ==========================================
+  # 데이터 타입별 전략 매핑
+  # ==========================================
+  strategy_map:
+    # Training 원천데이터 (CSV) - 구조적 청킹 적용
+    TS_법령: legal_article           # 조문 단위 구조적 청킹
+    TS_판결문: precedent_auto        # 섹션 기반 자동 감지 청킹
+    TS_결정례: precedent_auto        # 패턴 매칭 섹션 감지 청킹
+    TS_해석례: interpretation        # 질의/회답 구조 보존 청킹
+
+    # Validation 원천데이터 (CSV) - 동일 전략 적용
+    VS_법령: legal_article
+    VS_판결문: precedent_auto
+    VS_결정례: precedent_auto
+    VS_해석례: interpretation
+
+    # Training 라벨링 QA (JSON)
+    TL_법령_QA: qa_preserve
+    TL_판결문_QA: qa_preserve
+    TL_결정례_QA: qa_preserve
+    TL_해석례_QA: qa_preserve
+
+    # Validation 라벨링 QA (JSON) - ✅ 신규 추가
+    VL_법령_QA: qa_preserve
+    VL_판결문_QA: qa_preserve
+    VL_결정례_QA: qa_preserve
+    VL_해석례_QA: qa_preserve
+
+    # Training 라벨링 SUM (JSON) - qa_preserve로 변경 (요약문은 짧으므로 전체 보존)
+    TL_판결문_SUM: qa_preserve
+    TL_결정례_SUM: qa_preserve
+    TL_해석례_SUM: qa_preserve
+
+    # Validation 라벨링 SUM (JSON) - qa_preserve로 변경
+    VL_판결문_SUM: qa_preserve
+    VL_결정례_SUM: qa_preserve
+    VL_해석례_SUM: qa_preserve
+
+  # 기본 전략
+  default_strategy: sliding_window     # ✅ fixed → sliding_window
+
+  # ==========================================
+  # 전략별 상세 설정
+  # ==========================================
+  strategies:
+    legal_article:
+      chunk_size: 512
+      max_chunk_size: 800              # ✅ 1000 → 800
+      include_header: true
+      split_by_paragraph: true         # ✅ 신규 추가
+      hard_max_size: 1500              # ⭐ 절대 최대 크기 (이 이상은 강제 분할)
+      overlap: 100                      # ⭐ 분할 시 overlap
+
+    precedent_auto:
+      chunk_size: 600
+      overlap: 100                       # ✅ 50 → 100 (문맥 연속성 보장)
+      auto_detect_sections: true
+
+    # ✅ 신규 추가: 해석례 전용 전략
+    interpretation:
+      max_length: 1000
+      preserve_qa_structure: true
+      max_chunk_size: 1500             # ⭐ 개별 청크 최대 크기 (긴 [이유] 섹션 분할용)
+      overlap: 100                      # ⭐ 분할 시 overlap
+      query_patterns:
+        - "[질의요지]"
+        - "질의:"
+        - "Q:"
+      response_patterns:
+        - "[회신]"
+        - "[이유]"                       # ⭐ 이유 섹션 추가
+        - "회신:"
+        - "A:"
+      fallback_strategy: sliding_window
+
+    qa_preserve:
+      max_length: 1000                 # ✅ 2000 → 1000
+      preserve_whole: true
+      hard_max_size: 1500              # ⭐ 절대 최대 크기 (이 이상은 강제 분할)
+      overlap: 100                      # ⭐ 분할 시 오버랩
+
+    sliding_window:
+      window_size: 512
+      step_size: 412                     # ✅ 256 → 412 (overlap 100)
+
+    fixed:
+      chunk_size: 512
+      overlap: 100                       # ✅ 50 → 100
+
+    recursive:
+      separators:
+        - "\n\n"
+        - "\n"
+        - ". "
+        - " "
+      chunk_size: 512
+      overlap: 100                       # ✅ 50 → 100

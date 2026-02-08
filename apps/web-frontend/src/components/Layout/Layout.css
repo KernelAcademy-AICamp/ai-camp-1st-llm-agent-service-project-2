@@ -1,0 +1,19 @@
+.layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  background-color: #ffffff;
+}
+
+.layout-main {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background-color: #fafafa;
+  transition: margin-left 0.3s ease;
+}
+
+/* 사이드바 접힘 상태일 때 main 영역 확장 */
+.layout.sidebar-collapsed .layout-main {
+  margin-left: 0;
+}

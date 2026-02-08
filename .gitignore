@@ -115,14 +115,51 @@ htmlcov/
 tmp/
 temp/
 
-# ===================================
-# OCR Pipeline Outputs
-# ===================================
-# 처리 결과 (개인 테스트용)
-imaged_pdf_output*/
-test_results/
-output/
-results/
+# ==========================================
+# Monorepo 추가 설정
+# ==========================================
 
-# 테스트용 로그
+# Media files (uploaded documents)
+apps/backend_api/media/
+
+# Data directories
+data/vectordb/
+data/uploads/
+data/raw/
+data/pipeline_metrics/
+
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Logs
 *.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Node.js
+node_modules/
+
+# ===================================
+# Documentation (keep local only)
+# ===================================
+docs/
+CLAUDE.md
+.claude/
+
+*.log
+backups/
+
+workspace/
