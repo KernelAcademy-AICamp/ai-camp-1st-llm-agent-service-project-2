@@ -338,6 +338,7 @@ class CriminalLawDataLoader:
             content = article['content']
             article_num = article['article_num']
             article_title = article.get('article_title', '')
+            chapter_context = article.get('chapter_context', '')
 
             # ⭐ 매핑된 법령명으로 헤더 생성
             if law_title and article_title:
@@ -364,6 +365,7 @@ class CriminalLawDataLoader:
                     'mst': mst,
                     'article_num': article_num,
                     'article_title': article_title,
+                    'chapter_context': chapter_context,  # 장/절 컨텍스트 추가
                     # ⭐ 매핑에서 가져온 메타데이터
                     'law_title': law_title,
                     'ministry': mapped_meta.get('ministry', ''),
@@ -381,12 +383,17 @@ class CriminalLawDataLoader:
         """
         CSV 데이터를 조문 단위로 그룹화
 
+        개선사항:
+        - 장/절 제목(제N장, 제N절)은 다음 조문에 병합하여 컨텍스트 유지
+        - 독립적인 장/절 제목 청크 생성 방지
+
         Returns:
             [{'article_num': '제1조', 'article_title': '목적', 'content': '...'}, ...]
         """
         articles = []
         current_article = None
         current_content = []
+        pending_headers = []  # 장/절 제목을 임시 저장
 
         for _, row in df.iterrows():
             gubun = str(row.get('구분', '')).strip()
@@ -397,32 +404,83 @@ class CriminalLawDataLoader:
 
             # 새 조문 시작 감지
             if gubun == '조문':
-                # 이전 조문 저장
-                if current_article is not None and current_content:
-                    articles.append({
-                        'article_num': current_article['num'],
-                        'article_title': current_article['title'],
-                        'content': '\n'.join(current_content)
-                    })
-
-                # 새 조문 시작 - 조문 번호와 제목 추출
+                # 조문 번호 패턴 (제N조, 제N조의N)
                 article_match = re.match(r'(제\d+조(?:의\d+)?)\s*(?:\(([^)]+)\))?', content)
+
+                # 장/절 제목 패턴 (제N장, 제N절, 제N편 등)
+                chapter_match = re.match(r'^(제\d+[장절편관])\s*(.*)$', content)
+
                 if article_match:
+                    # 실제 조문인 경우
+
+                    # 이전 조문 저장
+                    if current_article is not None and current_content:
+                        articles.append({
+                            'article_num': current_article['num'],
+                            'article_title': current_article['title'],
+                            'content': '\n'.join(current_content),
+                            'chapter_context': current_article.get('chapter', '')
+                        })
+
+                    # 새 조문 시작
                     current_article = {
                         'num': article_match.group(1),
-                        'title': article_match.group(2) or ''
+                        'title': article_match.group(2) or '',
+                        'chapter': '\n'.join(pending_headers) if pending_headers else ''
                     }
-                else:
-                    # 장/절 제목 등
-                    current_article = {'num': content[:20], 'title': ''}
 
-                current_content = [content]
+                    # 장/절 컨텍스트가 있으면 먼저 추가
+                    if pending_headers:
+                        current_content = pending_headers + [content]
+                        pending_headers = []
+                    else:
+                        current_content = [content]
+
+                elif chapter_match:
+                    # 장/절 제목인 경우 - 다음 조문을 위해 보관
+                    # 이전 조문이 있으면 먼저 저장
+                    if current_article is not None and current_content:
+                        articles.append({
+                            'article_num': current_article['num'],
+                            'article_title': current_article['title'],
+                            'content': '\n'.join(current_content),
+                            'chapter_context': current_article.get('chapter', '')
+                        })
+                        current_article = None
+                        current_content = []
+
+                    # 장/절 제목 보관
+                    pending_headers.append(content)
+
+                else:
+                    # 기타 (부칙 등)
+                    if current_article is not None and current_content:
+                        articles.append({
+                            'article_num': current_article['num'],
+                            'article_title': current_article['title'],
+                            'content': '\n'.join(current_content),
+                            'chapter_context': current_article.get('chapter', '')
+                        })
+
+                    current_article = {
+                        'num': content[:20],
+                        'title': '',
+                        'chapter': '\n'.join(pending_headers) if pending_headers else ''
+                    }
+
+                    if pending_headers:
+                        current_content = pending_headers + [content]
+                        pending_headers = []
+                    else:
+                        current_content = [content]
             else:
-                # 현재 조문에 추가 (항, 호, 목)
+                # 항, 호, 목 등
                 if current_article is not None:
                     current_content.append(content)
+                elif pending_headers:
+                    # 장/절 제목 뒤에 바로 항/호/목이 오는 경우
+                    pending_headers.append(content)
                 else:
-                    # 조문 없이 시작하는 경우 (장/절 제목 등)
                     current_content.append(content)
 
         # 마지막 조문 저장
@@ -430,14 +488,29 @@ class CriminalLawDataLoader:
             articles.append({
                 'article_num': current_article['num'],
                 'article_title': current_article['title'],
-                'content': '\n'.join(current_content)
+                'content': '\n'.join(current_content),
+                'chapter_context': current_article.get('chapter', '')
             })
-        elif current_content:  # 조문 없이 전체가 하나인 경우
+        elif current_content:
+            # 조문 없이 전체가 하나인 경우
+            all_content = (pending_headers if pending_headers else []) + current_content
             articles.append({
                 'article_num': '전체',
                 'article_title': '',
-                'content': '\n'.join(current_content)
+                'content': '\n'.join(all_content),
+                'chapter_context': ''
             })
+        elif pending_headers:
+            # 장/절 제목만 남은 경우 (거의 없겠지만)
+            # 최소 50자 이상일 때만 생성
+            combined = '\n'.join(pending_headers)
+            if len(combined) >= 50:
+                articles.append({
+                    'article_num': '목차',
+                    'article_title': '',
+                    'content': combined,
+                    'chapter_context': ''
+                })
 
         return articles
 

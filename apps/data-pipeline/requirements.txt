@@ -16,7 +16,7 @@ psycopg2-binary>=2.9.0
 sqlalchemy>=2.0.0
 
 # Vector DB Clients
-qdrant-client>=1.7.0
+qdrant-client>=1.16.0,<1.17.0
 
 # Progress bars
 tqdm>=4.65.0
