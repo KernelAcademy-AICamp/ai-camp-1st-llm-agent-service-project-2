@@ -156,6 +156,8 @@ node_modules/
 # Documentation (keep local only)
 # ===================================
 docs/
+CLAUDE.md
+.claude/
 
 *.log
 backups/
