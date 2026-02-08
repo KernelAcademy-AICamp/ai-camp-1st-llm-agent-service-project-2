@@ -46,9 +46,9 @@ _본 레포지토리는 'LLM Agent 서비스 개발'을 위한 템플릿입니�
 
 ### 4.1. 개발 환경 통일
 - **Python 버전**: 3.11
-- **OS**: `[예: Ubuntu 22.04 LTS 또는 Windows 11]`
+- **OS**: Windows, Linux, macOS
 - **주요 라이브러리**: `requirements.txt` 참조
-- 실험용 개별 라이브러리 : 이니셜_requirements `[예 : jy_requirements]`
+- 실험용 개별 라이브러리 : 이니셜_requirements (Optional)
 
 ### 4.2. Monorepo 구조로 설치 및 실행
 
@@ -91,7 +91,7 @@ Django Admin: http://localhost:8000/admin
 
 #### 5. **AI Service 실행** (선택)
 ```bash
-cd apps/ai-service
+cd apps/ai_service
 
 # 의존성 설치
 pip install -r requirements.txt
@@ -123,7 +123,7 @@ Frontend: http://localhost:3000
 ai-camp-1st-llm-agent-service-project-2/
 ├── apps/
 │   ├── backend_api/         # Django Backend (비즈니스 로직, 포트 8000)
-│   ├── ai-service/          # FastAPI AI Service (AI 전용, 포트 8001)
+│   ├── ai_service/          # FastAPI AI Service (AI 전용, 포트 8001)
 │   ├── web-frontend/        # React Frontend (포트 3000)
 │   └── data-pipeline/       # ETL 파이프라인
 │
@@ -140,7 +140,7 @@ ai-camp-1st-llm-agent-service-project-2/
 ### 5.1. Monorepo 전환 정보
 
 **변경 사항**:
-- ✅ `backend/` → `apps/backend/`
+- ✅ `backend/` → `apps/backend_api/`
 - ✅ `frontend/` → `apps/web-frontend/`
 - ✅ `backend/core/` → `libs/rag_core/` (공통 RAG 로직 분리)
 - ✅ 독립 실행 가능: 각 앱이 독립적으로 실행 가능
@@ -169,7 +169,7 @@ ai-camp-1st-llm-agent-service-project-2/
 ./scripts/test_integration.sh
 
 # Backend 단위 테스트
-cd apps/backend
+cd apps/backend_api
 pytest
 
 # Frontend 테스트
@@ -231,16 +231,16 @@ develop 브랜치에 Merge
 
 -   **[➡️ 서비스 기획서](https://www.notion.so/29ba3f519ab880b1a168dad52663301a)`**
 -   **[➡️ 요구사항 명세서](https://www.notion.so/29ba3f519ab880b1a168dad52663301a)`**
--   **[➡️ 시스템 아키텍처 다이어그램]([링크])`**
--   **[➡️ 데이터베이스 ERD]([링크])`**
--   **[➡️ 팀 WBS / Scrum 보드]([링크])`**
+-   **[➡️ 시스템 아키텍처 다이어그램](#)`**
+-   **[➡️ 데이터베이스 ERD](#)`**
+-   **[➡️ 팀 WBS / Scrum 보드](#)`**
 -   **[➡️ API 문서](http://localhost:8000/docs)** (백엔드 실행 후)
 
 ---
 
 ## 11. 🏁 최종 결과물 (Final Deliverables)
 
-1.  **웹 UI 기반 서비스**: `[최종 배포된 서비스 URL]`
+1.  **웹 UI 기반 서비스**: `(TBD)`
 2.  **데이터 처리 모듈**: 데이터 수집, 전처리, 배치 프로세싱 모듈 소스코드
 3.  **임베딩 및 DB 모듈**: 임베딩 추출 및 Vector DB 저장 모듈 소스코드
 4.  **핵심 기능 모듈**: RAG 응답, 유사 논문 추천, 비교, 트렌드 분석 모듈 코드
